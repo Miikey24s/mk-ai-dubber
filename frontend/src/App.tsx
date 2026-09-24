@@ -1,6 +1,7 @@
 import React from 'react';
 import { Header } from '@/components/header/Header';
 import { SystemBar } from '@/components/header/SystemBar';
+import { QuickImportBar } from '@/components/import/QuickImportBar';
 import { VideoPlayer } from '@/components/monitor/VideoPlayer';
 import { WaveformPlayer } from '@/components/monitor/WaveformPlayer';
 import { ProTelemetryGrid } from '@/components/telemetry/ProTelemetryGrid';
@@ -19,12 +20,15 @@ export const App: React.FC = () => {
 
       {/* Main Cockpit Workspace */}
       <main className="flex-1 min-h-0 w-full p-2.5 grid grid-cols-12 gap-2.5 overflow-hidden">
-        {/* Left Column: 16:9 Video Monitor + A/B Waveform Player + Tabbed Pro Telemetry Drawer */}
+        {/* Left Column: Quick Ingest Strip + 16:9 Video Monitor + A/B Waveform Player + Tabbed Pro Telemetry Drawer */}
         <section
           aria-label="Media Monitor & Telemetry Rack"
-          className="col-span-12 lg:col-span-5 h-full overflow-hidden flex flex-col gap-2.5"
+          className="col-span-12 lg:col-span-5 h-full overflow-hidden flex flex-col gap-2 min-h-0"
         >
-          {/* Upper: 16:9 Studio Master Video Monitor */}
+          {/* Top of Left Rack: Prominent Quick Ingest Bar (YouTube URL / Local Video File) */}
+          <QuickImportBar />
+
+          {/* Upper: 16:9 Studio Master Video Monitor with Drag & Drop */}
           <VideoPlayer />
 
           {/* Middle: A/B Waveform Audition Player */}
@@ -37,7 +41,7 @@ export const App: React.FC = () => {
         {/* Right Column: Bilingual Segment Reviewer */}
         <section
           aria-label="Bilingual Segment Review Deck"
-          className="col-span-12 lg:col-span-7 h-full overflow-hidden"
+          className="col-span-12 lg:col-span-7 h-full overflow-hidden min-h-0"
         >
           <SegmentReviewer />
         </section>

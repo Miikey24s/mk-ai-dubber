@@ -126,25 +126,25 @@ export const ProTelemetryGrid: React.FC = () => {
       </div>
 
       {/* Tab Content Drawer */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 text-xs">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2.5 text-xs">
         {/* Tab 1: CUDA VRAM */}
         {activeTab === 'cuda' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
-              <span className="text-xs text-slate-700 dark:text-slate-300 font-bold">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
+              <span className="text-xs text-slate-700 dark:text-slate-300 font-bold truncate max-w-[200px]">
                 {cudaMetrics?.device_name || systemStatus.gpu_name.split('(')[0]}
               </span>
               <Badge variant="info">TORCH CUDA ALLOCATOR</Badge>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 dark:text-slate-400">Allocated / Reserved / Total:</span>
                 <span className="text-slate-800 dark:text-slate-200 font-bold">
                   {formatBytes(allocated)} / {formatBytes(reserved)} / {formatBytes(total)}
                 </span>
               </div>
-              <div className="relative w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="relative w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="absolute top-0 bottom-0 bg-sky-900/60 rounded-full"
                   style={{ width: `${reservedPct}%` }}
@@ -157,20 +157,20 @@ export const ProTelemetryGrid: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                <span className="text-slate-600 dark:text-slate-400 block text-[11px]">{t('telemetry.vram_allocated')}</span>
-                <span className="font-bold text-sky-600 dark:text-sky-400 text-sm mt-0.5 block">{formatBytes(allocated)}</span>
-                <span className="text-slate-500 text-[10px]">{allocatedPct}% utilization</span>
+              <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                <span className="text-slate-600 dark:text-slate-400 block text-[10px]">{t('telemetry.vram_allocated')}</span>
+                <span className="font-bold text-sky-600 dark:text-sky-400 text-xs sm:text-sm mt-0.5 block">{formatBytes(allocated)}</span>
+                <span className="text-slate-500 text-[9px]">{allocatedPct}% utilization</span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                <span className="text-slate-600 dark:text-slate-400 block text-[11px]">{t('telemetry.vram_reserved')}</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block">{formatBytes(reserved)}</span>
-                <span className="text-slate-500 text-[10px]">{reservedPct}% pool</span>
+              <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                <span className="text-slate-600 dark:text-slate-400 block text-[10px]">{t('telemetry.vram_reserved')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 block">{formatBytes(reserved)}</span>
+                <span className="text-slate-500 text-[9px]">{reservedPct}% pool</span>
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                <span className="text-slate-600 dark:text-slate-400 block text-[11px]">{t('telemetry.vram_peak')}</span>
-                <span className="font-bold text-amber-600 dark:text-amber-400 text-sm mt-0.5 block">{formatBytes(peak)}</span>
-                <span className="text-slate-500 text-[10px]">High watermark</span>
+              <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                <span className="text-slate-600 dark:text-slate-400 block text-[10px]">{t('telemetry.vram_peak')}</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400 text-xs sm:text-sm mt-0.5 block">{formatBytes(peak)}</span>
+                <span className="text-slate-500 text-[9px]">High watermark</span>
               </div>
             </div>
           </div>

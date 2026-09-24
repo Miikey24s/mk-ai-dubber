@@ -274,10 +274,24 @@ def test_api_rerender_and_dub(client: TestClient, tmp_path: Path, monkeypatch: p
     assert "job_id" in dub_data
 
 
+def test_api_upload(client: TestClient) -> None:
+    res = client.post(
+        "/api/upload",
+        files={"file": ("video_sample.mp4", b"synthetic mp4 test content")},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["filename"] == "video_sample.mp4"
+    assert data["size_bytes"] == len(b"synthetic mp4 test content")
+    assert Path(data["file_path"]).is_file()
+
+
 def test_api_spa_fallback_or_redirect(client: TestClient) -> None:
     res = client.get("/")
     assert res.status_code in {200, 307}
     # Non-existent API path returns 404
     res_api_404 = client.get("/api/unknown_route")
     assert res_api_404.status_code == 404
+
 

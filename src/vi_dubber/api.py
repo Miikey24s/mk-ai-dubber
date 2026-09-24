@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Body, FastAPI, HTTPException, Request, status
+from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -476,6 +476,25 @@ def create_app() -> FastAPI:
     def rerender_job(job_id: str) -> dict[str, Any]:
         job_dir = _resolve_job_dir(job_id)
         return _trigger_job_resume(job_dir)
+
+    @app.post("/api/upload")
+    async def upload_media_file(file: UploadFile = File(...)) -> dict[str, Any]:
+        upload_dir = WORK_DIR / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = Path(file.filename or "uploaded_video.mp4").name
+        dest_path = upload_dir / safe_name
+        try:
+            with dest_path.open("wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        finally:
+            await file.close()
+
+        return {
+            "status": "ok",
+            "filename": safe_name,
+            "file_path": str(dest_path),
+            "size_bytes": dest_path.stat().st_size,
+        }
 
     @app.post("/api/dub")
     @app.post("/api/jobs")

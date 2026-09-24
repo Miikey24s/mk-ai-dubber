@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { ProfileType } from '@/types';
@@ -12,10 +12,12 @@ import {
   ShieldCheck,
   Zap,
   CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 export const JobCreatorModal: React.FC = () => {
-  const { isCreatorOpen, setIsCreatorOpen, setActiveJobId } = useJob();
+  const { isCreatorOpen, setIsCreatorOpen, droppedFile, setDroppedFile, createNewJob } = useJob();
   const { t } = useTranslation();
 
   const [sourceMode, setSourceMode] = useState<'youtube' | 'file'>('youtube');
@@ -26,6 +28,7 @@ export const JobCreatorModal: React.FC = () => {
   const [profile, setProfile] = useState<ProfileType>('balanced_best');
   const [voiceCloneEnabled, setVoiceCloneEnabled] = useState(false);
   const [voicePreset, setVoicePreset] = useState('natural_male');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [deepSettings, setDeepSettings] = useState({
     diarization: true,
@@ -40,17 +43,61 @@ export const JobCreatorModal: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (droppedFile) {
+      setSourceMode('file');
+      setLocalFile(droppedFile);
+    }
+  }, [droppedFile]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isCreatorOpen) {
+        setIsCreatorOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCreatorOpen, setIsCreatorOpen]);
+
   if (!isCreatorOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setErrorMessage(null);
 
-    setTimeout(() => {
+    if (sourceMode === 'youtube' && !youtubeUrl.trim()) {
+      setErrorMessage('Vui lòng nhập đường dẫn video YouTube hợp lệ.');
+      return;
+    }
+    if (sourceMode === 'file' && !localFile) {
+      setErrorMessage('Vui lòng chọn hoặc kéo thả tệp video từ máy.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const jobId = await createNewJob({
+        source: sourceMode,
+        youtubeUrl: youtubeUrl.trim(),
+        file: localFile || undefined,
+        profile,
+        model,
+        effort,
+        deepSettings,
+      });
+
+      if (jobId) {
+        setIsCreatorOpen(false);
+        setDroppedFile(null);
+      } else {
+        setErrorMessage('Không thể khởi chạy tác vụ. Vui lòng kiểm tra lại cấu hình.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Lỗi khi khởi chạy tác vụ.');
+    } finally {
       setIsSubmitting(false);
-      setIsCreatorOpen(false);
-      setActiveJobId('job-d2949bc6672e42a8');
-    }, 600);
+    }
   };
 
   return (
@@ -301,6 +348,14 @@ export const JobCreatorModal: React.FC = () => {
             onChange={setDeepSettings}
           />
 
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="flex items-center gap-2 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-md text-xs text-rose-500 dark:text-rose-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
             <button
@@ -313,10 +368,19 @@ export const JobCreatorModal: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded font-bold shadow-md shadow-orange-600/30 transition flex items-center gap-1.5"
+              className="px-5 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded font-bold shadow-md shadow-orange-600/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>{isSubmitting ? 'Starting Pipeline...' : t('creator.start_button')}</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Starting Pipeline...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t('creator.start_button')}</span>
+                </>
+              )}
             </button>
           </div>
         </form>

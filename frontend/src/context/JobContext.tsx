@@ -1,7 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { JobState, Segment, SystemStatus } from '@/types';
-import { fetchJobs, fetchSystemStatus, fetchJobSegments, updateSegmentReview, requestJobControl } from '@/lib/api';
+import {
+  fetchJobs,
+  fetchSystemStatus,
+  fetchJobSegments,
+  updateSegmentReview,
+  requestJobControl,
+  uploadMediaFile,
+  createDubJob,
+} from '@/lib/api';
 import { MOCK_JOBS, MOCK_SEGMENTS, MOCK_SYSTEM_STATUS } from '@/lib/mockData';
+
+interface CreateJobOptions {
+  source: 'youtube' | 'file';
+  youtubeUrl?: string;
+  file?: File;
+  profile?: string;
+  model?: string;
+  effort?: string;
+  deepSettings?: any;
+}
 
 interface JobContextType {
   jobs: JobState[];
@@ -28,6 +46,9 @@ interface JobContextType {
   setIsRawJsonOpen: (open: boolean) => void;
   isCreatorOpen: boolean;
   setIsCreatorOpen: (open: boolean) => void;
+  droppedFile: File | null;
+  setDroppedFile: (file: File | null) => void;
+  createNewJob: (options: CreateJobOptions) => Promise<string | null>;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -44,6 +65,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState<boolean>(false);
   const [isRawJsonOpen, setIsRawJsonOpen] = useState<boolean>(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState<boolean>(false);
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0] || null;
 
@@ -132,6 +154,61 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const createNewJob = async (options: CreateJobOptions): Promise<string | null> => {
+    try {
+      setLoading(true);
+      let inputPath: string | undefined;
+      const youtubeUrl: string | undefined = options.youtubeUrl;
+
+      if (options.source === 'file' && options.file) {
+        const uploadRes = await uploadMediaFile(options.file);
+        if (uploadRes.success && uploadRes.filePath) {
+          inputPath = uploadRes.filePath;
+        } else {
+          inputPath = `work/uploads/${options.file.name}`;
+        }
+      }
+
+      const res = await createDubJob({
+        input_path: inputPath,
+        youtube_url: youtubeUrl,
+        profile: options.profile || 'balanced_best',
+        translation_model: options.model,
+        translation_effort: options.effort,
+      });
+
+      if (res.jobId) {
+        const newJobState: JobState = {
+          id: res.jobId,
+          status: 'running',
+          stage: 'prepare',
+          progress: 0.05,
+          message: 'Pipeline started: Demucs vocal separation & WhisperX ASR...',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          metadata: {
+            input_name: (options.source === 'file' ? options.file?.name : options.youtubeUrl) || 'New Dubbing Ingest',
+            source_mode: options.source === 'youtube' ? 'YouTube' : 'Local',
+            profile: (options.profile as any) || 'balanced_best',
+            translation_model: options.model || 'chatgpt-web/gpt-5.6-sol',
+          },
+        };
+        setJobs(prev => [newJobState, ...prev.filter(j => j.id !== res.jobId)]);
+        setActiveJobId(res.jobId);
+        setCurrentTime(0);
+        setIsPlaying(true);
+        setTimeout(refreshJobs, 1000);
+        return res.jobId;
+      }
+      return null;
+    } catch (err) {
+      console.error('createNewJob error:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <JobContext.Provider
       value={{
@@ -159,6 +236,9 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsRawJsonOpen,
         isCreatorOpen,
         setIsCreatorOpen,
+        droppedFile,
+        setDroppedFile,
+        createNewJob,
       }}
     >
       {children}

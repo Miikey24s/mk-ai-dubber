@@ -5,13 +5,13 @@ import { useJob } from '@/context/JobContext';
 import { Badge } from '@/components/common/Badge';
 import {
   Volume2,
-  Plus,
   Moon,
   Sun,
   Code2,
   Terminal,
   Layers,
   ChevronDown,
+  UploadCloud,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -100,12 +100,13 @@ export const Header: React.FC = () => {
 
         {/* Right: Controls & Toggles */}
         <div className="flex items-center gap-2">
-          {/* New Job CTA */}
+          {/* Import Video & New Job CTA */}
           <button
             onClick={() => setIsCreatorOpen(true)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded text-xs font-semibold shadow-sm shadow-orange-600/30 transition font-mono"
+            className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded text-xs font-bold shadow-md shadow-orange-600/30 hover:scale-[1.02] transition font-mono cursor-pointer"
+            title="Nhập Video (.mp4, .mkv) hoặc link YouTube để bắt đầu lồng tiếng"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <UploadCloud className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{t('creator.new_job')}</span>
           </button>
 

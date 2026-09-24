@@ -102,8 +102,22 @@ const translations: Record<Language, Record<string, string>> = {
     'telemetry.qa_repairs': 'QA Automatic Repairs',
     'telemetry.raw_json': 'Inspect Raw JSON State',
 
+    // Import & Ingest
+    'import.title': 'Video & Media Ingest',
+    'import.import_video': 'Import Video / YouTube',
+    'import.youtube_tab': 'YouTube URL',
+    'import.file_tab': 'Local Media File',
+    'import.youtube_placeholder': 'Paste YouTube video URL (e.g. https://youtube.com/watch?v=...)',
+    'import.drop_hint': 'Drag & drop video (.mp4, .mkv, .mov) here or click to browse',
+    'import.dropzone_active': 'Drop video file here to start dubbing now!',
+    'import.browse_files': 'Browse Files',
+    'import.quick_dub': 'Start Dubbing',
+    'import.quick_bar_label': 'VIDEO INGEST',
+    'import.change_video': 'Change Video',
+    'import.processing': 'Ingesting & Launching...',
+
     // Job Creator
-    'creator.new_job': 'Create Dubbing Task',
+    'creator.new_job': 'Import Video / YouTube',
     'creator.source_type': 'Input Media Source',
     'creator.youtube_url': 'YouTube Video URL',
     'creator.youtube_placeholder': 'https://www.youtube.com/watch?v=...',
@@ -242,8 +256,22 @@ const translations: Record<Language, Record<string, string>> = {
     'telemetry.qa_repairs': 'Số lần sửa lỗi tự động QA',
     'telemetry.raw_json': 'Kiểm tra trạng thái JSON gốc',
 
+    // Import & Ingest
+    'import.title': 'Nhập & Tải Video / Âm thanh',
+    'import.import_video': 'Import Video / YouTube',
+    'import.youtube_tab': 'Đường dẫn YouTube',
+    'import.file_tab': 'Tệp từ máy tính',
+    'import.youtube_placeholder': 'Dán link video YouTube (VD: https://youtube.com/watch?v=...)',
+    'import.drop_hint': 'Kéo thả tệp video (.mp4, .mkv, .mov) vào đây hoặc bấm để chọn tệp',
+    'import.dropzone_active': 'Thả tệp video vào đây để bắt đầu lồng tiếng ngay!',
+    'import.browse_files': 'Chọn tệp',
+    'import.quick_dub': 'Bắt đầu Dub',
+    'import.quick_bar_label': 'NHẬP VIDEO',
+    'import.change_video': 'Đổi Video Mới',
+    'import.processing': 'Đang nạp video & khởi chạy...',
+
     // Job Creator
-    'creator.new_job': 'Tạo Tác vụ Lồng tiếng Mới',
+    'creator.new_job': '+ Import Video / YouTube',
     'creator.source_type': 'Nguồn Video/Audio',
     'creator.youtube_url': 'Đường dẫn YouTube',
     'creator.youtube_placeholder': 'https://www.youtube.com/watch?v=...',
