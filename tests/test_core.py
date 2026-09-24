@@ -1,6 +1,8 @@
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import threading
+import time
 
 import pytest
 
@@ -13,8 +15,10 @@ from vi_dubber.translate import (
     LocalTranslator,
     WebGptTranslator,
     _extract_json,
+    build_global_translation_context,
     build_translator,
 )
+from vi_dubber.terminology import TerminologyEntry, TerminologyGlossary
 from vi_dubber.types import Segment
 from vi_dubber.youtube import is_youtube_url
 
@@ -368,6 +372,113 @@ def test_webgpt_defaults_to_current_sol_model_and_allows_catalog_model_override(
     assert instant.model == "chatgpt-web/gpt-5.6-sol-instant"
     with pytest.raises(ValueError, match="instance 2"):
         WebGptTranslator({"webgpt_base_url": "http://127.0.0.1:17841/v1"}, tmp_path)
+
+
+def test_global_translation_context_is_compact_and_domain_aware() -> None:
+    glossary = TerminologyGlossary(
+        {"order block": "order block"},
+        entries=(
+            TerminologyEntry(
+                source="order block",
+                policy="PREFER_EN",
+                display="order block",
+                domain="trading",
+            ),
+            TerminologyEntry(
+                source="GPU",
+                policy="KEEP_EN",
+                display="GPU",
+                domain="ai/software",
+            ),
+        ),
+        profile={
+            "audience": "Vietnamese traders",
+            "register": "conversational/explanatory",
+        },
+    )
+    segments = [
+        Segment(id=index, start=float(index), end=float(index + 1), text=f"Segment {index}")
+        for index in range(9)
+    ]
+    segments[4].text = "Wait for price to revisit the order block before entry."
+
+    context = build_global_translation_context(
+        segments,
+        glossary,
+        sample_count=3,
+        max_source_chars=80,
+    )
+
+    assert context["audience_profile"]["audience"] == "Vietnamese traders"
+    assert context["video"]["segment_count"] == 9
+    assert [item["source"] for item in context["active_terminology"]] == ["order block"]
+    assert len(context["source_samples"]) == 3
+    assert sum(len(item["source_en"]) for item in context["source_samples"]) <= 80
+
+
+def test_webgpt_translation_request_identity_ignores_concurrency_setting(tmp_path: Path) -> None:
+    prompt = "translate this batch"
+    schema = {"type": "object"}
+    serial = WebGptTranslator({"webgpt_concurrency": 1}, tmp_path / "serial")
+    parallel = WebGptTranslator({"webgpt_concurrency": 3}, tmp_path / "parallel")
+
+    assert serial._translation_request_identity(prompt, schema) == parallel._translation_request_identity(prompt, schema)
+
+
+def test_webgpt_parallel_translation_is_bounded_and_preserves_batches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {
+            "codex_segments_per_batch": 1,
+            "context_window": 0,
+            "webgpt_concurrency": 2,
+            "global_context_enabled": True,
+        },
+        tmp_path,
+    )
+    lock = threading.Lock()
+    active = 0
+    peak_active = 0
+    seen_global_contexts: list[str] = []
+
+    def fake_run_json(prompt: str, schema: dict, label: str):
+        nonlocal active, peak_active
+        del schema, label
+        global_text = prompt.split("GlobalContextPack=", 1)[1].split("\nUse the global context", 1)[0]
+        payload = json.loads(prompt.split("INPUT=", 1)[1])
+        with lock:
+            active += 1
+            peak_active = max(peak_active, active)
+            seen_global_contexts.append(global_text)
+        time.sleep(0.04)
+        with lock:
+            active -= 1
+        return {
+            "translations": [
+                {"id": item["id"], "vi": f"VI-{item['id']}"}
+                for item in payload
+            ]
+        }
+
+    monkeypatch.setattr(translator, "_run_json", fake_run_json)
+    segments = [
+        Segment(id=index, start=float(index), end=float(index + 1), text=f"source {index}")
+        for index in range(4)
+    ]
+
+    result = translator.translate_segments(segments, {})
+
+    assert peak_active == 2
+    assert [item.vi for item in result] == ["VI-0", "VI-1", "VI-2", "VI-3"]
+    assert len(set(seen_global_contexts)) == 1
+    assert translator.stats()["translation_concurrency"] == 2
+
+
+def test_webgpt_concurrency_is_capped_at_three(tmp_path: Path) -> None:
+    translator = WebGptTranslator({"webgpt_concurrency": 99}, tmp_path)
+    assert translator.concurrency == 3
 
 
 def _seed_webgpt_translation_receipt(

@@ -6,8 +6,10 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 import tomllib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -17,7 +19,7 @@ from huggingface_hub import hf_hub_download
 
 from .pronunciation import normalize_pronunciation
 from .runtime import MODELS_DIR, PROJECT_ROOT, find_codex_exe, llama_server_exe
-from .terminology import glossary_prompt_json, load_terminology_glossary
+from .terminology import TerminologyGlossary, glossary_prompt_json, load_terminology_glossary
 from .types import Segment
 
 
@@ -39,8 +41,14 @@ Rules:
 """
 
 ProgressCallback = Callable[[float, str], None]
-TRANSLATION_POLICY_VERSION = 4
+TRANSLATION_POLICY_VERSION = 5
 WEBGPT_TRANSLATION_RECEIPT_NAMESPACE = "vi-dubber.webgpt.translation.v1"
+WEBGPT_PRESSURE_MARKERS = (
+    "selected model is at capacity",
+    "rate limit",
+    "rate_limited",
+    "cooldown",
+)
 
 
 def load_glossary(path: Path | None) -> dict[str, str]:
@@ -161,6 +169,85 @@ def build_translation_payload(
     return payload
 
 
+def build_global_translation_context(
+    segments: list[Segment],
+    glossary: dict[str, str],
+    *,
+    sample_count: int = 8,
+    max_source_chars: int = 2400,
+) -> dict[str, Any]:
+    """Build one deterministic compact context pack shared by all translation batches."""
+    sample_count = max(0, int(sample_count))
+    max_source_chars = max(0, int(max_source_chars))
+    speakers = list(dict.fromkeys(str(item.speaker or "").strip() for item in segments if item.speaker))
+    duration = max((float(item.end) for item in segments), default=0.0)
+
+    profile: dict[str, str] = {}
+    active_terminology: list[dict[str, Any]] = []
+    if isinstance(glossary, TerminologyGlossary):
+        profile = dict(glossary.profile)
+        source_text = "\n".join(str(item.text or "") for item in segments)
+        for entry in glossary.entries:
+            candidates = (entry.source, *entry.aliases)
+            if not any(
+                re.search(
+                    rf"(?<!\w){re.escape(term)}(?!\w)",
+                    source_text,
+                    flags=re.IGNORECASE,
+                )
+                for term in candidates
+                if term
+            ):
+                continue
+            active_terminology.append(entry.to_prompt_dict())
+
+    sample_indices: list[int] = []
+    if segments and sample_count > 0:
+        if len(segments) <= sample_count:
+            sample_indices = list(range(len(segments)))
+        elif sample_count == 1:
+            sample_indices = [0]
+        else:
+            sample_indices = sorted(
+                {
+                    round(index * (len(segments) - 1) / (sample_count - 1))
+                    for index in range(sample_count)
+                }
+            )
+
+    remaining = max_source_chars
+    source_samples: list[dict[str, Any]] = []
+    for index in sample_indices:
+        if remaining <= 0:
+            break
+        segment = segments[index]
+        text = re.sub(r"\s+", " ", str(segment.text or "")).strip()
+        if not text:
+            continue
+        if len(text) > remaining:
+            text = text[:remaining].rstrip()
+        source_samples.append(
+            {
+                "id": segment.id,
+                "speaker": segment.speaker,
+                "source_en": text,
+            }
+        )
+        remaining -= len(text)
+
+    return {
+        "policy_version": TRANSLATION_POLICY_VERSION,
+        "audience_profile": profile,
+        "video": {
+            "segment_count": len(segments),
+            "duration_sec": round(duration, 3),
+            "speakers": speakers,
+        },
+        "active_terminology": active_terminology,
+        "source_samples": source_samples,
+    }
+
+
 def _extract_json(text: str, array: bool) -> Any:
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.S | re.I).strip()
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.I).strip()
@@ -214,6 +301,25 @@ def _extract_json(text: str, array: bool) -> Any:
         return {"vi": vi_match.group(1).replace('\\"', '"').strip()}
 
     return json.loads(repaired)
+
+
+def _percentile_seconds(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(float(value) for value in values)
+    if len(ordered) == 1:
+        return round(ordered[0], 4)
+    position = max(0.0, min(1.0, float(fraction))) * (len(ordered) - 1)
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    result = ordered[lower] + ((ordered[upper] - ordered[lower]) * weight)
+    return round(result, 4)
+
+
+def _is_webgpt_pressure_error(detail: str) -> bool:
+    normalized = str(detail or "").casefold()
+    return any(marker in normalized for marker in WEBGPT_PRESSURE_MARKERS)
 
 
 class LocalTranslator:
@@ -765,12 +871,20 @@ class WebGptTranslator:
             self.retry_backoff_seconds,
             float(config.get("webgpt_retry_backoff_max_seconds", 2.0)),
         )
+        self.concurrency = max(1, min(3, int(config.get("webgpt_concurrency", 1))))
+        self.global_context_enabled = bool(config.get("global_context_enabled", False))
+        self.global_context_samples = max(0, int(config.get("global_context_samples", 8)))
+        self.global_context_max_chars = max(0, int(config.get("global_context_max_chars", 2400)))
         self.translation_batches = 0
         self.rewrite_calls = 0
         self.webgpt_attempts = 0
         self.webgpt_retry_attempts = 0
         self.webgpt_failures = 0
         self.webgpt_retries_exhausted = 0
+        self.webgpt_pressure_failures = 0
+        self._request_latencies_seconds: list[float] = []
+        self._stats_lock = threading.Lock()
+        self._invocation_local = threading.local()
         self._last_output_path: Path | None = None
 
     @contextmanager
@@ -815,10 +929,13 @@ class WebGptTranslator:
         env.setdefault("PYTHONUTF8", "1")
         max_attempts = 1 + self.retry_budget
         for attempt_index in range(max_attempts):
-            self.webgpt_attempts += 1
-            stamp = f"{int(time.time() * 1000)}-{os.getpid()}-{self.webgpt_attempts:04d}"
+            with self._stats_lock:
+                self.webgpt_attempts += 1
+                attempt_number = self.webgpt_attempts
+            stamp = f"{int(time.time() * 1000)}-{os.getpid()}-{attempt_number:04d}"
             output_path = webgpt_dir / f"{label}-{stamp}.json"
             self._last_output_path = output_path
+            self._invocation_local.last_output_path = output_path
             cmd = [
                 executable,
                 "exec",
@@ -878,6 +995,11 @@ class WebGptTranslator:
                     retryable_error = RuntimeError(
                         f"Dịch bằng ChatGPT Web GPT thất bại: {detail[-1200:]}"
                     )
+                    if _is_webgpt_pressure_error(detail):
+                        with self._stats_lock:
+                            self.webgpt_failures += 1
+                            self.webgpt_pressure_failures += 1
+                        raise retryable_error
                 elif not output_path.exists():
                     retryable_error = RuntimeError(
                         "ChatGPT Web GPT đã chạy xong nhưng không tạo file kết quả."
@@ -894,13 +1016,16 @@ class WebGptTranslator:
                         )
                         retryable_error.__cause__ = exc
 
-            self.webgpt_failures += 1
+            with self._stats_lock:
+                self.webgpt_failures += 1
             if attempt_index + 1 >= max_attempts:
-                self.webgpt_retries_exhausted += 1
+                with self._stats_lock:
+                    self.webgpt_retries_exhausted += 1
                 assert retryable_error is not None
                 raise retryable_error
 
-            self.webgpt_retry_attempts += 1
+            with self._stats_lock:
+                self.webgpt_retry_attempts += 1
             delay = min(
                 self.retry_backoff_max_seconds,
                 self.retry_backoff_seconds * (2 ** attempt_index),
@@ -915,7 +1040,13 @@ class WebGptTranslator:
             "namespace": WEBGPT_TRANSLATION_RECEIPT_NAMESPACE,
             "provider": "webgpt",
             "model": self.model,
-            "config": self.config,
+            "effort": self.effort,
+            "translation_config": {
+                "context_window": max(0, int(self.config.get("context_window", 2))),
+                "global_context_enabled": self.global_context_enabled,
+                "global_context_samples": self.global_context_samples,
+                "global_context_max_chars": self.global_context_max_chars,
+            },
             "schema": schema,
             "prompt": prompt,
         }
@@ -933,7 +1064,7 @@ class WebGptTranslator:
         result: dict[str, Any],
         request_identity: str,
     ) -> None:
-        output_path = self._last_output_path
+        output_path = getattr(self._invocation_local, "last_output_path", None) or self._last_output_path
         if output_path is None or not output_path.exists():
             return
         receipt = {
@@ -951,6 +1082,22 @@ class WebGptTranslator:
         except Exception:
             pass
 
+    def _run_translation_request(
+        self,
+        prompt: str,
+        schema: dict[str, Any],
+        request_identity: str,
+    ) -> dict[str, Any]:
+        if hasattr(self._invocation_local, "last_output_path"):
+            del self._invocation_local.last_output_path
+        started = time.perf_counter()
+        result = self._run_json(prompt, schema, "translate")
+        elapsed = time.perf_counter() - started
+        with self._stats_lock:
+            self._request_latencies_seconds.append(elapsed)
+        self._persist_translation_receipt(result, request_identity)
+        return result
+
     def translate_segments(
         self,
         segments: list[Segment],
@@ -960,6 +1107,17 @@ class WebGptTranslator:
         batch_size = max(1, int(self.config.get("codex_segments_per_batch", 32)))
         context_window = max(0, int(self.config.get("context_window", 2)))
         glossary_text = glossary_prompt_json(glossary)
+        global_context = (
+            build_global_translation_context(
+                segments,
+                glossary,
+                sample_count=self.global_context_samples,
+                max_source_chars=self.global_context_max_chars,
+            )
+            if self.global_context_enabled
+            else {}
+        )
+        global_context_text = json.dumps(global_context, ensure_ascii=False)
         schema = {
             "type": "object",
             "properties": {
@@ -1008,6 +1166,7 @@ class WebGptTranslator:
             if item.id in cached_by_id and not item.vi:
                 item.vi = cached_by_id[item.id]
 
+        pending: list[tuple[int, list[Segment], str, str]] = []
         for offset in range(0, len(segments), batch_size):
             batch = segments[offset : offset + batch_size]
             if all(bool(item.vi and item.vi.strip()) for item in batch):
@@ -1026,6 +1185,14 @@ class WebGptTranslator:
                 SYSTEM_PROMPT.replace("/no_think\n", "")
                 + "\nYou are running as a translation backend. Do not inspect files or call tools.\n"
                 + f"Glossary={glossary_text}\n"
+                + (
+                    "GlobalContextPack="
+                    + global_context_text
+                    + "\nUse the global context only for topic, audience, register, entities, and terminology consistency. "
+                    + "Translate only the current INPUT items.\n"
+                    if self.global_context_enabled
+                    else ""
+                )
                 + "Translate every input item using only its nearby context to keep terminology/register consistent. "
                 + "Treat target_duration_sec as an approximate speaking budget, never as permission to drop meaning. "
                 + "Priority: meaning > critical facts > natural spoken Vietnamese > context/register > duration fit. "
@@ -1047,14 +1214,14 @@ class WebGptTranslator:
                     )
                 continue
 
-            self._last_output_path = None
-            result = self._run_json(prompt, schema, "translate")
+            pending.append((offset, batch, prompt, request_identity))
+
+        def apply_result(offset: int, batch: list[Segment], result: dict[str, Any]) -> None:
             translations = result.get("translations", [])
             by_id = {int(item["id"]): str(item["vi"]).strip() for item in translations}
             missing = [item.id for item in batch if item.id not in by_id]
             if missing:
                 raise RuntimeError(f"Codex WebGPT thiếu các đoạn có id: {missing}")
-            self._persist_translation_receipt(result, request_identity)
             for item in batch:
                 item.vi = by_id[item.id]
                 cached_by_id[item.id] = item.vi
@@ -1067,8 +1234,36 @@ class WebGptTranslator:
                 pass
             self.translation_batches += 1
             if progress_callback is not None:
-                done = min(offset + len(batch), len(segments))
-                progress_callback(done / max(1, len(segments)), f"Đang dịch bằng Codex WebGPT: {done}/{len(segments)} đoạn")
+                done = sum(1 for item in segments if item.vi and item.vi.strip())
+                progress_callback(
+                    done / max(1, len(segments)),
+                    f"Đang dịch bằng Codex WebGPT: {done}/{len(segments)} đoạn",
+                )
+
+        if self.concurrency <= 1 or len(pending) <= 1:
+            for offset, batch, prompt, request_identity in pending:
+                result = self._run_translation_request(prompt, schema, request_identity)
+                apply_result(offset, batch, result)
+        else:
+            worker_count = min(self.concurrency, len(pending))
+            with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="vi-dubber-webgpt") as executor:
+                future_map = {
+                    executor.submit(
+                        self._run_translation_request,
+                        prompt,
+                        schema,
+                        request_identity,
+                    ): (offset, batch)
+                    for offset, batch, prompt, request_identity in pending
+                }
+                try:
+                    for future in as_completed(future_map):
+                        offset, batch = future_map[future]
+                        apply_result(offset, batch, future.result())
+                except Exception:
+                    for future in future_map:
+                        future.cancel()
+                    raise
         return segments
 
     def rewrite_shorter(
@@ -1156,6 +1351,13 @@ class WebGptTranslator:
         return by_id
 
     def stats(self) -> dict[str, Any]:
+        with self._stats_lock:
+            webgpt_attempts = self.webgpt_attempts
+            webgpt_retry_attempts = self.webgpt_retry_attempts
+            webgpt_failures = self.webgpt_failures
+            webgpt_retries_exhausted = self.webgpt_retries_exhausted
+            webgpt_pressure_failures = self.webgpt_pressure_failures
+            request_latencies = list(self._request_latencies_seconds)
         return {
             "requested": "webgpt",
             "used": "webgpt",
@@ -1163,13 +1365,22 @@ class WebGptTranslator:
             "model": self.model,
             "base_url": self.base_url,
             "instance_port": WEBGPT_INSTANCE_PORT,
+            "translation_concurrency": self.concurrency,
+            "global_context_enabled": self.global_context_enabled,
             "translation_batches": self.translation_batches,
             "rewrite_calls": self.rewrite_calls,
             "retry_budget": self.retry_budget,
-            "webgpt_attempts": self.webgpt_attempts,
-            "webgpt_retry_attempts": self.webgpt_retry_attempts,
-            "webgpt_failures": self.webgpt_failures,
-            "webgpt_retries_exhausted": self.webgpt_retries_exhausted,
+            "webgpt_attempts": webgpt_attempts,
+            "webgpt_retry_attempts": webgpt_retry_attempts,
+            "webgpt_failures": webgpt_failures,
+            "webgpt_retries_exhausted": webgpt_retries_exhausted,
+            "webgpt_pressure_failures": webgpt_pressure_failures,
+            "request_latency_seconds": {
+                "count": len(request_latencies),
+                "p50": _percentile_seconds(request_latencies, 0.50),
+                "p95": _percentile_seconds(request_latencies, 0.95),
+                "max": round(max(request_latencies), 4) if request_latencies else None,
+            },
             "fallback_used": False,
         }
 

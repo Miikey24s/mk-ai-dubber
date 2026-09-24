@@ -233,6 +233,44 @@ def test_webgpt_retry_budget_exhaustion_is_bounded(
     assert stats["webgpt_retries_exhausted"] == 1
 
 
+def test_webgpt_capacity_failure_is_not_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=3,
+    )
+    calls = 0
+
+    monkeypatch.setattr(translate_module, "find_codex_exe", lambda: "codex")
+
+    def fake_run(cmd, **kwargs):
+        nonlocal calls
+        del kwargs
+        calls += 1
+        return subprocess.CompletedProcess(
+            cmd,
+            1,
+            stdout="",
+            stderr="ERROR: Selected model is at capacity. Please try a different model.",
+        )
+
+    monkeypatch.setattr(translate_module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="at capacity"):
+        translator._run_json("test", {"type": "object"}, "translate")
+
+    stats = translator.stats()
+    assert calls == 1
+    assert stats["webgpt_attempts"] == 1
+    assert stats["webgpt_retry_attempts"] == 0
+    assert stats["webgpt_failures"] == 1
+    assert stats["webgpt_pressure_failures"] == 1
+    assert stats["webgpt_retries_exhausted"] == 0
+
+
 def test_webgpt_malformed_result_is_retried_then_succeeds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
