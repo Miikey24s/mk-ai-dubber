@@ -51,7 +51,7 @@ def run_e2e_verification(port: int | None = None) -> dict[str, Any]:
     if port is None:
         port = _find_free_port()
 
-    from vi_dubber.web import build_app
+    from vi_dubber.web import APP_CSS, build_app
 
     artifacts_dir = WORK_DIR / "artifacts" / "ui-qa"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +66,7 @@ def run_e2e_verification(port: int | None = None) -> dict[str, Any]:
             prevent_thread_lock=True,
             show_error=False,
             quiet=True,
+            css=APP_CSS,
         ),
         daemon=True,
     )

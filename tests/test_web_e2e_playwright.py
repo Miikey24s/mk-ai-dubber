@@ -10,7 +10,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from vi_dubber.runtime import WORK_DIR
-from vi_dubber.web import build_app
+from vi_dubber.web import APP_CSS, build_app
 
 
 def _find_free_port() -> int:
@@ -30,6 +30,7 @@ def gradio_server() -> Generator[str, None, None]:
             prevent_thread_lock=True,
             show_error=False,
             quiet=True,
+            css=APP_CSS,
         ),
         daemon=True,
     )
