@@ -89,17 +89,17 @@ export const ProTelemetryGrid: React.FC = () => {
   };
 
   const tabs: { id: TelemetryTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'cuda', label: 'CUDA VRAM', icon: <Cpu className="w-3.5 h-3.5" /> },
-    { id: 'latency', label: 'Latency', icon: <Clock className="w-3.5 h-3.5" /> },
-    { id: 'lufs', label: 'LUFS & Peak', icon: <Sliders className="w-3.5 h-3.5" /> },
-    { id: 'tokens', label: 'TypeSafe Tokens', icon: <Binary className="w-3.5 h-3.5" /> },
-    { id: 'raw_json', label: 'Raw JSON', icon: <Code2 className="w-3.5 h-3.5" /> },
+    { id: 'cuda', label: 'CUDA VRAM', icon: <Cpu className="w-3.5 h-3.5 shrink-0" /> },
+    { id: 'latency', label: 'Latency', icon: <Clock className="w-3.5 h-3.5 shrink-0" /> },
+    { id: 'lufs', label: 'LUFS / Peak', icon: <Sliders className="w-3.5 h-3.5 shrink-0" /> },
+    { id: 'tokens', label: 'Tokens', icon: <Binary className="w-3.5 h-3.5 shrink-0" /> },
+    { id: 'raw_json', label: 'Raw JSON', icon: <Code2 className="w-3.5 h-3.5 shrink-0" /> },
   ];
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm font-mono select-none">
       {/* Tab Navigation Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-3 py-1.5 shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-2.5 py-1 shrink-0 bg-slate-50/70 dark:bg-slate-950/40 gap-2">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
@@ -107,10 +107,10 @@ export const ProTelemetryGrid: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                   isActive
-                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/40 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/50 shadow-xs'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                 }`}
               >
                 {tab.icon}
@@ -120,8 +120,8 @@ export const ProTelemetryGrid: React.FC = () => {
           })}
         </div>
 
-        <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden xl:inline font-mono">
-          ENGINEER_DRAWER // LIVE
+        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700/80 whitespace-nowrap shrink-0 hidden sm:inline">
+          ENGINEER // LIVE
         </span>
       </div>
 

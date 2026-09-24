@@ -133,21 +133,21 @@ export const VideoPlayer: React.FC = () => {
         className="hidden"
       />
 
-      {/* Video Screen / Canvas Viewport with Drag & Drop */}
+      {/* Video Screen / Canvas Viewport with Drag & Drop (Compact Reference Monitor) */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative aspect-video max-h-[260px] sm:max-h-[285px] bg-gradient-to-b from-slate-900 via-slate-950 to-black flex items-center justify-center overflow-hidden group"
+        className="relative h-[145px] sm:h-[155px] w-full bg-gradient-to-b from-slate-900 via-slate-950 to-black flex items-center justify-center overflow-hidden group"
       >
         {/* Drag-over active dropzone overlay */}
         {isDraggingOver && (
-          <div className="absolute inset-0 z-30 bg-slate-950/90 border-2 border-dashed border-orange-500 flex flex-col items-center justify-center p-4 text-center animate-pulse">
-            <UploadCloud className="w-12 h-12 text-orange-400 mb-2 animate-bounce" />
-            <span className="text-sm font-bold text-white uppercase tracking-wider">
+          <div className="absolute inset-0 z-30 bg-slate-950/95 border-2 border-dashed border-orange-500 flex flex-col items-center justify-center p-3 text-center animate-pulse">
+            <UploadCloud className="w-9 h-9 text-orange-400 mb-1 animate-bounce" />
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
               {t('import.dropzone_active')}
             </span>
-            <span className="text-xs text-orange-300 mt-1">
+            <span className="text-[10px] text-orange-300 mt-0.5">
               MP4, MKV, MOV, WAV, FLAC (Auto Demucs + WhisperX)
             </span>
           </div>
@@ -155,27 +155,27 @@ export const VideoPlayer: React.FC = () => {
 
         {/* Synthetic Video Canvas Content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center opacity-85">
-          <div className="w-14 h-14 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-2 text-slate-400 group-hover:scale-105 transition-transform">
-            <Tv className="w-7 h-7 text-orange-500" />
+          <div className="w-10 h-10 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-1 text-slate-400 group-hover:scale-105 transition-transform">
+            <Tv className="w-5 h-5 text-orange-500" />
           </div>
           <span className="text-xs font-semibold text-slate-200 tracking-wider">
             {activeJob?.metadata?.input_name || 'Trading_Strategies_Masterclass.mp4'}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5">
+          <span className="text-[10px] text-slate-500">
             24.00 FPS • 1920x1080 • ITU-R BT.709
           </span>
         </div>
 
         {/* Top Overlay: Speaker & HUD details + Import Action Button */}
-        <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between z-20">
+        <div className="absolute top-2 inset-x-2 flex items-center justify-between z-20">
           {activeSegment ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-xs text-slate-200 font-semibold pointer-events-none">
-              <span className="w-2 h-2 rounded-full bg-orange-500" />
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-[11px] text-slate-200 font-semibold pointer-events-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
               <span>{activeSegment.speaker}</span>
             </div>
           ) : <div />}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Prominent Import Video / YouTube Button on Monitor HUD */}
             <button
               type="button"
@@ -183,14 +183,14 @@ export const VideoPlayer: React.FC = () => {
                 e.stopPropagation();
                 setIsCreatorOpen(true);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-orange-600 hover:bg-orange-500 backdrop-blur-md border border-orange-400 text-xs text-white font-bold shadow-lg shadow-orange-600/30 hover:scale-105 transition cursor-pointer"
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-500 backdrop-blur-md border border-orange-400 text-[11px] text-white font-bold shadow-md shadow-orange-600/30 hover:scale-105 transition cursor-pointer"
               title="Nhập Video Mới hoặc dán link YouTube"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3 h-3" />
               <span>{t('import.import_video')}</span>
             </button>
 
-            <div className="px-2 py-0.5 rounded bg-black/80 backdrop-blur-sm border border-slate-800 text-xs text-emerald-400 font-bold pointer-events-none">
+            <div className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-sm border border-slate-800 text-[10px] text-emerald-400 font-bold pointer-events-none">
               1080p DUB READY
             </div>
           </div>
@@ -198,12 +198,9 @@ export const VideoPlayer: React.FC = () => {
 
         {/* Bottom Subtitle Overlay: Bilingual side-by-side subtitle */}
         {activeSegment && (
-          <div className="absolute bottom-8 inset-x-3 flex flex-col items-center pointer-events-none space-y-1">
-            <div className="px-3 py-1 rounded bg-black/90 backdrop-blur-md border border-slate-700/80 text-xs sm:text-sm font-sans font-medium text-amber-300 text-center max-w-xl shadow-lg">
+          <div className="absolute bottom-6 inset-x-2 flex flex-col items-center pointer-events-none space-y-0.5">
+            <div className="px-2.5 py-0.5 rounded bg-black/90 backdrop-blur-md border border-slate-700/80 text-xs font-sans font-medium text-amber-300 text-center max-w-md shadow-lg truncate">
               {activeSegment.vi}
-            </div>
-            <div className="text-xs font-sans text-slate-300 text-center drop-shadow-md">
-              {activeSegment.text}
             </div>
           </div>
         )}
@@ -212,11 +209,11 @@ export const VideoPlayer: React.FC = () => {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/70 hover:bg-black/90 backdrop-blur-sm border border-slate-800 text-[10px] text-slate-300 hover:text-white transition cursor-pointer"
+          className="absolute bottom-1.5 left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded bg-black/70 hover:bg-black/90 backdrop-blur-sm border border-slate-800 text-[9px] text-slate-300 hover:text-white transition cursor-pointer"
           title="Bấm để chọn file video từ máy"
         >
-          <FolderOpen className="w-3 h-3 text-orange-400" />
-          <span className="truncate max-w-[220px]">{t('import.drop_hint')}</span>
+          <FolderOpen className="w-2.5 h-2.5 text-orange-400" />
+          <span className="truncate max-w-[200px]">{t('import.drop_hint')}</span>
         </button>
 
         {/* Center Play Button on Hover */}
@@ -224,15 +221,15 @@ export const VideoPlayer: React.FC = () => {
           onClick={() => setIsPlaying(!isPlaying)}
           className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <div className="w-12 h-12 rounded-full bg-orange-600/90 text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
-            {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
+          <div className="w-10 h-10 rounded-full bg-orange-600/90 text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
+            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
           </div>
         </button>
       </div>
 
       {/* Scrub Bar & Timeline */}
-      <div className="px-3 pt-2 bg-slate-900 border-t border-slate-800">
-        <div className="relative w-full h-2 bg-slate-800 rounded-full cursor-pointer group">
+      <div className="px-3 pt-1.5 bg-slate-900 border-t border-slate-800">
+        <div className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group">
           {/* Segment Markers on Seek Bar */}
           {segments.map(seg => {
             const leftPct = (seg.start / totalDuration) * 100;

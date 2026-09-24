@@ -90,53 +90,56 @@ export const WaveformPlayer: React.FC = () => {
       <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-lg text-xs">
         <button
           onClick={() => setSelectedAudioTrack('a')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md transition-all font-semibold ${
+          className={`flex items-center justify-center gap-1.5 h-7 px-2 rounded-md transition-all font-semibold whitespace-nowrap ${
             selectedAudioTrack === 'a'
               ? 'bg-orange-600 text-white shadow-sm'
               : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
+          title="Track A: Giọng tiếng Anh gốc"
         >
-          <Mic className="w-3.5 h-3.5" />
-          <span className="truncate">{t('monitor.track_a')}</span>
+          <Mic className="w-3.5 h-3.5 shrink-0" />
+          <span>A. Gốc (EN)</span>
         </button>
 
         <button
           onClick={() => setSelectedAudioTrack('b')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md transition-all font-semibold ${
+          className={`flex items-center justify-center gap-1.5 h-7 px-2 rounded-md transition-all font-semibold whitespace-nowrap ${
             selectedAudioTrack === 'b'
               ? 'bg-sky-600 text-white shadow-sm'
               : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
+          title="Track B: Giọng tiếng Việt lồng tiếng (TTS)"
         >
-          <Volume2 className="w-3.5 h-3.5" />
-          <span className="truncate">{t('monitor.track_b')}</span>
+          <Volume2 className="w-3.5 h-3.5 shrink-0" />
+          <span>B. Dub (VI)</span>
         </button>
 
         <button
           onClick={() => setSelectedAudioTrack('bgm')}
-          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md transition-all font-semibold ${
+          className={`flex items-center justify-center gap-1.5 h-7 px-2 rounded-md transition-all font-semibold whitespace-nowrap ${
             selectedAudioTrack === 'bgm'
               ? 'bg-purple-600 text-white shadow-sm'
               : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
+          title="Track BGM: Nhạc nền & Không gian"
         >
-          <Music className="w-3.5 h-3.5" />
-          <span className="truncate">{t('monitor.track_bgm')}</span>
+          <Music className="w-3.5 h-3.5 shrink-0" />
+          <span>Nhạc (BGM)</span>
         </button>
       </div>
 
       {/* Waveform Canvas */}
-      <div className="relative h-14 bg-slate-950 rounded-lg p-2 flex items-center justify-center overflow-hidden border border-slate-800">
+      <div className="relative h-10 bg-slate-950 rounded-lg px-2 py-1 flex items-center justify-center overflow-hidden border border-slate-800">
         <canvas
           ref={canvasRef}
           width={480}
-          height={56}
+          height={40}
           className="w-full h-full"
         />
 
         {/* Level lines */}
         <div className="absolute inset-x-0 top-1/2 h-px bg-slate-800 pointer-events-none" />
-        <span className="absolute right-2 top-1 text-[10px] font-mono text-slate-400 font-semibold">
+        <span className="absolute right-2 top-0.5 text-[9px] font-mono text-slate-400 font-semibold">
           -14 LUFS TARGET
         </span>
       </div>

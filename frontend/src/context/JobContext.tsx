@@ -39,6 +39,7 @@ interface JobContextType {
   loading: boolean;
   updateSegment: (segmentId: number, changes: Partial<Segment>) => Promise<void>;
   acceptSegment: (segmentId: number) => Promise<void>;
+  acceptAllSegments: () => Promise<void>;
   rerenderSegment: (segmentId: number) => Promise<void>;
   refreshJobs: () => Promise<void>;
   controlJob: (action: 'pause' | 'run' | 'cancel') => Promise<void>;
@@ -137,6 +138,17 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await updateSegment(segmentId, { review_status: 'accepted' });
   };
 
+  const acceptAllSegments = async () => {
+    setSegments(prev => prev.map(s => ({ ...s, review_status: 'accepted' })));
+    if (activeJob) {
+      await Promise.all(
+        segments.map(s =>
+          updateSegmentReview(activeJob.id, s.id, { review_status: 'accepted' })
+        )
+      );
+    }
+  };
+
   const rerenderSegment = async (segmentId: number) => {
     await updateSegment(segmentId, { review_status: 'needs_review' });
   };
@@ -229,6 +241,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loading,
         updateSegment,
         acceptSegment,
+        acceptAllSegments,
         rerenderSegment,
         refreshJobs,
         controlJob,

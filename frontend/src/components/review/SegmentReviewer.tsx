@@ -3,7 +3,7 @@ import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { SegmentFilterBar, FilterType } from './SegmentFilterBar';
 import { SegmentCard } from './SegmentCard';
-import { CheckCircle2, SlidersHorizontal, Keyboard, X } from 'lucide-react';
+import { CheckCircle2, SlidersHorizontal, Keyboard, X, Sparkles, CheckCheck } from 'lucide-react';
 
 export const SegmentReviewer: React.FC = () => {
   const {
@@ -15,6 +15,7 @@ export const SegmentReviewer: React.FC = () => {
     setIsPlaying,
     updateSegment,
     acceptSegment,
+    acceptAllSegments,
     rerenderSegment,
   } = useJob();
   const { t } = useTranslation();
@@ -22,6 +23,7 @@ export const SegmentReviewer: React.FC = () => {
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showHotkeysGuide, setShowHotkeysGuide] = useState(false);
+  const [isAcceptingAll, setIsAcceptingAll] = useState(false);
 
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -162,6 +164,12 @@ export const SegmentReviewer: React.FC = () => {
     }
   };
 
+  const handleAcceptAll = async () => {
+    setIsAcceptingAll(true);
+    await acceptAllSegments();
+    setIsAcceptingAll(false);
+  };
+
   return (
     <div className="h-full overflow-hidden flex flex-col bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm select-none">
       {/* Right Column Header */}
@@ -169,34 +177,52 @@ export const SegmentReviewer: React.FC = () => {
         {/* Top Info Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-orange-500" />
+            <SlidersHorizontal className="w-4 h-4 text-orange-500 shrink-0" />
             <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100 uppercase tracking-wide">
               {t('review.title')}
             </h3>
             <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               {segments.length} TOTAL
             </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              TỰ ĐỘNG 100% (QC TÙY CHỌN)
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Accepted Progress Badge */}
-            <div className="flex items-center gap-1.5 text-xs font-mono">
+            <div className="flex items-center gap-1.5 text-xs font-mono hidden xl:flex">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-slate-600 dark:text-slate-400">
-                Duyệt: <strong className="text-emerald-600 dark:text-emerald-400">{acceptedCount}</strong> / {segments.length} ({Math.round((acceptedCount / (segments.length || 1)) * 100)}%)
+                Đã duyệt: <strong className="text-emerald-600 dark:text-emerald-400">{acceptedCount}</strong> / {segments.length}
               </span>
             </div>
+
+            {/* Duyệt tất cả (Batch Approve) */}
+            <button
+              onClick={handleAcceptAll}
+              disabled={isAcceptingAll || acceptedCount === segments.length}
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-mono font-semibold transition cursor-pointer ${
+                acceptedCount === segments.length
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 cursor-default'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+              }`}
+              title="Duyệt tất cả các đoạn để hoàn tất xuất bản video"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>{isAcceptingAll ? 'Đang duyệt...' : `Duyệt tất cả (${segments.length})`}</span>
+            </button>
 
             {/* Hotkeys Guide Chip */}
             <div className="relative">
               <button
                 onClick={() => setShowHotkeysGuide(!showHotkeysGuide)}
-                className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs font-mono transition cursor-pointer"
+                className="flex items-center gap-1.5 h-7 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs font-mono transition cursor-pointer"
                 title="Xem hướng dẫn phím tắt Studio"
               >
-                <Keyboard className="w-3.5 h-3.5 text-orange-500" />
-                <span className="font-semibold hidden sm:inline">Hotkeys:</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">Space • Ctrl+Enter • ↑/k • ↓/j</span>
+                <Keyboard className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                <span className="font-semibold hidden sm:inline">Phím tắt</span>
               </button>
 
               {/* Hotkeys Floating Tooltip / Drawer */}

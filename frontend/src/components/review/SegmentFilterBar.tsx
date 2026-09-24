@@ -31,21 +31,21 @@ export const SegmentFilterBar: React.FC<SegmentFilterBarProps> = ({
   ];
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 font-mono text-xs">
+    <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 font-mono text-xs">
       {/* Search Input */}
-      <div className="relative flex-1 max-w-sm">
+      <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t('review.search_placeholder')}
-          className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 text-slate-900 dark:text-slate-100 transition"
+          className="w-full h-8 pl-8 pr-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 text-slate-900 dark:text-slate-100 transition"
         />
       </div>
 
       {/* Filter Chips */}
-      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
         {filterButtons.map(({ id, labelKey, icon }) => {
           const isActive = currentFilter === id;
           const count = counts[id] || 0;
@@ -53,7 +53,7 @@ export const SegmentFilterBar: React.FC<SegmentFilterBarProps> = ({
             <button
               key={id}
               onClick={() => onSelectFilter(id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition font-semibold cursor-pointer ${
+              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs transition font-semibold cursor-pointer shrink-0 whitespace-nowrap ${
                 isActive
                   ? 'bg-orange-600 text-white font-bold shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80'

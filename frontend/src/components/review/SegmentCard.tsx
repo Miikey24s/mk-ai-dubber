@@ -111,15 +111,15 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   return (
     <div
       onClick={onSelect}
-      className={`rounded-xl border p-4 transition-all duration-200 cursor-pointer ${
+      className={`rounded-xl border-2 p-3.5 transition-all duration-200 cursor-pointer ${
         isActive
-          ? 'bg-orange-500/5 dark:bg-slate-900 border-2 border-orange-500 shadow-md ring-2 ring-orange-500/20'
+          ? 'bg-orange-500/5 dark:bg-slate-900 border-orange-500 shadow-md ring-2 ring-orange-500/20'
           : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
       }`}
     >
       {/* Top Header: ID, Timecode, Speaker, Status Badges */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/80">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-100 dark:border-slate-800/80">
+        <div className="flex items-center gap-2">
           {/* Segment ID */}
           <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
             #{segment.id.toString().padStart(3, '0')}
@@ -196,14 +196,14 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
       </div>
 
       {/* Body: Bilingual Side-by-Side View */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-sans">
         {/* Left: English Source (ASR) */}
         <div className="space-y-1.5">
           <div className="text-xs font-mono text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 font-semibold">
             <Volume2 className="w-3.5 h-3.5 text-slate-500" />
             <span>{t('review.col_source')}</span>
           </div>
-          <div className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg select-text min-h-[72px]">
+          <div className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg select-text min-h-[76px]">
             {sourceText}
           </div>
         </div>
@@ -216,7 +216,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
             </span>
             {/* Character expansion badge: Prominent and readable */}
             <span
-              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border tabular-nums ${
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full border tabular-nums ${
                 expansionPct > 25
                   ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
                   : expansionPct < -25
@@ -232,8 +232,9 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
             value={editedVi}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            spellCheck={false}
             rows={2}
-            className="w-full text-base text-slate-900 dark:text-slate-100 font-medium leading-relaxed p-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none transition resize-none"
+            className="w-full text-sm text-slate-900 dark:text-slate-100 font-medium leading-relaxed p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 focus:outline-none transition resize-none min-h-[76px]"
             placeholder="Nhập nội dung lồng tiếng..."
           />
         </div>
@@ -241,7 +242,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
 
       {/* Card Footer: Quick Actions */}
       <div
-        className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs"
+        className="flex flex-wrap items-center justify-between gap-2.5 mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-xs"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-xs font-mono text-slate-600 dark:text-slate-400 font-medium">
@@ -254,7 +255,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           {isDirty && (
             <button
               onClick={handleRevert}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>{t('review.revert')}</span>
@@ -265,7 +266,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           <button
             onClick={handleSave}
             disabled={!isDirty || isSaving}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+            className={`flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold transition ${
               isDirty
                 ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-md shadow-orange-600/30 cursor-pointer'
                 : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 cursor-not-allowed opacity-60'
@@ -279,7 +280,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           <button
             onClick={handleRerender}
             disabled={isRerendering}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
             title="Re-synthesize audio for this segment"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-sky-500 ${isRerendering ? 'animate-spin' : ''}`} />
@@ -289,7 +290,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           {/* Duyệt đoạn này (Ctrl+Enter) in prominent emerald green */}
           <button
             onClick={handleAccept}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
+            className={`flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-bold transition shadow-sm ${
               segment.review_status === 'accepted'
                 ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/50'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 hover:shadow-md'

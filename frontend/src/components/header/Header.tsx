@@ -8,15 +8,13 @@ import {
   Moon,
   Sun,
   Code2,
-  Terminal,
-  Layers,
   ChevronDown,
   UploadCloud,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
-  const { theme, toggleTheme, mode, toggleMode } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { jobs, activeJobId, setActiveJobId, setIsRawJsonOpen, setIsCreatorOpen } = useJob();
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0];
@@ -108,22 +106,6 @@ export const Header: React.FC = () => {
           >
             <UploadCloud className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{t('creator.new_job')}</span>
-          </button>
-
-          {/* Mode Toggle: Standard Studio vs Pro Engineer */}
-          <button
-            onClick={toggleMode}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono border transition ${
-              mode === 'engineer'
-                ? 'bg-sky-500/10 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border-sky-500/40 font-semibold'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-            }`}
-            title="Toggle Standard Studio / Pro Engineer Mode"
-          >
-            {mode === 'engineer' ? <Terminal className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
-            <span className="hidden md:inline">
-              {mode === 'engineer' ? t('mode.engineer') : t('mode.standard')}
-            </span>
           </button>
 
           {/* Raw JSON Inspector */}

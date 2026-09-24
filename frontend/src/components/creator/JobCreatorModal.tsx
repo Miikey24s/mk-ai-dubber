@@ -211,10 +211,8 @@ export const JobCreatorModal: React.FC = () => {
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
               >
-                <option value="chatgpt-web/gpt-5.6-sol">GPT-5.6 Sol (Codex Web instance 2 :17842)</option>
-                <option value="anthropic/claude-3-7-sonnet">Claude 3.7 Sonnet (Anthropic)</option>
-                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (Google)</option>
-                <option value="local/qwen-2.5-32b">Qwen 2.5 32B Local (RTX Offload)</option>
+                <option value="chatgpt-web/gpt-5.6-sol">GPT-5.6 Sol (Codex WebGPT :17842 - Khuyên dùng)</option>
+                <option value="local/qwen3-14b">Qwen3-14B GGUF (Local GPU Offload - Plan Fallback)</option>
               </select>
             </div>
 
