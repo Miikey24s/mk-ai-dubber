@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { SegmentFilterBar, FilterType } from './SegmentFilterBar';
 import { SegmentCard } from './SegmentCard';
-import { CheckCircle2, SlidersHorizontal } from 'lucide-react';
+import { CheckCircle2, SlidersHorizontal, Keyboard, X } from 'lucide-react';
 
 export const SegmentReviewer: React.FC = () => {
   const {
@@ -11,6 +11,8 @@ export const SegmentReviewer: React.FC = () => {
     activeSegmentIndex,
     setActiveSegmentIndex,
     setCurrentTime,
+    isPlaying,
+    setIsPlaying,
     updateSegment,
     acceptSegment,
     rerenderSegment,
@@ -19,6 +21,9 @@ export const SegmentReviewer: React.FC = () => {
 
   const [currentFilter, setCurrentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showHotkeysGuide, setShowHotkeysGuide] = useState(false);
+
+  const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   // Calculate filter counts
   const counts = useMemo(() => {
@@ -58,72 +63,231 @@ export const SegmentReviewer: React.FC = () => {
 
   const acceptedCount = segments.filter(s => s.review_status === 'accepted').length;
 
+  // Auto-scroll active card into view
+  useEffect(() => {
+    const activeSeg = segments[activeSegmentIndex];
+    if (activeSeg && cardRefs.current[activeSeg.id]) {
+      cardRefs.current[activeSeg.id]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [activeSegmentIndex, segments]);
+
+  // Global Keyboard Hotkeys Engine
+  useEffect(() => {
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.tagName === 'SELECT');
+
+      // 1. Space: Toggle playback when not typing
+      if (e.key === ' ' && !isTyping) {
+        e.preventDefault();
+        setIsPlaying(!isPlaying);
+        return;
+      }
+
+      // 2. Navigation: ArrowDown or 'j' when not typing
+      if (!isTyping && (e.key === 'ArrowDown' || e.key === 'j')) {
+        e.preventDefault();
+        if (activeSegmentIndex < segments.length - 1) {
+          const nextIdx = activeSegmentIndex + 1;
+          setActiveSegmentIndex(nextIdx);
+          setCurrentTime(segments[nextIdx].start);
+        }
+        return;
+      }
+
+      // 3. Navigation: ArrowUp or 'k' when not typing
+      if (!isTyping && (e.key === 'ArrowUp' || e.key === 'k')) {
+        e.preventDefault();
+        if (activeSegmentIndex > 0) {
+          const prevIdx = activeSegmentIndex - 1;
+          setActiveSegmentIndex(prevIdx);
+          setCurrentTime(segments[prevIdx].start);
+        }
+        return;
+      }
+
+      // 4. Ctrl + Enter: Accept currently active segment and advance (if not captured by textarea)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!target || target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          const activeSeg = segments[activeSegmentIndex];
+          if (activeSeg) {
+            await acceptSegment(activeSeg.id);
+            if (activeSegmentIndex < segments.length - 1) {
+              const nextIdx = activeSegmentIndex + 1;
+              setActiveSegmentIndex(nextIdx);
+              setCurrentTime(segments[nextIdx].start);
+            }
+          }
+        }
+        return;
+      }
+
+      // 5. Ctrl + S: Prevent browser save dialog
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [
+    isPlaying,
+    activeSegmentIndex,
+    segments,
+    setIsPlaying,
+    setActiveSegmentIndex,
+    setCurrentTime,
+    acceptSegment,
+  ]);
+
+  // Handle Ctrl+Enter from inside a segment card's textarea
+  const handleCtrlEnterFromCard = async (id: number, text: string, speaker: string) => {
+    // 1. Save and accept
+    await updateSegment(id, { vi: text, speaker, review_status: 'accepted' });
+    // 2. Advance to next segment
+    const curIdx = segments.findIndex(s => s.id === id);
+    if (curIdx !== -1 && curIdx < segments.length - 1) {
+      const nextIdx = curIdx + 1;
+      setActiveSegmentIndex(nextIdx);
+      setCurrentTime(segments[nextIdx].start);
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 shadow-sm space-y-4">
-      {/* Title & Stats */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-        <div>
+    <div className="h-full overflow-hidden flex flex-col bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm select-none">
+      {/* Right Column Header */}
+      <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0 bg-slate-50/50 dark:bg-slate-950/30">
+        {/* Top Info Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-4 h-4 text-orange-500" />
-            <h3 className="text-sm font-bold font-mono text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+            <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100 uppercase tracking-wide">
               {t('review.title')}
             </h3>
-            <span className="text-2xs font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               {segments.length} TOTAL
             </span>
           </div>
-          <p className="text-2xs text-slate-500 mt-0.5">
-            {t('review.subtitle')}
-          </p>
+
+          <div className="flex items-center gap-3">
+            {/* Accepted Progress Badge */}
+            <div className="flex items-center gap-1.5 text-xs font-mono">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-slate-600 dark:text-slate-400">
+                Duyệt: <strong className="text-emerald-600 dark:text-emerald-400">{acceptedCount}</strong> / {segments.length} ({Math.round((acceptedCount / (segments.length || 1)) * 100)}%)
+              </span>
+            </div>
+
+            {/* Hotkeys Guide Chip */}
+            <div className="relative">
+              <button
+                onClick={() => setShowHotkeysGuide(!showHotkeysGuide)}
+                className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs font-mono transition cursor-pointer"
+                title="Xem hướng dẫn phím tắt Studio"
+              >
+                <Keyboard className="w-3.5 h-3.5 text-orange-500" />
+                <span className="font-semibold hidden sm:inline">Hotkeys:</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Space • Ctrl+Enter • ↑/k • ↓/j</span>
+              </button>
+
+              {/* Hotkeys Floating Tooltip / Drawer */}
+              {showHotkeysGuide && (
+                <div className="absolute right-0 mt-1 w-80 p-3 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-800 text-xs font-mono z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 mb-2 font-bold text-slate-900 dark:text-slate-100">
+                    <span className="flex items-center gap-1.5">
+                      <Keyboard className="w-4 h-4 text-orange-500" />
+                      Studio Cockpit Hotkeys
+                    </span>
+                    <button
+                      onClick={() => setShowHotkeysGuide(false)}
+                      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold text-slate-700 dark:text-slate-300">Space</span>
+                      <span className="text-slate-600 dark:text-slate-400">Phát / Tạm dừng video</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded font-bold border border-emerald-500/30">Ctrl + Enter</span>
+                      <span className="text-slate-600 dark:text-slate-400">Lưu, Duyệt & Chuyển đoạn</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="px-1.5 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded font-bold border border-orange-500/30">Ctrl + S</span>
+                      <span className="text-slate-600 dark:text-slate-400">Lưu chỉnh sửa đoạn</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold text-slate-700 dark:text-slate-300">↓ / j</span>
+                      <span className="text-slate-600 dark:text-slate-400">Chuyển sang đoạn sau</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold text-slate-700 dark:text-slate-300">↑ / k</span>
+                      <span className="text-slate-600 dark:text-slate-400">Quay lại đoạn trước</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Accepted Progress Badge */}
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          <span className="text-slate-600 dark:text-slate-400">
-            Verification: <strong className="text-emerald-500">{acceptedCount}</strong> / {segments.length} ({Math.round((acceptedCount / (segments.length || 1)) * 100)}%)
-          </span>
-        </div>
+        {/* Filter and Search Bar */}
+        <SegmentFilterBar
+          currentFilter={currentFilter}
+          onSelectFilter={setCurrentFilter}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          counts={counts}
+        />
       </div>
 
-      {/* Filter and Search Bar */}
-      <SegmentFilterBar
-        currentFilter={currentFilter}
-        onSelectFilter={setCurrentFilter}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        counts={counts}
-      />
-
-      {/* Segment Cards List */}
-      <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+      {/* Body: Scrollable list of segment cards */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scroll-smooth">
         {filteredSegments.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 font-mono text-xs">
-            No segments match current filter criteria.
+          <div className="text-center py-16 text-slate-500 dark:text-slate-400 font-mono text-xs">
+            Không tìm thấy đoạn nào phù hợp với bộ lọc hiện tại.
           </div>
         ) : (
           filteredSegments.map(seg => (
-            <SegmentCard
+            <div
               key={seg.id}
-              segment={seg}
-              isActive={seg.id === segments[activeSegmentIndex]?.id}
-              onSelect={() => {
-                const idx = segments.findIndex(s => s.id === seg.id);
-                if (idx !== -1) {
-                  setActiveSegmentIndex(idx);
-                  setCurrentTime(seg.start);
-                }
+              ref={el => {
+                cardRefs.current[seg.id] = el;
               }}
-              onSave={async (id, text, speaker) => {
-                await updateSegment(id, { vi: text, speaker, review_status: 'reviewed' });
-              }}
-              onAccept={async (id) => {
-                await acceptSegment(id);
-              }}
-              onRerender={async (id) => {
-                await rerenderSegment(id);
-              }}
-            />
+            >
+              <SegmentCard
+                segment={seg}
+                isActive={seg.id === segments[activeSegmentIndex]?.id}
+                onSelect={() => {
+                  const idx = segments.findIndex(s => s.id === seg.id);
+                  if (idx !== -1) {
+                    setActiveSegmentIndex(idx);
+                    setCurrentTime(seg.start);
+                  }
+                }}
+                onSave={async (id, text, speaker) => {
+                  await updateSegment(id, { vi: text, speaker, review_status: 'reviewed' });
+                }}
+                onAccept={async (id) => {
+                  await acceptSegment(id);
+                }}
+                onRerender={async (id) => {
+                  await rerenderSegment(id);
+                }}
+                onCtrlEnter={handleCtrlEnterFromCard}
+              />
+            </div>
           ))
         )}
       </div>

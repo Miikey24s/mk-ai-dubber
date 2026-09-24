@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Segment } from '@/types';
 import { useTranslation } from '@/context/I18nContext';
 import { formatSeconds } from '@/lib/utils';
@@ -21,6 +21,7 @@ interface SegmentCardProps {
   onSave: (id: number, text: string, speaker: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
   onRerender: (id: number) => Promise<void>;
+  onCtrlEnter?: (id: number, text: string, speaker: string) => Promise<void>;
 }
 
 export const SegmentCard: React.FC<SegmentCardProps> = ({
@@ -30,6 +31,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   onSave,
   onAccept,
   onRerender,
+  onCtrlEnter,
 }) => {
   const { t } = useTranslation();
   const sourceText = segment.text || segment.source_en || segment.en || '';
@@ -39,6 +41,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isRerendering, setIsRerendering] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setEditedVi(segment.vi || segment.selected_vi || segment.translated_vi || '');
@@ -64,6 +67,12 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   };
 
   const handleAccept = async () => {
+    if (isDirty) {
+      setIsSaving(true);
+      await onSave(segment.id, editedVi, selectedSpeaker);
+      setIsSaving(false);
+      setIsDirty(false);
+    }
     await onAccept(segment.id);
   };
 
@@ -79,6 +88,21 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
     setIsDirty(false);
   };
 
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (onCtrlEnter) {
+        await onCtrlEnter(segment.id, editedVi, selectedSpeaker);
+        setIsDirty(false);
+      } else {
+        await handleAccept();
+      }
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      await handleSave();
+    }
+  };
+
   // Character expansion calculation
   const enLen = sourceText.length;
   const viLen = (editedVi || '').length;
@@ -87,17 +111,17 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   return (
     <div
       onClick={onSelect}
-      className={`rounded-lg border p-4 transition-all duration-200 cursor-pointer font-mono ${
+      className={`rounded-xl border p-4 transition-all duration-200 cursor-pointer ${
         isActive
-          ? 'bg-orange-500/5 dark:bg-slate-900 border-orange-500 shadow-md ring-1 ring-orange-500/30'
+          ? 'bg-orange-500/5 dark:bg-slate-900 border-2 border-orange-500 shadow-md ring-2 ring-orange-500/20'
           : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
       }`}
     >
-      {/* Top Header: ID, Timecode, Speaker, Status Chips */}
+      {/* Top Header: ID, Timecode, Speaker, Status Badges */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/80">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Segment ID */}
-          <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+          <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
             #{segment.id.toString().padStart(3, '0')}
           </span>
 
@@ -107,9 +131,9 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
               e.stopPropagation();
               onSelect();
             }}
-            className="flex items-center gap-1 text-2xs text-slate-500 hover:text-orange-500 transition"
+            className="flex items-center gap-1.5 text-xs font-mono text-slate-600 dark:text-slate-400 hover:text-orange-500 transition font-medium"
           >
-            <Play className="w-3 h-3 text-orange-500" />
+            <Play className="w-3.5 h-3.5 text-orange-500" />
             <span className="tabular-nums">
               {formatSeconds(segment.start)} - {formatSeconds(segment.end)} ({(segment.end - segment.start).toFixed(2)}s)
             </span>
@@ -117,14 +141,14 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
         </div>
 
         {/* Right Header: Badges & Speaker */}
-        <div className="flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {/* Speaker Selector */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-2xs">
-            <User className="w-3 h-3 text-slate-400" />
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-md text-xs font-mono">
+            <User className="w-3.5 h-3.5 text-slate-500" />
             <select
               value={selectedSpeaker}
               onChange={handleSpeakerChange}
-              className="bg-transparent text-slate-700 dark:text-slate-300 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 dark:text-slate-200 font-semibold focus:outline-none cursor-pointer"
             >
               <option value="SPEAKER_00">SPEAKER_00</option>
               <option value="SPEAKER_01">SPEAKER_01</option>
@@ -149,7 +173,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           {/* Acoustic & QA Badges */}
           {segment.overflow && (
             <Badge variant="error" title={t('review.overflow_warning')}>
-              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+              <AlertTriangle className="w-3 h-3 mr-0.5" />
               OVERFLOW
             </Badge>
           )}
@@ -174,49 +198,53 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
       {/* Body: Bilingual Side-by-Side View */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
         {/* Left: English Source (ASR) */}
-        <div className="space-y-1">
-          <div className="text-2xs font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <Volume2 className="w-3 h-3 text-slate-400" />
+        <div className="space-y-1.5">
+          <div className="text-xs font-mono text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 font-semibold">
+            <Volume2 className="w-3.5 h-3.5 text-slate-500" />
             <span>{t('review.col_source')}</span>
           </div>
-          <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-300 leading-relaxed text-sm select-text">
+          <div className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg select-text min-h-[72px]">
             {sourceText}
           </div>
         </div>
 
         {/* Right: Vietnamese Dub Editing (TTS) */}
-        <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between text-2xs font-mono text-slate-400 uppercase tracking-wider">
-            <span className="text-orange-500 font-bold flex items-center gap-1">
+        <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider">
+            <span className="text-orange-600 dark:text-orange-400 font-bold flex items-center gap-1">
               <span>{t('review.col_target')}</span>
             </span>
+            {/* Character expansion badge: Prominent and readable */}
             <span
-              className={`tabular-nums ${
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border tabular-nums ${
                 expansionPct > 25
-                  ? 'text-amber-500 font-bold'
+                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
                   : expansionPct < -25
-                  ? 'text-sky-500'
-                  : 'text-slate-500'
+                  ? 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30'
+                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
               }`}
             >
               {viLen} chars ({expansionPct >= 0 ? `+${expansionPct}%` : `${expansionPct}%`})
             </span>
           </div>
           <textarea
+            ref={textareaRef}
             value={editedVi}
             onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
             rows={2}
-            className="w-full p-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-amber-200 font-medium text-sm leading-relaxed focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition resize-none"
+            className="w-full text-base text-slate-900 dark:text-slate-100 font-medium leading-relaxed p-3 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none transition resize-none"
+            placeholder="Nhập nội dung lồng tiếng..."
           />
         </div>
       </div>
 
       {/* Card Footer: Quick Actions */}
       <div
-        className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs"
+        className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-2xs font-mono text-slate-400">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 font-medium">
           Target Duration: {segment.target_duration ? `${segment.target_duration.toFixed(2)}s` : '4.28s'}
         </div>
 
@@ -226,49 +254,49 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
           {isDirty && (
             <button
               onClick={handleRevert}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-2xs transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>{t('review.revert')}</span>
             </button>
           )}
 
-          {/* Save Button */}
+          {/* Lưu chỉnh sửa (high contrast) */}
           <button
             onClick={handleSave}
             disabled={!isDirty || isSaving}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-2xs font-semibold transition ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               isDirty
-                ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-50'
+                ? 'bg-orange-600 hover:bg-orange-500 text-white shadow-md shadow-orange-600/30 cursor-pointer'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 cursor-not-allowed opacity-60'
             }`}
           >
-            <Save className="w-3 h-3" />
-            <span>{isSaving ? 'Saving...' : t('review.save_changes')}</span>
+            <Save className="w-3.5 h-3.5" />
+            <span>{isSaving ? 'Đang lưu...' : 'Lưu chỉnh sửa'}</span>
           </button>
 
-          {/* Re-render TTS */}
+          {/* Render lại TTS */}
           <button
             onClick={handleRerender}
             disabled={isRerendering}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-2xs border border-slate-200 dark:border-slate-700 transition"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-300 dark:border-slate-700 transition"
             title="Re-synthesize audio for this segment"
           >
-            <RefreshCw className={`w-3 h-3 text-sky-500 ${isRerendering ? 'animate-spin' : ''}`} />
-            <span>{t('review.rerender')}</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-sky-500 ${isRerendering ? 'animate-spin' : ''}`} />
+            <span>Render lại TTS</span>
           </button>
 
-          {/* Accept Segment */}
+          {/* Duyệt đoạn này (Ctrl+Enter) in prominent emerald green */}
           <button
             onClick={handleAccept}
-            className={`flex items-center gap-1 px-3 py-1 rounded text-2xs font-bold transition ${
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${
               segment.review_status === 'accepted'
-                ? 'bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/50'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 hover:shadow-md'
             }`}
           >
-            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>{t('review.accept')}</span>
+            <Check className="w-4 h-4 stroke-[2.5]" />
+            <span>Duyệt đoạn này (Ctrl+Enter)</span>
           </button>
         </div>
       </div>
