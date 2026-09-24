@@ -1,0 +1,934 @@
+{
+  "schema_version": 1,
+  "probability_source": "recorded_typesafe_artifact",
+  "docs_snapshot_date": "2026-09-24",
+  "docs_current_model": "jev-1.13.0",
+  "chosen_batch_size": 16,
+  "raw_result": {
+    "status": "ok",
+    "stage": "translated",
+    "question_policy_version": 3,
+    "requested_model": "jev-latest",
+    "response_models": [
+      "jev-1.13.0"
+    ],
+    "items": [
+      {
+        "id": 1,
+        "source_en": "The market broke out of the consolidation range and created a clear Fair Value Gap.",
+        "translation_vi": "Thị trường đã bứt phá khỏi vùng tích lũy và tạo ra một Fair Value Gap rõ ràng.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 1.0,
+          "partial": 0.0
+        },
+        "confidence": 0.99,
+        "critical_facts_probability": 0.96,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.07,
+          "negation_or_modality_changed": 0.05,
+          "action_direction_changed": 0.04,
+          "spoken_vi_awkward": 0.14,
+          "register_or_context_inconsistent": 0.1
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 2,
+        "source_en": "Always wait for the four-hour candle to close before placing your stop loss order.",
+        "translation_vi": "Luôn chờ nến bốn giờ đóng cửa trước khi đặt lệnh cắt lỗ của bạn.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.99,
+          "partial": 0.01
+        },
+        "confidence": 0.99,
+        "critical_facts_probability": 0.95,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.07,
+          "negation_or_modality_changed": 0.08,
+          "action_direction_changed": 0.05,
+          "spoken_vi_awkward": 0.15,
+          "register_or_context_inconsistent": 0.09
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 3,
+        "source_en": "Risk management is the single most important factor for long-term survival in trading.",
+        "translation_vi": "Quản trị rủi ro là yếu tố quan trọng nhất để tồn tại lâu dài trong giao dịch.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.99,
+          "partial": 0.01
+        },
+        "confidence": 0.98,
+        "critical_facts_probability": 0.96,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.07,
+          "negation_or_modality_changed": 0.07,
+          "action_direction_changed": 0.05,
+          "spoken_vi_awkward": 0.13,
+          "register_or_context_inconsistent": 0.09
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 4,
+        "source_en": "When liquidity is taken from the previous day's high, look for reversal patterns on lower timeframes.",
+        "translation_vi": "Khi thanh khoản ở đỉnh ngày hôm trước bị quét, hãy tìm các mô hình đảo chiều trên khung thời gian nhỏ hơn.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.9,
+          "partial": 0.09
+        },
+        "confidence": 0.86,
+        "critical_facts_probability": 0.93,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.11,
+          "negation_or_modality_changed": 0.1,
+          "action_direction_changed": 0.1,
+          "spoken_vi_awkward": 0.21,
+          "register_or_context_inconsistent": 0.15
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 5,
+        "source_en": "We saw institutional volume entering right around the opening bell this morning.",
+        "translation_vi": "Chúng ta đã thấy khối lượng của các tổ chức tham gia ngay quanh giờ mở cửa sáng nay.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.88,
+          "partial": 0.12
+        },
+        "confidence": 0.82,
+        "critical_facts_probability": 0.94,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.1,
+          "negation_or_modality_changed": 0.09,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.18,
+          "register_or_context_inconsistent": 0.13
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 6,
+        "source_en": "At this point in time, what you really want to do is make sure that you protect your capital.",
+        "translation_vi": "Lúc này, điều cốt lõi là bảo vệ vốn của bạn.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.94,
+          "partial": 0.06
+        },
+        "confidence": 0.9,
+        "critical_facts_probability": 0.94,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.13,
+          "negation_or_modality_changed": 0.14,
+          "action_direction_changed": 0.06,
+          "spoken_vi_awkward": 0.22,
+          "register_or_context_inconsistent": 0.13
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 7,
+        "source_en": "If you take a close look at the chart right here, you will notice that the trend is shifting downwards.",
+        "translation_vi": "Nhìn kỹ biểu đồ ở đây, bạn sẽ thấy xu hướng đang chuyển biến đi xuống.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.9299999999999999,
+          "partial": 0.06
+        },
+        "confidence": 0.91,
+        "critical_facts_probability": 0.93,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.1,
+          "negation_or_modality_changed": 0.13,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.18,
+          "register_or_context_inconsistent": 0.12
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 8,
+        "source_en": "In order to successfully execute this trading strategy, patience is an absolute necessity.",
+        "translation_vi": "Để thực hiện thành công chiến lược này, kiên nhẫn là bắt buộc.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.02,
+          "faithful": 0.87,
+          "partial": 0.11
+        },
+        "confidence": 0.8,
+        "critical_facts_probability": 0.94,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.14,
+          "negation_or_modality_changed": 0.11,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.2,
+          "register_or_context_inconsistent": 0.14
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 9,
+        "source_en": "Make sure you do not forget to check the economic calendar for high-impact news releases.",
+        "translation_vi": "Nhớ kiểm tra lịch kinh tế để tránh các tin tức tác động mạnh.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.04,
+          "faithful": 0.57,
+          "partial": 0.39
+        },
+        "confidence": 0.36,
+        "critical_facts_probability": 0.67,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.39,
+          "negation_or_modality_changed": 0.33,
+          "action_direction_changed": 0.18,
+          "spoken_vi_awkward": 0.32,
+          "register_or_context_inconsistent": 0.36
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "choice_confidence_below_threshold"
+        ]
+      },
+      {
+        "id": 10,
+        "source_en": "What we are basically observing here is a classic double top formation.",
+        "translation_vi": "Chúng ta đang quan sát thấy mô hình hai đỉnh kinh điển.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.02,
+          "faithful": 0.61,
+          "partial": 0.37
+        },
+        "confidence": 0.42,
+        "critical_facts_probability": 0.86,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.28,
+          "negation_or_modality_changed": 0.18,
+          "action_direction_changed": 0.08,
+          "spoken_vi_awkward": 0.28,
+          "register_or_context_inconsistent": 0.29
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithful_probability_below_threshold",
+          "choice_confidence_below_threshold"
+        ]
+      },
+      {
+        "id": 11,
+        "source_en": "This strategy works reliably in trending markets, but only when liquidity is high.",
+        "translation_vi": "Chiến lược này hoạt động đáng tin cậy trong thị trường có xu hướng.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.13,
+          "partial": 0.86
+        },
+        "confidence": 0.79,
+        "critical_facts_probability": 0.7,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.47,
+          "negation_or_modality_changed": 0.37,
+          "action_direction_changed": 0.09,
+          "spoken_vi_awkward": 0.33,
+          "register_or_context_inconsistent": 0.29
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 12,
+        "source_en": "You can hold the trade overnight, unless there is a major central bank announcement tomorrow.",
+        "translation_vi": "Bạn có thể giữ lệnh qua đêm.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.04,
+          "partial": 0.95
+        },
+        "confidence": 0.93,
+        "critical_facts_probability": 0.2,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.69,
+          "negation_or_modality_changed": 0.49,
+          "action_direction_changed": 0.15,
+          "spoken_vi_awkward": 0.34,
+          "register_or_context_inconsistent": 0.26
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 13,
+        "source_en": "The indicator gives an early warning signal, though it occasionally generates false positives.",
+        "translation_vi": "Chỉ báo này đưa ra tín hiệu cảnh báo sớm.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.04,
+          "partial": 0.95
+        },
+        "confidence": 0.93,
+        "critical_facts_probability": 0.49,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.57,
+          "negation_or_modality_changed": 0.28,
+          "action_direction_changed": 0.09,
+          "spoken_vi_awkward": 0.42,
+          "register_or_context_inconsistent": 0.24
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 14,
+        "source_en": "Enter the position on the retest, but keep your position size strictly below two percent.",
+        "translation_vi": "Hãy vào lệnh khi giá kiểm tra lại.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.02,
+          "faithful": 0.03,
+          "partial": 0.95
+        },
+        "confidence": 0.93,
+        "critical_facts_probability": 0.27,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.59,
+          "negation_or_modality_changed": 0.27,
+          "action_direction_changed": 0.2,
+          "spoken_vi_awkward": 0.34,
+          "register_or_context_inconsistent": 0.43
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 15,
+        "source_en": "Do not enter the trade before the daily candle closes.",
+        "translation_vi": "Hãy vào lệnh trước khi nến ngày đóng cửa.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.94,
+          "faithful": 0.04,
+          "partial": 0.02
+        },
+        "confidence": 0.91,
+        "critical_facts_probability": 0.1,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.87,
+          "negation_or_modality_changed": 0.84,
+          "action_direction_changed": 0.88,
+          "spoken_vi_awkward": 0.71,
+          "register_or_context_inconsistent": 0.77
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 16,
+        "source_en": "Never increase your leverage after experiencing a losing streak.",
+        "translation_vi": "Hãy tăng đòn bẩy sau khi trải qua chuỗi thua lỗ.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.93,
+          "faithful": 0.04,
+          "partial": 0.03
+        },
+        "confidence": 0.89,
+        "critical_facts_probability": 0.09,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.9,
+          "negation_or_modality_changed": 0.88,
+          "action_direction_changed": 0.83,
+          "spoken_vi_awkward": 0.65,
+          "register_or_context_inconsistent": 0.78
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost"
+        ]
+      },
+      {
+        "id": 17,
+        "source_en": "This setup is not valid if the price breaks below the support level.",
+        "translation_vi": "Thiết lập này vẫn hợp lệ khi giá phá xuống dưới mức hỗ trợ.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 1.0,
+          "faithful": 0.0,
+          "partial": 0.0
+        },
+        "confidence": 1.0,
+        "critical_facts_probability": 0.03,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.96,
+          "negation_or_modality_changed": 0.97,
+          "action_direction_changed": 0.93,
+          "spoken_vi_awkward": 0.4,
+          "register_or_context_inconsistent": 0.91
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:negation_or_modality_changed",
+          "issue:action_direction_changed",
+          "issue:register_or_context_inconsistent"
+        ]
+      },
+      {
+        "id": 18,
+        "source_en": "You should avoid trading during major interest rate decisions.",
+        "translation_vi": "Bạn nên giao dịch trong các quyết định lãi suất lớn.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 1.0,
+          "faithful": 0.0,
+          "partial": 0.0
+        },
+        "confidence": 0.99,
+        "critical_facts_probability": 0.04,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.95,
+          "negation_or_modality_changed": 0.95,
+          "action_direction_changed": 0.9,
+          "spoken_vi_awkward": 0.49,
+          "register_or_context_inconsistent": 0.85
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:negation_or_modality_changed",
+          "issue:action_direction_changed"
+        ]
+      },
+      {
+        "id": 19,
+        "source_en": "Aggressive traders may consider scaling into the position here.",
+        "translation_vi": "Nhà giao dịch bắt buộc phải gia tăng vị thế ở đây.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.93,
+          "faithful": 0.0,
+          "partial": 0.07
+        },
+        "confidence": 0.89,
+        "critical_facts_probability": 0.04,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.94,
+          "negation_or_modality_changed": 0.96,
+          "action_direction_changed": 0.87,
+          "spoken_vi_awkward": 0.54,
+          "register_or_context_inconsistent": 0.88
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:negation_or_modality_changed"
+        ]
+      },
+      {
+        "id": 20,
+        "source_en": "You must close your position immediately when the stop loss is triggered.",
+        "translation_vi": "Bạn có thể tùy ý đóng lệnh khi mức cắt lỗ bị kích hoạt.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.98,
+          "faithful": 0.0,
+          "partial": 0.02
+        },
+        "confidence": 0.97,
+        "critical_facts_probability": 0.03,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.94,
+          "negation_or_modality_changed": 0.97,
+          "action_direction_changed": 0.87,
+          "spoken_vi_awkward": 0.43,
+          "register_or_context_inconsistent": 0.91
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:negation_or_modality_changed",
+          "issue:register_or_context_inconsistent"
+        ]
+      },
+      {
+        "id": 21,
+        "source_en": "The breakout might be a fakeout, so use caution.",
+        "translation_vi": "Đợt bứt phá chắc chắn là giả, hãy cẩn thận.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.37,
+          "faithful": 0.13,
+          "partial": 0.5
+        },
+        "confidence": 0.25,
+        "critical_facts_probability": 0.18,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.82,
+          "negation_or_modality_changed": 0.9,
+          "action_direction_changed": 0.5,
+          "spoken_vi_awkward": 0.38,
+          "register_or_context_inconsistent": 0.68
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "choice_confidence_below_threshold",
+          "issue:negation_or_modality_changed"
+        ]
+      },
+      {
+        "id": 22,
+        "source_en": "We set our stop loss at twenty-five pips and target seventy-five pips profit.",
+        "translation_vi": "Chúng ta đặt dừng lỗ ở năm mươi pip và nhắm mục tiêu lãi bảy mươi lăm pip.",
+        "choice": "partial",
+        "probabilities": {
+          "wrong": 0.35,
+          "faithful": 0.0,
+          "partial": 0.65
+        },
+        "confidence": 0.46,
+        "critical_facts_probability": 0.03,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.92,
+          "negation_or_modality_changed": 0.18,
+          "action_direction_changed": 0.39,
+          "spoken_vi_awkward": 0.23,
+          "register_or_context_inconsistent": 0.83
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "choice_confidence_below_threshold",
+          "issue:material_meaning_lost"
+        ]
+      },
+      {
+        "id": 23,
+        "source_en": "The win rate of this strategy is approximately sixty-six percent with a one to two risk reward ratio.",
+        "translation_vi": "Tỷ lệ thắng của chiến lược này khoảng năm mươi ba phần trăm với tỷ lệ rủi ro lợi nhuận một hai.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.62,
+          "faithful": 0.01,
+          "partial": 0.37
+        },
+        "confidence": 0.43,
+        "critical_facts_probability": 0.05,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.93,
+          "negation_or_modality_changed": 0.12,
+          "action_direction_changed": 0.33,
+          "spoken_vi_awkward": 0.26,
+          "register_or_context_inconsistent": 0.67
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "choice_confidence_below_threshold",
+          "issue:material_meaning_lost"
+        ]
+      },
+      {
+        "id": 24,
+        "source_en": "Sam Altman announced the new GPT-4 model update yesterday.",
+        "translation_vi": "Elon Musk đã công bố bản cập nhật mô hình GPT-4 mới vào hôm qua.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.96,
+          "faithful": 0.0,
+          "partial": 0.04
+        },
+        "confidence": 0.94,
+        "critical_facts_probability": 0.02,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.94,
+          "negation_or_modality_changed": 0.11,
+          "action_direction_changed": 0.86,
+          "spoken_vi_awkward": 0.26,
+          "register_or_context_inconsistent": 0.92
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:register_or_context_inconsistent"
+        ]
+      },
+      {
+        "id": 25,
+        "source_en": "The Federal Reserve raised interest rates by seventy-five basis points in July.",
+        "translation_vi": "Cục Dự trữ Liên bang đã tăng lãi suất thêm hai mươi lăm điểm cơ bản vào tháng Bảy.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.83,
+          "faithful": 0.01,
+          "partial": 0.16
+        },
+        "confidence": 0.74,
+        "critical_facts_probability": 0.03,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.92,
+          "negation_or_modality_changed": 0.16,
+          "action_direction_changed": 0.51,
+          "spoken_vi_awkward": 0.22,
+          "register_or_context_inconsistent": 0.59
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost"
+        ]
+      },
+      {
+        "id": 26,
+        "source_en": "When the price hits the upper Bollinger Band, look for selling opportunities.",
+        "translation_vi": "Khi giá chạm dải Bollinger phía trên, hãy tìm kiếm cơ hội mua vào.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 1.0,
+          "faithful": 0.0,
+          "partial": 0.0
+        },
+        "confidence": 1.0,
+        "critical_facts_probability": 0.03,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.95,
+          "negation_or_modality_changed": 0.72,
+          "action_direction_changed": 0.97,
+          "spoken_vi_awkward": 0.27,
+          "register_or_context_inconsistent": 0.9
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:action_direction_changed",
+          "issue:register_or_context_inconsistent"
+        ]
+      },
+      {
+        "id": 27,
+        "source_en": "Take partial profits at the first resistance and move your stop loss to breakeven.",
+        "translation_vi": "Mở thêm vị thế mua tại mức kháng cự đầu tiên và hủy lệnh cắt lỗ.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 1.0,
+          "faithful": 0.0,
+          "partial": 0.0
+        },
+        "confidence": 1.0,
+        "critical_facts_probability": 0.02,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.95,
+          "negation_or_modality_changed": 0.69,
+          "action_direction_changed": 0.96,
+          "spoken_vi_awkward": 0.6,
+          "register_or_context_inconsistent": 0.94
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold",
+          "issue:material_meaning_lost",
+          "issue:action_direction_changed",
+          "issue:register_or_context_inconsistent"
+        ]
+      },
+      {
+        "id": 28,
+        "source_en": "Cut your losing trades quickly and let your winning trades run.",
+        "translation_vi": "Gồng các lệnh thua lỗ và chốt lời các lệnh thắng thật nhanh.",
+        "choice": "wrong",
+        "probabilities": {
+          "wrong": 0.91,
+          "faithful": 0.06,
+          "partial": 0.03
+        },
+        "confidence": 0.87,
+        "critical_facts_probability": 0.13,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.87,
+          "negation_or_modality_changed": 0.48,
+          "action_direction_changed": 0.88,
+          "spoken_vi_awkward": 0.59,
+          "register_or_context_inconsistent": 0.82
+        },
+        "needs_review": true,
+        "decision": "retry",
+        "decision_reasons": [
+          "faithfulness_choice:wrong",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 29,
+        "source_en": "When the signal appears, wait for confirmation before entering.",
+        "translation_vi": "Tín hiệu xuất hiện. Chờ xác nhận. Rồi vào.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.01,
+          "faithful": 0.88,
+          "partial": 0.11
+        },
+        "confidence": 0.82,
+        "critical_facts_probability": 0.88,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.13,
+          "negation_or_modality_changed": 0.15,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.63,
+          "register_or_context_inconsistent": 0.23
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 30,
+        "source_en": "First check the trend on the daily timeframe, then find the entry on the fifteen-minute chart.",
+        "translation_vi": "Trước xem xu hướng ngày. Sau tìm điểm vào mười lăm phút.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.98,
+          "partial": 0.02
+        },
+        "confidence": 0.97,
+        "critical_facts_probability": 0.94,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.08,
+          "negation_or_modality_changed": 0.11,
+          "action_direction_changed": 0.06,
+          "spoken_vi_awkward": 0.27,
+          "register_or_context_inconsistent": 0.15
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 31,
+        "source_en": "If the price breaks out with strong volume, follow the momentum.",
+        "translation_vi": "Giá phá cản khối lượng mạnh. Đi theo đà.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.95,
+          "partial": 0.05
+        },
+        "confidence": 0.91,
+        "critical_facts_probability": 0.91,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.11,
+          "negation_or_modality_changed": 0.18,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.35,
+          "register_or_context_inconsistent": 0.18
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 32,
+        "source_en": "Technical indicators should only be used as confluence, not as a standalone reason to trade.",
+        "translation_vi": "Các chỉ báo kỹ thuật chỉ nên dùng để tăng độ tin cậy, không dùng làm lý do duy nhất để giao dịch.",
+        "choice": "faithful",
+        "probabilities": {
+          "wrong": 0.0,
+          "faithful": 0.99,
+          "partial": 0.01
+        },
+        "confidence": 0.99,
+        "critical_facts_probability": 0.94,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.08,
+          "negation_or_modality_changed": 0.11,
+          "action_direction_changed": 0.07,
+          "spoken_vi_awkward": 0.14,
+          "register_or_context_inconsistent": 0.11
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 33,
+        "source_en": "The market structure remains bullish as long as the higher lows are respected.",
+        "translation_vi": "Cấu trúc thị trường vẫn tăng chừng nào các đáy sau cao hơn còn được giữ vững.",
+        "choice": "faithful",
+        "probabilities": {
+          "faithful": 0.98,
+          "partial": 0.02,
+          "wrong": 0.0
+        },
+        "confidence": 0.97,
+        "critical_facts_probability": 0.93,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.13,
+          "negation_or_modality_changed": 0.12,
+          "action_direction_changed": 0.08,
+          "spoken_vi_awkward": 0.21,
+          "register_or_context_inconsistent": 0.14
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      },
+      {
+        "id": 34,
+        "source_en": "We recommend using a trailing stop once the trade moves at least two R in profit.",
+        "translation_vi": "Chúng tôi khuyên dùng lệnh trailing stop.",
+        "choice": "partial",
+        "probabilities": {
+          "faithful": 0.01,
+          "partial": 0.98,
+          "wrong": 0.01
+        },
+        "confidence": 0.97,
+        "critical_facts_probability": 0.06,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.82,
+          "negation_or_modality_changed": 0.44,
+          "action_direction_changed": 0.11,
+          "spoken_vi_awkward": 0.57,
+          "register_or_context_inconsistent": 0.42
+        },
+        "needs_review": true,
+        "decision": "review",
+        "decision_reasons": [
+          "faithfulness_choice:partial",
+          "faithful_probability_below_threshold",
+          "critical_facts_probability_below_threshold"
+        ]
+      },
+      {
+        "id": 35,
+        "source_en": "What is critically important here is that you stay disciplined throughout the entire session.",
+        "translation_vi": "Điều tối quan trọng là phải giữ kỷ luật trong suốt phiên.",
+        "choice": "faithful",
+        "probabilities": {
+          "faithful": 0.84,
+          "partial": 0.16,
+          "wrong": 0.0
+        },
+        "confidence": 0.75,
+        "critical_facts_probability": 0.91,
+        "issue_probabilities": {
+          "material_meaning_lost": 0.13,
+          "negation_or_modality_changed": 0.13,
+          "action_direction_changed": 0.05,
+          "spoken_vi_awkward": 0.19,
+          "register_or_context_inconsistent": 0.11
+        },
+        "needs_review": false,
+        "decision": "pass",
+        "decision_reasons": []
+      }
+    ]
+  }
+}

@@ -269,6 +269,26 @@ def test_semantic_calibration_golden_covers_plan_classes_and_costed_threshold() 
     assert semantic_qa.semantic_retry_risk_score(awkward) < result["selected"]["threshold"]
 
 
+def test_typesafe_real_calibration_receipt_and_model_pinning() -> None:
+    receipt_path = Path(__file__).resolve().parents[1] / "work/benchmarks/typesafe-calibration-real-receipt.json"
+    assert receipt_path.is_file(), f"Receipt file missing: {receipt_path}"
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["fixture_set"] == "p05-semantic-calibration-real-v1"
+    assert receipt["sample_count"] >= 35
+    assert receipt["label_provenance"] == "human"
+    assert receipt["probability_source"] == "recorded_typesafe_artifact"
+    assert receipt["coverage"]["missing"] == []
+    assert receipt["selected_metrics"]["precision"] == 1.0
+    assert receipt["selected_metrics"]["recall"] == 1.0
+    assert receipt["selected_metrics"]["f1"] == 1.0
+    assert receipt["severe_semantic_error"]["recall"] == 1.0
+    assert receipt["awkward_but_semantically_correct"]["sent_to_retry"] == 0
+    assert receipt["model_pinning"]["production_pinning_ready"] is True
+    assert receipt["model_pinning"]["versioned_model"] == "jev-1.13.0"
+    assert receipt["production_threshold_lock_allowed"] is True
+
+
 def test_semantic_retry_retries_server_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = 0
 

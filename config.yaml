@@ -74,13 +74,14 @@ qa:
   min_similarity: 0.78
   semantic:
     enabled: true
-    model: jev-latest
+    model: jev-1.13.0
     timeout_seconds: 30
     max_attempts: 3
     batch_size: 32
     review_faithful_below: 0.65
     review_critical_below: 0.75
     review_confidence_below: 0.50
+    review_issue_above: 0.87
 
 diarization:
   enabled: auto

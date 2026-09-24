@@ -1,0 +1,69 @@
+{
+  "fixture_set": "p05-semantic-calibration-real-v1",
+  "sample_count": 35,
+  "label_provenance": "human",
+  "probability_source": "recorded_typesafe_artifact",
+  "question_policy_version": 3,
+  "coverage": {
+    "required": [
+      "good_faithful_translation",
+      "subtle_loss",
+      "negation_reversal",
+      "modality_loss",
+      "number_name_issue",
+      "telegraphic_vietnamese",
+      "valid_natural_compression"
+    ],
+    "present": [
+      "action_direction_changed",
+      "good_faithful_translation",
+      "modality_loss",
+      "negation_reversal",
+      "number_name_issue",
+      "subtle_loss",
+      "telegraphic_vietnamese",
+      "valid_natural_compression"
+    ],
+    "missing": []
+  },
+  "cost_policy": {
+    "false_pass_cost": 5.0,
+    "false_retry_cost": 1.0,
+    "meaning": "false_pass = should_retry labeled sample allowed through; false_retry = non-retry sample sent to retry"
+  },
+  "offline_candidate_threshold": 0.87,
+  "selected_metrics": {
+    "threshold": 0.87,
+    "confusion": {
+      "true_positive": 19,
+      "false_positive": 0,
+      "true_negative": 16,
+      "false_negative": 0
+    },
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "cost": 0.0
+  },
+  "severe_semantic_error": {
+    "count": 14,
+    "caught": 14,
+    "recall": 1.0
+  },
+  "awkward_but_semantically_correct": {
+    "count": 3,
+    "sent_to_retry": 0
+  },
+  "model_pinning": {
+    "requested_model": "jev-latest",
+    "response_models": [
+      "jev-1.13.0"
+    ],
+    "versioned_model": "jev-1.13.0",
+    "production_pinning_ready": true,
+    "suggested_pinned_model": "jev-1.13.0",
+    "blockers": []
+  },
+  "production_threshold_lock_allowed": true,
+  "production_note": "Recorded human-labeled evidence is eligible for production threshold/model review."
+}

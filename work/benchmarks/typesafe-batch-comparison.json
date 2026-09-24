@@ -1,0 +1,383 @@
+{
+  "timestamp": "2026-09-24T08:20:00+07:00",
+  "sample_count": 35,
+  "batches": {
+    "8": {
+      "elapsed_seconds": 7.4613,
+      "input_tokens": 42390,
+      "output_tokens": 6287,
+      "response_models": [
+        "jev-1.13.0"
+      ]
+    },
+    "16": {
+      "elapsed_seconds": 5.0291,
+      "input_tokens": 41862,
+      "output_tokens": 6281,
+      "response_models": [
+        "jev-1.13.0"
+      ]
+    },
+    "32": {
+      "elapsed_seconds": 3.5317,
+      "input_tokens": 41598,
+      "output_tokens": 6277,
+      "response_models": [
+        "jev-1.13.0"
+      ]
+    }
+  },
+  "choice_agreement_rate": 0.8857,
+  "per_item_stability": [
+    {
+      "id": 1,
+      "text": "The market broke out of the consolidatio",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 2,
+      "text": "Always wait for the four-hour candle to ",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 3,
+      "text": "Risk management is the single most impor",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 4,
+      "text": "When liquidity is taken from the previou",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 5,
+      "text": "We saw institutional volume entering rig",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 6,
+      "text": "At this point in time, what you really w",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 7,
+      "text": "If you take a close look at the chart ri",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 8,
+      "text": "In order to successfully execute this tr",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 9,
+      "text": "Make sure you do not forget to check the",
+      "choices": {
+        "8": "partial",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": false
+    },
+    {
+      "id": 10,
+      "text": "What we are basically observing here is ",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 11,
+      "text": "This strategy works reliably in trending",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "partial"
+      },
+      "consistent": true
+    },
+    {
+      "id": 12,
+      "text": "You can hold the trade overnight, unless",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "partial"
+      },
+      "consistent": true
+    },
+    {
+      "id": 13,
+      "text": "The indicator gives an early warning sig",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "partial"
+      },
+      "consistent": true
+    },
+    {
+      "id": 14,
+      "text": "Enter the position on the retest, but ke",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "partial"
+      },
+      "consistent": true
+    },
+    {
+      "id": 15,
+      "text": "Do not enter the trade before the daily ",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 16,
+      "text": "Never increase your leverage after exper",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 17,
+      "text": "This setup is not valid if the price bre",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 18,
+      "text": "You should avoid trading during major in",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 19,
+      "text": "Aggressive traders may consider scaling ",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 20,
+      "text": "You must close your position immediately",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 21,
+      "text": "The breakout might be a fakeout, so use ",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "wrong"
+      },
+      "consistent": false
+    },
+    {
+      "id": 22,
+      "text": "We set our stop loss at twenty-five pips",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "wrong"
+      },
+      "consistent": false
+    },
+    {
+      "id": 23,
+      "text": "The win rate of this strategy is approxi",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 24,
+      "text": "Sam Altman announced the new GPT-4 model",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 25,
+      "text": "The Federal Reserve raised interest rate",
+      "choices": {
+        "8": "partial",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": false
+    },
+    {
+      "id": 26,
+      "text": "When the price hits the upper Bollinger ",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 27,
+      "text": "Take partial profits at the first resist",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 28,
+      "text": "Cut your losing trades quickly and let y",
+      "choices": {
+        "8": "wrong",
+        "16": "wrong",
+        "32": "wrong"
+      },
+      "consistent": true
+    },
+    {
+      "id": 29,
+      "text": "When the signal appears, wait for confir",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 30,
+      "text": "First check the trend on the daily timef",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 31,
+      "text": "If the price breaks out with strong volu",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 32,
+      "text": "Technical indicators should only be used",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 33,
+      "text": "The market structure remains bullish as ",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    },
+    {
+      "id": 34,
+      "text": "We recommend using a trailing stop once ",
+      "choices": {
+        "8": "partial",
+        "16": "partial",
+        "32": "partial"
+      },
+      "consistent": true
+    },
+    {
+      "id": 35,
+      "text": "What is critically important here is tha",
+      "choices": {
+        "8": "faithful",
+        "16": "faithful",
+        "32": "faithful"
+      },
+      "consistent": true
+    }
+  ]
+}

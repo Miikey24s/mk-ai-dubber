@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "fixture_set": "p05-semantic-calibration-real-v1",
+  "label_provenance": "human",
+  "required_plan_classes": [
+    "good_faithful_translation",
+    "subtle_loss",
+    "negation_reversal",
+    "modality_loss",
+    "number_name_issue",
+    "telegraphic_vietnamese",
+    "valid_natural_compression"
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "class": "good_faithful_translation",
+      "source_en": "The market broke out of the consolidation range and created a clear Fair Value Gap.",
+      "translation_vi": "Thị trường đã bứt phá khỏi vùng tích lũy và tạo ra một Fair Value Gap rõ ràng.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 2,
+      "class": "good_faithful_translation",
+      "source_en": "Always wait for the four-hour candle to close before placing your stop loss order.",
+      "translation_vi": "Luôn chờ nến bốn giờ đóng cửa trước khi đặt lệnh cắt lỗ của bạn.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 3,
+      "class": "good_faithful_translation",
+      "source_en": "Risk management is the single most important factor for long-term survival in trading.",
+      "translation_vi": "Quản trị rủi ro là yếu tố quan trọng nhất để tồn tại lâu dài trong giao dịch.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 4,
+      "class": "good_faithful_translation",
+      "source_en": "When liquidity is taken from the previous day's high, look for reversal patterns on lower timeframes.",
+      "translation_vi": "Khi thanh khoản ở đỉnh ngày hôm trước bị quét, hãy tìm các mô hình đảo chiều trên khung thời gian nhỏ hơn.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 5,
+      "class": "good_faithful_translation",
+      "source_en": "We saw institutional volume entering right around the opening bell this morning.",
+      "translation_vi": "Chúng ta đã thấy khối lượng của các tổ chức tham gia ngay quanh giờ mở cửa sáng nay.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 6,
+      "class": "valid_natural_compression",
+      "source_en": "At this point in time, what you really want to do is make sure that you protect your capital.",
+      "translation_vi": "Lúc này, điều cốt lõi là bảo vệ vốn của bạn.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 7,
+      "class": "valid_natural_compression",
+      "source_en": "If you take a close look at the chart right here, you will notice that the trend is shifting downwards.",
+      "translation_vi": "Nhìn kỹ biểu đồ ở đây, bạn sẽ thấy xu hướng đang chuyển biến đi xuống.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 8,
+      "class": "valid_natural_compression",
+      "source_en": "In order to successfully execute this trading strategy, patience is an absolute necessity.",
+      "translation_vi": "Để thực hiện thành công chiến lược này, kiên nhẫn là bắt buộc.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 9,
+      "class": "valid_natural_compression",
+      "source_en": "Make sure you do not forget to check the economic calendar for high-impact news releases.",
+      "translation_vi": "Nhớ kiểm tra lịch kinh tế để tránh các tin tức tác động mạnh.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 10,
+      "class": "valid_natural_compression",
+      "source_en": "What we are basically observing here is a classic double top formation.",
+      "translation_vi": "Chúng ta đang quan sát thấy mô hình hai đỉnh kinh điển.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 11,
+      "class": "subtle_loss",
+      "source_en": "This strategy works reliably in trending markets, but only when liquidity is high.",
+      "translation_vi": "Chiến lược này hoạt động đáng tin cậy trong thị trường có xu hướng.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 12,
+      "class": "subtle_loss",
+      "source_en": "You can hold the trade overnight, unless there is a major central bank announcement tomorrow.",
+      "translation_vi": "Bạn có thể giữ lệnh qua đêm.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 13,
+      "class": "subtle_loss",
+      "source_en": "The indicator gives an early warning signal, though it occasionally generates false positives.",
+      "translation_vi": "Chỉ báo này đưa ra tín hiệu cảnh báo sớm.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 14,
+      "class": "subtle_loss",
+      "source_en": "Enter the position on the retest, but keep your position size strictly below two percent.",
+      "translation_vi": "Hãy vào lệnh khi giá kiểm tra lại.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 15,
+      "class": "negation_reversal",
+      "source_en": "Do not enter the trade before the daily candle closes.",
+      "translation_vi": "Hãy vào lệnh trước khi nến ngày đóng cửa.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 16,
+      "class": "negation_reversal",
+      "source_en": "Never increase your leverage after experiencing a losing streak.",
+      "translation_vi": "Hãy tăng đòn bẩy sau khi trải qua chuỗi thua lỗ.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 17,
+      "class": "negation_reversal",
+      "source_en": "This setup is not valid if the price breaks below the support level.",
+      "translation_vi": "Thiết lập này vẫn hợp lệ khi giá phá xuống dưới mức hỗ trợ.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 18,
+      "class": "negation_reversal",
+      "source_en": "You should avoid trading during major interest rate decisions.",
+      "translation_vi": "Bạn nên giao dịch trong các quyết định lãi suất lớn.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 19,
+      "class": "modality_loss",
+      "source_en": "Aggressive traders may consider scaling into the position here.",
+      "translation_vi": "Nhà giao dịch bắt buộc phải gia tăng vị thế ở đây.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 20,
+      "class": "modality_loss",
+      "source_en": "You must close your position immediately when the stop loss is triggered.",
+      "translation_vi": "Bạn có thể tùy ý đóng lệnh khi mức cắt lỗ bị kích hoạt.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 21,
+      "class": "modality_loss",
+      "source_en": "The breakout might be a fakeout, so use caution.",
+      "translation_vi": "Đợt bứt phá chắc chắn là giả, hãy cẩn thận.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 22,
+      "class": "number_name_issue",
+      "source_en": "We set our stop loss at twenty-five pips and target seventy-five pips profit.",
+      "translation_vi": "Chúng ta đặt dừng lỗ ở năm mươi pip và nhắm mục tiêu lãi bảy mươi lăm pip.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 23,
+      "class": "number_name_issue",
+      "source_en": "The win rate of this strategy is approximately sixty-six percent with a one to two risk reward ratio.",
+      "translation_vi": "Tỷ lệ thắng của chiến lược này khoảng năm mươi ba phần trăm với tỷ lệ rủi ro lợi nhuận một hai.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 24,
+      "class": "number_name_issue",
+      "source_en": "Sam Altman announced the new GPT-4 model update yesterday.",
+      "translation_vi": "Elon Musk đã công bố bản cập nhật mô hình GPT-4 mới vào hôm qua.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 25,
+      "class": "number_name_issue",
+      "source_en": "The Federal Reserve raised interest rates by seventy-five basis points in July.",
+      "translation_vi": "Cục Dự trữ Liên bang đã tăng lãi suất thêm hai mươi lăm điểm cơ bản vào tháng Bảy.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 26,
+      "class": "action_direction_changed",
+      "source_en": "When the price hits the upper Bollinger Band, look for selling opportunities.",
+      "translation_vi": "Khi giá chạm dải Bollinger phía trên, hãy tìm kiếm cơ hội mua vào.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 27,
+      "class": "action_direction_changed",
+      "source_en": "Take partial profits at the first resistance and move your stop loss to breakeven.",
+      "translation_vi": "Mở thêm vị thế mua tại mức kháng cự đầu tiên và hủy lệnh cắt lỗ.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 28,
+      "class": "action_direction_changed",
+      "source_en": "Cut your losing trades quickly and let your winning trades run.",
+      "translation_vi": "Gồng các lệnh thua lỗ và chốt lời các lệnh thắng thật nhanh.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 29,
+      "class": "telegraphic_vietnamese",
+      "source_en": "When the signal appears, wait for confirmation before entering.",
+      "translation_vi": "Tín hiệu xuất hiện. Chờ xác nhận. Rồi vào.",
+      "should_pass": false,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": true
+    },
+    {
+      "id": 30,
+      "class": "telegraphic_vietnamese",
+      "source_en": "First check the trend on the daily timeframe, then find the entry on the fifteen-minute chart.",
+      "translation_vi": "Trước xem xu hướng ngày. Sau tìm điểm vào mười lăm phút.",
+      "should_pass": false,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": true
+    },
+    {
+      "id": 31,
+      "class": "telegraphic_vietnamese",
+      "source_en": "If the price breaks out with strong volume, follow the momentum.",
+      "translation_vi": "Giá phá cản khối lượng mạnh. Đi theo đà.",
+      "should_pass": false,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": true
+    },
+    {
+      "id": 32,
+      "class": "good_faithful_translation",
+      "source_en": "Technical indicators should only be used as confluence, not as a standalone reason to trade.",
+      "translation_vi": "Các chỉ báo kỹ thuật chỉ nên dùng để tăng độ tin cậy, không dùng làm lý do duy nhất để giao dịch.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 33,
+      "class": "good_faithful_translation",
+      "source_en": "The market structure remains bullish as long as the higher lows are respected.",
+      "translation_vi": "Cấu trúc thị trường vẫn tăng chừng nào các đáy sau cao hơn còn được giữ vững.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 34,
+      "class": "subtle_loss",
+      "source_en": "We recommend using a trailing stop once the trade moves at least two R in profit.",
+      "translation_vi": "Chúng tôi khuyên dùng lệnh trailing stop.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 35,
+      "class": "valid_natural_compression",
+      "source_en": "What is critically important here is that you stay disciplined throughout the entire session.",
+      "translation_vi": "Điều tối quan trọng là phải giữ kỷ luật trong suốt phiên.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    }
+  ]
+}

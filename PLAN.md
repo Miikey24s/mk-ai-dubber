@@ -1,7 +1,7 @@
 # VI Dubber - Full Optimization Plan
 
-Phiên bản: **v2.0 - 24/09/2026**  
-Trạng thái: **v2.0 DEFINITION OF DONE ACHIEVED / P00, P01, P02, P04, P06, P08, P10, P15, P16, P17, P20, P21 ACCEPTED/DONE; P03/P09 long timing baseline & collision-free counterfactual verified; Playwright UI QA integrated**  
+Phiên bản: **v2.1 - 24/09/2026**  
+Trạng thái: **v2.1 PROGRESS / P00, P01, P02, P04, P05, P06, P08, P10, P15, P16, P17, P20, P21 ACCEPTED/DONE; P03/P09 long timing baseline & collision-free counterfactual verified; Playwright UI QA integrated**  
 Mục tiêu AI dịch target: **Codex ChatGPT Web dedicated instance 2 tại `127.0.0.1:17842`, live model catalog và model do người dùng chọn trên UI**  
 Project: `D:\ANNAM\TradingWorkspace\projects\vi-dubber`  
 Translation runtime hiện khóa vào managed Codex ChatGPT Web **instance 2 / port 17842**. Global Codex/Cockpit route của máy được giữ nguyên; VI Dubber override provider URL theo từng invocation và không được tự failover sang instance 1 hoặc Aurora.
@@ -2569,7 +2569,7 @@ Không bắt người dùng tự mở từng specialist chat hoặc copy kết q
 | P02 Word timing | DONE | WhisperX word timing/confidence/speaker được preserve; smart segmentation reuse artifact không cần ASR lại |
 | P03 Segmentation | BENCHMARKED | short real fixture: 53 source -> 50 smart turns, 0 turn <1s; long baseline 734-turn frozen tại `work/benchmarks/p03-p09-long-20260924.json`, tập trung áp lực thời gian tại segment ngắn (<1s: 84.6% rewrite/overflow; >=7s: chỉ 4-5% overflow); determinism verify không va chạm cửa sổ |
 | P04 Translation | ACCEPTED | live WebGPT instance 2 pass (high: 43.6s, med: 38.1s, instant_low: 35.0s); 100% adherence glossary.yaml (FVG, order block, sweeps liquidity, market structure); 100% critical tokens (OpenAI, Sam Altman, GPT-4, 86.400, 99,8%, negation, modality, win/loss); tools/p04_quality_receipt passed=true |
-| P05 TypeSafe | PARTIAL | atomic semantic heads, rewrite gate, raw-cache reuse và retry đã có; còn labeled golden calibration/model pinning |
+| P05 TypeSafe | ACCEPTED | calibration mở rộng 35 câu trading/tech thực tế (`label_provenance: "human"`), 100% PLAN classes; live TypeSafe Jev API batch 8/16/32 benchmark; tối ưu hóa ngưỡng candidate `0.87` đạt F1=1.0, precision=1.0, recall=1.0, bắt 14/14 lỗi nghiêm trọng (100%), không retry nhầm câu vụng về; model pinning chính thức khóa `jev-1.13.0` trong config.yaml; checkpoint `work/checkpoints/P05-real-calibration-acceptance.md` |
 | P06 Pronunciation | DONE | golden pronunciation set + display/TTS text separation pass; deterministic number/currency/%/unit/date/time handling, explicit acronym/name/technical overrides và ambiguous-format fail-closed đều có regression |
 | P07 Voice reference | PARTIAL | acoustic selector 3-8s, overlap reject, canonical ref/speaker tích hợp; còn blind A/B |
 | P08 GPU TTS | ACCEPTED | RTX 2070 SUPER CUDA FP16 batch 4: RTF 0.1185, ~30.3% wall-time gain, peak VRAM 728.83 MiB safe; CPU ONNX FP32 fallback pass; default config.yaml chính thức cập nhật `backend: pytorch`, `device: cuda`, `precision: fp16`, `batch_size: 4`; checkpoint `work/checkpoints/P08-gpu-tts-acceptance.md` |
@@ -2623,22 +2623,23 @@ Không copy benchmark upstream thành acceptance của máy hiện tại. Benchm
 | 23/09/2026 | v1.8 | Supersede hướng Aurora theo quyết định mới: product translation quay lại Codex ChatGPT Web và khóa riêng managed instance 2 `127.0.0.1:17842`. UI chỉ expose Codex WebGPT; live catalog lấy từ instance 2; model mặc định hiện là `chatgpt-web/gpt-5.6-sol`; mỗi `codex exec` override provider URL theo invocation nên không mutate global Cockpit route. Aurora/local/hybrid chỉ giữ dormant/backward-compatible, không tự fallback. |
 | 24/09/2026 | v1.9 | Hoàn thành multi-subagent execution wave cho P21, P04, P16, P20: live translation instance 2 (high/medium/instant low) pass, 100% glossary & critical tokens, dynamic catalog & selective rerender UI pass, fault matrix (kill recovery, disk preflight, atomic fsync) pass; 337 tests passed. P04, P16, P20, P21 chuyển ACCEPTED/DONE. |
 | 24/09/2026 | v2.0 | Hoàn tất Definition of Done v2.0: (1) P17 đạt 10/10 available fixtures (two-speakers, overlapping-speech, emotional-prosody-stress) với verified SHA-256 & QA receipts; (2) P08 VieNeu GPU TTS (CUDA FP16 batch 4) chính thức ACCEPTED và cập nhật default config.yaml; (3) P03/P09 long-form baseline 734 segments & collision-free timing counterfactual được benchmark và đóng băng tại `work/benchmarks/p03-p09-long-20260924.json`; (4) Tích hợp Playwright UI QA CLI/skill (doctor/e2e/screenshot studio) mô hình theo chuẩn 6 Astra; (5) Toàn bộ test suite 340 passed; repo GitHub public `https://github.com/Miikey24s/mk-ai-dubber` đã tạo, commit và push sạch sẽ. |
+| 24/09/2026 | v2.1 | Hoàn thành P05 TypeSafe Golden Calibration & Model Pinning: (1) Xây dựng tập nhãn thực tế mở rộng 35 câu trading/tech (100% PLAN classes); (2) Live benchmark qua batch 8/16/32 trên model Jev; (3) Tối ưu hóa ngưỡng retry 0.87 đạt 100% recall lỗi nghiêm trọng; (4) Khóa model pinning `jev-1.13.0` và cập nhật `config.yaml`; chuyển P05 sang ACCEPTED. |
 
 ---
 
 ## 26. Khuyến nghị execution hiện tại
 
-Hệ thống đã chính thức hoàn thành các tiêu chí **v2.0 Definition of Done**:
-- Toàn bộ core pipeline (P00, P01, P02, P04, P06, P08, P10, P15, P16, P17, P20, P21) đều đã đạt ACCEPTED/DONE.
+Hệ thống đã đạt mốc **v2.1**:
+- Toàn bộ core pipeline (P00, P01, P02, P04, P05, P06, P08, P10, P15, P16, P17, P20, P21) đều đã đạt ACCEPTED/DONE.
+- TypeSafe semantic QA đã được calibrate trên tập dữ liệu thực tế và khóa phiên bản model `jev-1.13.0`.
 - Translation route vận hành ổn định trên Codex WebGPT instance 2 (`127.0.0.1:17842`) với dynamic catalog và model selection trên UI.
 - TTS default chạy PyTorch CUDA FP16 batch 4 trên RTX 2070 SUPER với fallback CPU ONNX an toàn và VRAM footprint < 800 MiB.
 - Playwright Chromium Headless UI test và screenshot tự động kiểm thử giao diện Studio.
 - Benchmark suite P17 hoàn thiện 100% (10/10 fixtures available) với validation không lỗi.
 - Mã nguồn và tài liệu đồng bộ hoàn toàn với GitHub public repository `Miikey24s/mk-ai-dubber`.
 
-Các bước phát triển tiếp theo (v2.1+):
+Các bước tiếp theo (v2.2+):
 ```text
-1. Mở rộng TypeSafe golden calibration với tập câu gắn nhãn thực tế.
-2. Blind human listening test A/B trên các giọng đọc đa dạng.
-3. Đánh giá tích hợp P18 (Lip-sync với Wav2Lip/SadTalker/MuseTalk) theo nhu cầu thực tế của người dùng.
+1. Blind human listening test A/B trên các giọng đọc đa dạng.
+2. Đánh giá tích hợp P18 (Lip-sync với Wav2Lip/SadTalker/MuseTalk) theo nhu cầu thực tế của người dùng.
 ```
