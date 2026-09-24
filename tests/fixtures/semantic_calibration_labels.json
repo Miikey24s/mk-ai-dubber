@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "fixture_set": "p05-semantic-calibration-golden-v1",
+  "label_provenance": "synthetic_regression_labels",
+  "required_plan_classes": [
+    "good_faithful_translation",
+    "subtle_loss",
+    "negation_reversal",
+    "modality_loss",
+    "number_name_issue",
+    "telegraphic_vietnamese",
+    "valid_natural_compression"
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "class": "good_faithful_translation",
+      "source_en": "The meeting starts at nine tomorrow morning.",
+      "translation_vi": "Cuộc họp bắt đầu lúc chín giờ sáng mai.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 2,
+      "class": "subtle_loss",
+      "source_en": "This usually works, but only when the market is liquid.",
+      "translation_vi": "Cách này thường hiệu quả.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 3,
+      "class": "negation_reversal",
+      "source_en": "Do not close the position before the candle finishes.",
+      "translation_vi": "Hãy đóng vị thế trước khi cây nến kết thúc.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 4,
+      "class": "modality_loss",
+      "source_en": "You may reduce the size if volatility increases.",
+      "translation_vi": "Bạn phải giảm khối lượng khi biến động tăng.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 5,
+      "class": "number_name_issue",
+      "source_en": "Alice bought 33 shares at 12.5 dollars each.",
+      "translation_vi": "Alice mua 23 cổ phiếu với giá 12,5 đô la mỗi cổ phiếu.",
+      "should_pass": false,
+      "should_retry": true,
+      "severe_semantic_error": true,
+      "awkward_but_semantically_correct": false
+    },
+    {
+      "id": 6,
+      "class": "telegraphic_vietnamese",
+      "source_en": "When the signal appears, wait for confirmation before entering.",
+      "translation_vi": "Tín hiệu xuất hiện. Chờ xác nhận. Rồi vào.",
+      "should_pass": false,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": true
+    },
+    {
+      "id": 7,
+      "class": "valid_natural_compression",
+      "source_en": "At this point, what you really want to do is keep the explanation short and clear.",
+      "translation_vi": "Lúc này, hãy giải thích ngắn gọn và rõ ràng.",
+      "should_pass": true,
+      "should_retry": false,
+      "severe_semantic_error": false,
+      "awkward_but_semantically_correct": false
+    }
+  ]
+}

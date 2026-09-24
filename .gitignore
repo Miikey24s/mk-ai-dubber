@@ -1,0 +1,44 @@
+# Virtual environments & package manager caches
+.venv/
+.uv-cache/
+.uv-python/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Heavy model weights and checkpoints (downloaded on demand or provisioned locally)
+models/*
+!models/.gitkeep
+
+# Portable binaries in tools
+tools/ffmpeg/
+tools/llama/
+tools/downloads/
+
+# Media & audio/video files (keep repo lightweight, download/synthesize on demand)
+*.mp4
+*.wav
+*.mkv
+*.mov
+*.webm
+*.avi
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.aac
+*.jpg
+*.jpeg
+*.png
+
+# Temporary logs & scratch files
+*.log
+*.tmp
+work/artifacts/
+
+# Execution work directory: ignore all generated job stems, outputs, and intermediate folders
+work/*
+!work/.gitkeep
+!work/checkpoints/
+!work/checkpoints/**
+!work/benchmarks/fixtures.json

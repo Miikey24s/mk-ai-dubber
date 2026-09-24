@@ -1,0 +1,93 @@
+profile: balanced_best
+
+asr:
+  model: large-v3
+  device: cuda
+  compute_type: float16
+  batch_size: 4
+  language: en
+
+separation:
+  enabled: true
+  model: model_bs_roformer_ep_317_sdr_12.9755.ckpt
+
+segmentation:
+  # Keep legacy selectable for A/B until the real word-timing benchmark gate is accepted.
+  mode: legacy
+  min_duration: 1.2
+  target_duration: 3.6
+  max_duration: 7.0
+  pause_threshold: 0.80
+  soft_pause_threshold: 0.28
+  min_words: 3
+
+translation:
+  provider: webgpt
+  webgpt_base_url: http://127.0.0.1:17842/v1
+  webgpt_model: chatgpt-web/gpt-5.6-sol
+  webgpt_timeout_seconds: 900
+  webgpt_catalog_timeout_seconds: 5
+  codex_segments_per_batch: 32
+  repo: Qwen/Qwen3-14B-GGUF
+  filename: Qwen3-14B-Q4_K_M.gguf
+  host: 127.0.0.1
+  port: 8091
+  context_size: 8192
+  gpu_layers: 20
+  temperature: 0.15
+  max_segments_per_batch: 16
+  glossary: glossary.yaml
+  prefit_enabled: true
+  duration_chars_per_second: 13.0
+  duration_uncertainty_ratio: 0.20
+  duration_overflow_ratio: 1.10
+
+tts:
+  preset_voice: "Minh Quân"
+  clone_original_voice: true
+  backend: onnx
+  device: cpu
+  precision: fp32
+  batch_size: 1
+  sample_rate: 48000
+  pronunciation_map: {}
+
+timing:
+  max_speedup: 1.25
+  max_slowdown: 0.92
+  rewrite_threshold: 1.25
+  aggressive_rewrite_threshold: 1.40
+  rewrite_batch_size: 24
+  allow_batch_rewrite: true
+  segment_pad_ms: 35
+  max_borrow_seconds: 0.35
+  boundary_fade_ms: 8.0
+
+mix:
+  background_gain_db: 0.0
+  voice_gain_db: 1.5
+  final_lufs: -14.0
+  final_true_peak_db: -1.5
+
+qa:
+  enabled: true
+  min_similarity: 0.78
+  semantic:
+    enabled: true
+    model: jev-latest
+    timeout_seconds: 30
+    max_attempts: 3
+    batch_size: 32
+    review_faithful_below: 0.65
+    review_critical_below: 0.75
+    review_confidence_below: 0.50
+
+diarization:
+  enabled: auto
+  min_speakers: null
+  max_speakers: null
+
+reliability:
+  retry_budget: 3
+  final_full_qa: true
+  min_free_disk_gb: 5.0

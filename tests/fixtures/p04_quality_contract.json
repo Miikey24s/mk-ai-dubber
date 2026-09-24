@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "contract_id": "p04-quality-contract-v1",
+  "scope": {
+    "machine_verifiable_only": true,
+    "naturalness_assessed": false,
+    "semantic_equivalence_assessed": false,
+    "human_ab_required": true
+  },
+  "context_cases": [
+    {
+      "id": "bounded-bilingual-neighbor-context",
+      "segments": [
+        {"id": 10, "start": 0.0, "end": 1.0, "text": "First line", "vi": "Cau dau", "speaker": "SPEAKER_00"},
+        {"id": 11, "start": 1.0, "end": 2.4, "text": "Second line", "speaker": "SPEAKER_01"},
+        {"id": 12, "start": 2.4, "end": 4.0, "text": "Third line", "speaker": "SPEAKER_01"},
+        {"id": 13, "start": 4.0, "end": 5.0, "text": "Fourth line", "speaker": "SPEAKER_00"}
+      ],
+      "offset": 1,
+      "count": 2,
+      "context_window": 1,
+      "expected": [
+        {"id": 11, "speaker": "SPEAKER_01", "target_duration_sec": 1.4, "before_ids": [10], "after_ids": [12], "before_translation_vi": ["Cau dau"]},
+        {"id": 12, "speaker": "SPEAKER_01", "target_duration_sec": 1.6, "before_ids": [11], "after_ids": [13], "before_translation_vi": []}
+      ]
+    }
+  ],
+  "duration_fit_cases": [
+    {"id": "zero-window-is-unknown", "text": "Xin chao", "target_seconds": 0.0, "expected_fit": "unknown"},
+    {"id": "comfortable-window", "text": "Xin chao.", "target_seconds": 1.0, "expected_fit": "comfortable"},
+    {"id": "uncertainty-makes-window-tight", "text": "Xin chao.", "target_seconds": 0.9, "expected_fit": "tight"},
+    {"id": "spoken-number-expansion-overflows", "text": "Gia la 33%", "target_seconds": 1.0, "expected_fit": "likely_overflow"}
+  ],
+  "glossary": {
+    "path": "glossary.yaml",
+    "expected_terms": {
+      "FVG": "FVG",
+      "fair value gap": "fair value gap",
+      "order block": "order block",
+      "liquidity sweep": "quet thanh khoan",
+      "market structure": "cau truc thi truong"
+    }
+  },
+  "quality_cases": [
+    {
+      "id": "glossary-positive",
+      "candidate_vi": "FVG nam tren order block sau cu quet thanh khoan va thay doi cau truc thi truong.",
+      "expected_pass": true,
+      "checks": [
+        {"category": "glossary", "all_of": ["FVG", "order block", "quet thanh khoan", "cau truc thi truong"]}
+      ]
+    },
+    {
+      "id": "glossary-missing-negative",
+      "candidate_vi": "FVG nam tren order block sau cu quet thanh khoan.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "glossary", "all_of": ["FVG", "order block", "quet thanh khoan", "cau truc thi truong"]}
+      ]
+    },
+    {
+      "id": "names-and-numbers-positive",
+      "candidate_vi": "OpenAI cong bo GPT-4 tang 12,5% vao nam 2026.",
+      "expected_pass": true,
+      "checks": [
+        {"category": "name", "all_of": ["OpenAI", "GPT-4"]},
+        {"category": "number", "all_of": ["12,5%", "2026"]}
+      ]
+    },
+    {
+      "id": "name-missing-negative",
+      "candidate_vi": "Cong ty cong bo GPT-4 tang 12,5% vao nam 2026.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "name", "all_of": ["OpenAI", "GPT-4"]},
+        {"category": "number", "all_of": ["12,5%", "2026"]}
+      ]
+    },
+    {
+      "id": "number-missing-negative",
+      "candidate_vi": "OpenAI cong bo GPT-4 tang manh vao nam 2026.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "name", "all_of": ["OpenAI", "GPT-4"]},
+        {"category": "number", "all_of": ["12,5%", "2026"]}
+      ]
+    },
+    {
+      "id": "negation-and-modality-positive",
+      "candidate_vi": "Ban khong duoc ban; ban phai doi, nhung co the huy sau.",
+      "expected_pass": true,
+      "checks": [
+        {"category": "negation", "all_of": ["khong duoc ban"]},
+        {"category": "modality", "all_of": ["phai doi", "co the huy"]}
+      ]
+    },
+    {
+      "id": "negation-dropped-negative",
+      "candidate_vi": "Ban duoc ban; ban phai doi, nhung co the huy sau.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "negation", "all_of": ["khong duoc ban"]},
+        {"category": "modality", "all_of": ["phai doi", "co the huy"]}
+      ]
+    },
+    {
+      "id": "modality-dropped-negative",
+      "candidate_vi": "Ban khong duoc ban; ban doi, roi huy sau.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "negation", "all_of": ["khong duoc ban"]},
+        {"category": "modality", "all_of": ["phai doi", "co the huy"]}
+      ]
+    },
+    {
+      "id": "critical-direction-positive",
+      "candidate_vi": "Ty le thang la 66%, ty le thua la 33%.",
+      "expected_pass": true,
+      "checks": [
+        {"category": "critical_fact", "all_of": ["thang la 66%", "thua la 33%"]}
+      ]
+    },
+    {
+      "id": "critical-direction-swapped-negative",
+      "candidate_vi": "Ty le thang la 33%, ty le thua la 66%.",
+      "expected_pass": false,
+      "checks": [
+        {"category": "critical_fact", "all_of": ["thang la 66%", "thua la 33%"]}
+      ]
+    }
+  ],
+  "ab_comparisons": [
+    {
+      "id": "clean-talking-head-critical-fact-parity",
+      "before_artifact_id": "p17-clean-talking-head-before",
+      "before_segment_ids": [2, 3, 4, 5],
+      "after_artifact_id": "p17-clean-talking-head-after",
+      "after_segment_ids": [9, 10, 11, 12],
+      "required_categories": ["name", "number", "negation", "modality"]
+    }
+  ],
+  "retained_artifacts": [
+    {
+      "id": "p12-routing-e2e",
+      "path": "work/p12-routing-e2e-20260923-0945/job-4c8236a32c685a11/segments_translated.json",
+      "sha256": "289c9f7db726c19f94d65453a63c36b707e8d21b2818cdb4d2df5fc33451152c",
+      "cases": [
+        {"segment_id": 32, "source": "Every morning we have 86,400 seconds to spend and to invest.", "vi": "Moi sang, ta co 86.400 giay de su dung va dau tu.", "checks": [{"category": "number", "all_of": ["86.400"]}]},
+        {"segment_id": 34, "source": "It allows no balances and no overdrafts.", "vi": "Khong duoc de lai so du, cung khong duoc thau chi.", "checks": [{"category": "negation", "all_of": ["khong duoc de lai so du", "khong duoc thau chi"]}]},
+        {"segment_id": 36, "source": "The Bible says, redeem the time because the days are evil.", "vi": "Kinh Thanh noi: hay tan dung thoi gian, vi nhung ngay nay la gian ac.", "checks": [{"category": "name", "all_of": ["Kinh Thanh"]}]},
+        {"segment_id": 39, "source": "Jesus said, as long as it is day, we must do the work of him that sent us.", "vi": "Chua Gie-su noi: khi con ban ngay, chung ta phai lam cong viec cua Dang da sai minh.", "checks": [{"category": "name", "all_of": ["Chua Gie-su"]}, {"category": "modality", "all_of": ["phai lam"]}]},
+        {"segment_id": 40, "source": "The night is coming when no man can work.", "vi": "Dem se den, khi khong ai con lam viec duoc.", "checks": [{"category": "negation", "all_of": ["khong ai"]}, {"category": "modality", "all_of": ["se den", "lam viec duoc"]}]},
+        {"segment_id": 44, "source": "Jesus only had 33 years.", "vi": "Chua Gie-su chi co 33 nam.", "checks": [{"category": "name", "all_of": ["Chua Gie-su"]}, {"category": "number", "all_of": ["33"]}]},
+        {"segment_id": 48, "source": "It doesn't matter whether you live another year or two years or five years.", "vi": "Ban song them mot nam, hai nam hay nam nam cung khong quan trong.", "checks": [{"category": "negation", "all_of": ["khong quan trong"]}, {"category": "critical_fact", "all_of": ["mot nam", "hai nam", "nam nam"]}]}
+      ]
+    },
+    {
+      "id": "p17-clean-talking-head-before",
+      "path": "work/benchmarks/p17-clean-talking-head/before-segments_translated.json",
+      "sha256": "ca27fe5ac594ba96408c88d6c317507fdee0ec5c18cd0e0115a8845d8b70a752",
+      "cases": [
+        {"segment_id": 2, "source": "Now, one thing that I want you to understand is honestly, for small accounts, now I'd give an example for like $10, do not trade volatile instruments, okay?", "vi": "Co mot dieu toi muon ban hieu: voi tai khoan nho, vi du chi 10 do, dung giao dich cac san pham bien dong manh, nhe?", "checks": [{"category": "number", "all_of": ["10 do"]}, {"category": "negation", "all_of": ["dung giao dich"]}]},
+        {"segment_id": 3, "source": "So we are not going to trade gold.", "vi": "Nen ta khong trade vang.", "checks": [{"category": "negation", "all_of": ["khong trade"]}]},
+        {"segment_id": 4, "source": "We are not going to trade Nasdaq, BTC, none of that.", "vi": "Cung khong trade Nasdaq, BTC hay may thu do.", "checks": [{"category": "name", "all_of": ["Nasdaq", "BTC"]}, {"category": "negation", "all_of": ["khong trade"]}]},
+        {"segment_id": 5, "source": "So with the leverage that we have, you can still open up 0.01 lots and make money, but I wouldn't recommend that, okay?", "vi": "Voi muc don bay nay, ban van co the vao 0.01 lot va kiem tien, nhung toi khong khuyen lam vay, nhe?", "checks": [{"category": "number", "all_of": ["0.01 lot"]}, {"category": "modality", "all_of": ["van co the"]}, {"category": "negation", "all_of": ["khong khuyen"]}]}
+      ]
+    },
+    {
+      "id": "p17-clean-talking-head-after",
+      "path": "work/benchmarks/p17-clean-talking-head/after-segments_translated.json",
+      "sha256": "7d20c5b1ddd3f773ad7803f73dec79cda0de1e1e7b4e9d86692f82e6d7d14ad4",
+      "cases": [
+        {"segment_id": 9, "source": "now I'd give an example for like $10, do not trade volatile instruments,", "vi": "vi du tai khoan 10 do, dung giao dich cac san pham bien dong manh,", "checks": [{"category": "number", "all_of": ["10 do"]}, {"category": "negation", "all_of": ["dung giao dich"]}]},
+        {"segment_id": 10, "source": "okay? So we are not going to trade gold. We are not going to trade Nasdaq,", "vi": "duoc chu? Khong giao dich vang, khong giao dich Nasdaq,", "checks": [{"category": "negation", "all_of": ["khong giao dich vang", "khong giao dich Nasdaq"]}, {"category": "name", "all_of": ["Nasdaq"]}]},
+        {"segment_id": 11, "source": "BTC, none of that. So with the leverage that we have, you can still open up 0.01 lots and make money,", "vi": "BTC cung khong. Voi muc don bay nay, ban van co the vao 0,01 lot va kiem tien,", "checks": [{"category": "name", "all_of": ["BTC"]}, {"category": "number", "all_of": ["0,01 lot"]}, {"category": "negation", "all_of": ["cung khong"]}, {"category": "modality", "all_of": ["van co the"]}]},
+        {"segment_id": 12, "source": "but I wouldn't recommend that, okay? So now let's just go over and find.", "vi": "nhung toi khong khuyen vay, nhe? Gio ta qua tim setup.", "checks": [{"category": "negation", "all_of": ["khong khuyen"]}]}
+      ]
+    },
+    {
+      "id": "p17-fast-english",
+      "path": "work/benchmarks/p17-fast-english/current-segments_translated.json",
+      "sha256": "adbf1c73b26dd48f016f6e9a076818027bab94959666980f83ecaef72027c11c",
+      "cases": [
+        {"segment_id": 1, "source": "Well, I have no idea. I've not tested it before.", "vi": "Toi khong biet. Toi chua tung thu no.", "checks": [{"category": "negation", "all_of": ["khong biet", "chua tung thu"]}]},
+        {"segment_id": 8, "source": "it doesn't mean it's gonna work in other markets. So this is why you have to test, test, test, test. It's so important.", "vi": "khong co nghia no se hieu qua o thi truong khac. Vi the phai thu, thu, thu, thu. Rat quan trong.", "checks": [{"category": "negation", "all_of": ["khong co nghia"]}, {"category": "modality", "all_of": ["se hieu qua", "phai thu"]}, {"category": "critical_fact", "min_occurrences": {"thu": 4}}]}
+      ]
+    },
+    {
+      "id": "p17-technical-terms",
+      "path": "work/benchmarks/p17-technical-terms/current-segments_translated.json",
+      "sha256": "6f68d99ebbd31e07f04ac9fe90ca920e65712050c96c41609fb9db050b271fac",
+      "cases": [
+        {"segment_id": 1, "source": "Up about 2,834% over the last 25 years.", "vi": "Tang khoang 2.834% trong 25 nam qua.", "checks": [{"category": "number", "all_of": ["2.834%", "25 nam"]}]},
+        {"segment_id": 4, "source": "For the year, it's up 97%. 2024, the system made 29%.", "vi": "Ca nam tang 97%; nam 2024, he thong loi 29%.", "checks": [{"category": "critical_fact", "all_of": ["tang 97%", "2024", "loi 29%"]}]},
+        {"segment_id": 19, "source": "twice as often compared to losing. You lose 33% of the time and you win 66%.", "vi": "gap doi so lan thua. Ban thua 33% so lan va thang 66%.", "checks": [{"category": "critical_fact", "all_of": ["gap doi", "thua 33%", "thang 66%"]}]}
+      ]
+    }
+  ]
+}

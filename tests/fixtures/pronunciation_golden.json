@@ -1,0 +1,59 @@
+[
+  {
+    "id": "explicit-critical-terms",
+    "source": "FVG gặp OpenAI qua API.",
+    "pronunciation_map": {
+      "FVG": "ép vi gi",
+      "OpenAI": "ô pần ây ai",
+      "API": "ây pi ai"
+    },
+    "expected_tts": "ép vi gi gặp ô pần ây ai qua ây pi ai.",
+    "expected_categories": ["mapping", "mapping", "mapping"]
+  },
+  {
+    "id": "iso-date-and-clock-time",
+    "source": "Khởi chạy 2026-09-22 lúc 08:05.",
+    "pronunciation_map": {},
+    "expected_tts": "Khởi chạy ngày hai mươi hai tháng chín năm hai nghìn không trăm hai mươi sáu lúc tám giờ năm phút.",
+    "expected_categories": ["date", "time"]
+  },
+  {
+    "id": "explicit-usd-locale",
+    "source": "Giá là $1,234.50.",
+    "pronunciation_map": {},
+    "expected_tts": "Giá là một nghìn hai trăm ba mươi tư phẩy năm không đô la Mỹ.",
+    "expected_categories": ["currency"]
+  },
+  {
+    "id": "ambiguous-formats-stay-verbatim",
+    "source": "Giữ 01/02/03, 1,234, $12,50 và v1.2.3.",
+    "pronunciation_map": {},
+    "expected_tts": "Giữ 01/02/03, 1,234, $12,50 và v1.2.3.",
+    "expected_categories": []
+  },
+  {
+    "id": "signed-percent-and-units",
+    "source": "Giảm -12.5%, tăng +3 km và giữ ở 25°C.",
+    "pronunciation_map": {},
+    "expected_tts": "Giảm âm mười hai phẩy năm phần trăm, tăng dương ba ki lô mét và giữ ở hai mươi lăm độ C.",
+    "expected_categories": ["percent", "unit", "unit"]
+  },
+  {
+    "id": "technical-tokens-and-identifiers-stay-verbatim",
+    "source": "Giữ GPT-4, SHA-256, mã 0012, https://example.com/v2/123 và a1@test.com.",
+    "pronunciation_map": {},
+    "expected_tts": "Giữ GPT-4, SHA-256, mã 0012, https://example.com/v2/123 và a1@test.com.",
+    "expected_categories": []
+  },
+  {
+    "id": "explicit-technical-and-name-overrides",
+    "source": "GPT-4 dùng OpenAI API.",
+    "pronunciation_map": {
+      "GPT-4": "gi pi ti bốn",
+      "OpenAI": "ô pần ây ai",
+      "API": "ây pi ai"
+    },
+    "expected_tts": "gi pi ti bốn dùng ô pần ây ai ây pi ai.",
+    "expected_categories": ["mapping", "mapping", "mapping"]
+  }
+]
