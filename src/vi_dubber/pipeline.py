@@ -20,12 +20,14 @@ from .artifacts import (
     write_stage_manifest,
 )
 from .asr import transcribe_and_align, transcribe_text, transcribe_text_files
+from .audio import evaluate_reference_clarity, resolve_loudness_profile
 from .jobs import (
     PipelineControl,
     check_control,
     claim_job,
     clear_control,
     load_job_state,
+    reconcile_job_state,
     update_job_state,
 )
 from .media import (
@@ -465,7 +467,7 @@ def _run_pipeline_impl(
     requested_provider = normalize_translation_provider(
         translation_provider or str(translation_config.get("provider", "webgpt"))
     )
-    persisted_state = load_job_state(job_dir) if job_existed else {}
+    persisted_state = reconcile_job_state(job_dir) if job_existed else {}
     persisted_metadata = (
         dict(persisted_state.get("metadata") or {})
         if isinstance(persisted_state, dict)
@@ -1187,6 +1189,23 @@ def _run_pipeline_impl(
                     job_dir / "references",
                     selection_receipts=reference_selection_receipts,
                 )
+                for speaker, ref_clip in references.items():
+                    if ref_clip.is_file():
+                        try:
+                            clarity = evaluate_reference_clarity(ref_clip)
+                            if speaker in reference_selection_receipts:
+                                reference_selection_receipts[speaker]["clarity"] = clarity
+                        except Exception:
+                            pass
+            elif voice_ref is not None and voice_ref.is_file():
+                try:
+                    clarity = evaluate_reference_clarity(voice_ref)
+                    reference_selection_receipts["override"] = {
+                        "source": str(voice_ref),
+                        "clarity": clarity,
+                    }
+                except Exception:
+                    pass
             atomic_write_json(
                 reference_meta_path,
                 {
@@ -1785,6 +1804,11 @@ def _run_pipeline_impl(
             metrics.increment("cache_hits")
         else:
             metrics.increment("cache_misses")
+            target_lufs, target_true_peak = resolve_loudness_profile(
+                profile=str(mix.get("loudness_profile") or config.get("profile") or "youtube"),
+                custom_lufs=mix.get("final_lufs"),
+                custom_true_peak=mix.get("final_true_peak_db"),
+            )
             mux_dubbed_video(
                 input_path,
                 background,
@@ -1792,16 +1816,16 @@ def _run_pipeline_impl(
                 cached_video,
                 background_gain_db=float(mix.get("background_gain_db", 0.0)),
                 voice_gain_db=float(mix.get("voice_gain_db", 1.5)),
-                final_lufs=float(mix.get("final_lufs", -14.0)),
-                true_peak_db=float(mix.get("final_true_peak_db", -1.5)),
+                final_lufs=target_lufs,
+                true_peak_db=target_true_peak,
                 duck_background=bool(mix.get("duck_background", False)),
             )
             atomic_write_json(
                 mix_metrics_path,
                 measure_mix_metrics(
                     cached_video,
-                    target_lufs=float(mix.get("final_lufs", -14.0)),
-                    target_true_peak_db=float(mix.get("final_true_peak_db", -1.5)),
+                    target_lufs=target_lufs,
+                    target_true_peak_db=target_true_peak,
                 ),
             )
             _commit_stage(
@@ -1956,6 +1980,8 @@ def run_pipeline(
         pre_source_identity = fingerprint_file(resolved_input)
         pre_job_dir = _job_dir(resolved_input, pre_source_identity)
         pre_job_existed = pre_job_dir.exists()
+        if pre_job_existed and resume:
+            reconcile_job_state(pre_job_dir)
     try:
         if pre_job_dir is None:
             return _run_pipeline_impl(

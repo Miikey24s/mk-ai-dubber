@@ -113,10 +113,22 @@ def web_app(
     port: int = typer.Option(7860, "--port"),
     share: bool = typer.Option(False, "--share/--no-share"),
 ) -> None:
-    """Mở giao diện web VI Dubber trên máy."""
+    """Mở giao diện web VI Dubber trên máy (kèm REST API và Gradio)."""
     from .web import launch_app
 
     launch_app(host=host, port=port, share=share)
+
+
+@app.command("api")
+def api_server(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(7860, "--port"),
+) -> None:
+    """Khởi chạy máy chủ REST API và Web UI độc lập."""
+    import uvicorn
+    from .api import create_app
+
+    uvicorn.run(create_app(), host=host, port=port)
 
 
 @app.command("jobs")

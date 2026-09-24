@@ -5,6 +5,8 @@
 .pytest_cache/
 __pycache__/
 *.pyc
+node_modules/
+frontend/node_modules/
 
 # Heavy model weights and checkpoints (downloaded on demand or provisioned locally)
 models/*

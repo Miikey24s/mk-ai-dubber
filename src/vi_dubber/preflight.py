@@ -50,7 +50,11 @@ def run_preflight(
             )
         )
 
-    min_free_gib = float(config.get("reliability", {}).get("min_free_disk_gb", 5.0))
+    min_free_gib = float(config.get("reliability", {}).get("min_free_disk_gb", 2.0))
+    if min_free_gib <= 0.0:
+        min_free_gib = 0.0
+    else:
+        min_free_gib = max(2.0, min_free_gib)
     work_root = WORK_DIR if WORK_DIR.exists() else WORK_DIR.parent
     try:
         usage = shutil.disk_usage(work_root)
@@ -90,19 +94,56 @@ def run_preflight(
     requires_cuda = str(tts.get("device", "cpu")).lower() == "cuda" or str(
         asr.get("device", "cuda")
     ).lower() == "cuda"
+    cuda_ready = False
+    cuda_detail = ""
+    vram_status = "ok"
+    vram_detail = ""
     try:
         import torch
 
         cuda_ready = bool(torch.cuda.is_available())
-        detail = torch.cuda.get_device_name(0) if cuda_ready else "CUDA không khả dụng"
+        if cuda_ready:
+            device_name = torch.cuda.get_device_name(0)
+            try:
+                free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+                free_gb = free_bytes / (1024**3)
+                total_gb = total_bytes / (1024**3)
+                cuda_detail = f"{device_name} (VRAM: {free_gb:.1f} GiB trống / {total_gb:.1f} GiB tổng)"
+                if free_gb < 2.0 and requires_cuda:
+                    vram_status = "warning"
+                    vram_detail = (
+                        f"VRAM khả dụng thấp ({free_gb:.1f} GiB / {total_gb:.1f} GiB); "
+                        "khuyến nghị tối thiểu 2.0 GiB trống để tránh lỗi OOM."
+                    )
+                else:
+                    vram_status = "ok"
+                    vram_detail = f"{free_gb:.1f} GiB trống / {total_gb:.1f} GiB tổng"
+            except Exception:
+                cuda_detail = device_name
+                vram_status = "ok"
+                vram_detail = "Không đọc được chi tiết VRAM qua mem_get_info"
+        else:
+            cuda_detail = "CUDA không khả dụng"
+            vram_status = "warning" if requires_cuda else "ok"
+            vram_detail = "Không có GPU CUDA để kiểm tra VRAM"
     except Exception as exc:
         cuda_ready = False
-        detail = f"Không kiểm tra được CUDA: {exc}"
+        cuda_detail = f"Không kiểm tra được CUDA: {exc}"
+        vram_status = "warning"
+        vram_detail = f"Lỗi kiểm tra VRAM: {exc}"
+
     checks.append(
         PreflightCheck(
             "cuda",
             "ok" if cuda_ready else ("error" if requires_cuda else "warning"),
-            detail,
+            cuda_detail,
+        )
+    )
+    checks.append(
+        PreflightCheck(
+            "vram",
+            vram_status,
+            vram_detail,
         )
     )
 

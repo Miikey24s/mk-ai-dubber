@@ -3257,13 +3257,11 @@ def build_app() -> gr.Blocks:
 
 
 def launch_app(host: str = "127.0.0.1", port: int = 7860, share: bool = False) -> None:
+    from .api import create_app
+    import uvicorn
+
     demo = build_app()
     demo.queue(default_concurrency_limit=1)
-    demo.launch(
-        server_name=host,
-        server_port=port,
-        share=share,
-        inbrowser=True,
-        footer_links=[],
-        css=APP_CSS,
-    )
+    api = create_app()
+    app = gr.mount_gradio_app(api, demo, path="/gradio")
+    uvicorn.run(app, host=host, port=port)
