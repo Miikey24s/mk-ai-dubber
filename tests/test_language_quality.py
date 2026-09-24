@@ -11,6 +11,7 @@ import vi_dubber.semantic_qa as semantic_qa
 from vi_dubber.pronunciation import (
     integer_to_vietnamese,
     normalize_pronunciation,
+    shape_spoken_phrasing,
 )
 from vi_dubber.translate import (
     LocalTranslator,
@@ -412,3 +413,14 @@ def test_pronunciation_reads_signed_critical_numbers() -> None:
 
     assert "âm mười hai phẩy năm phần trăm" in result.tts_text
     assert "dương ba ki lô mét" in result.tts_text
+
+
+def test_tts_only_phrasing_cleans_spacing_without_touching_display_or_urls() -> None:
+    source = "Chờ pullback , rồi vào lệnh?Đừng vội;hãy chờ https://example.com/a:b ."
+
+    shaped = shape_spoken_phrasing(source)
+    normalized = normalize_pronunciation(source, normalize_numbers=False)
+
+    assert shaped == "Chờ pullback, rồi vào lệnh? Đừng vội; hãy chờ https://example.com/a:b."
+    assert normalized.display_text == source
+    assert normalized.tts_text == shaped

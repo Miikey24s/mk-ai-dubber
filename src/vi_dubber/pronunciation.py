@@ -228,6 +228,16 @@ def _restore_protected(text: str, protected: Mapping[str, str]) -> str:
     return restored
 
 
+def shape_spoken_phrasing(text: str) -> str:
+    """Clean punctuation spacing for TTS without changing display text or semantics."""
+    working, protected = _mask_protected(str(text or ""))
+    working = re.sub(r"[ \t]+", " ", working)
+    working = re.sub(r"\s+([,.;:!?])", r"\1", working)
+    # Do not split punctuation inside numeric tokens such as 08:05, 1,234 or $12,50.
+    working = re.sub(r"(?<!\d)([,;:!?])(?=[^\s,.;:!?])", r"\1 ", working)
+    return _restore_protected(working.strip(), protected)
+
+
 def normalize_pronunciation(
     text: str,
     pronunciation_map: Mapping[str, str] | None = None,
@@ -240,7 +250,7 @@ def normalize_pronunciation(
     email addresses are protected so numeric normalization cannot corrupt them.
     """
     display_text = str(text or "")
-    working, protected = _mask_protected(display_text)
+    working, protected = _mask_protected(shape_spoken_phrasing(display_text))
     replacements: list[PronunciationReplacement] = []
 
     for source, target in sorted(

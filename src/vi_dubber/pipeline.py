@@ -59,6 +59,11 @@ from .semantic_qa import (
 )
 from .separation import separate_dialogue
 from .timing import TIMING_POLICY_VERSION, allocate_timing_windows
+from .terminology import (
+    merge_pronunciation_map,
+    validate_terminology_candidate,
+    validate_terminology_segments,
+)
 from .translate import (
     DEFAULT_WEBGPT_MODEL,
     TRANSLATION_POLICY_VERSION,
@@ -871,6 +876,7 @@ def _run_pipeline_impl(
     translated_baseline_json = job_dir / "segments_translated.json"
     translated_json = job_dir / "segments_vi.json"
     translation_meta_path = job_dir / "translation_meta.json"
+    terminology_qa_path = job_dir / "terminology_qa.json"
     semantic_qa_path = job_dir / "semantic_qa.json"
     console.rule("3/6 Dịch + tối ưu câu lồng tiếng")
     translation_retry_budget = int(config.get("reliability", {}).get("retry_budget", 3))
@@ -970,6 +976,17 @@ def _run_pipeline_impl(
                 prompt={"policy": f"translation-v{TRANSLATION_POLICY_VERSION}"},
                 versions={"policy": TRANSLATION_POLICY_VERSION},
             )
+
+    terminology_qa = validate_terminology_segments(segments, glossary)
+    atomic_write_json(terminology_qa_path, terminology_qa)
+    if not terminology_qa["passed"]:
+        first_failure = next(
+            item for item in terminology_qa["items"] if not item["passed"]
+        )
+        raise RuntimeError(
+            "Terminology policy failed before semantic QA/TTS: "
+            f"segment {first_failure['segment_id']} -> {first_failure['violations']}"
+        )
 
     semantic_config = dict(config.get("qa", {}).get("semantic", {}) or {})
     with metrics.stage("semantic_qa_translated"):
@@ -1142,6 +1159,15 @@ def _run_pipeline_impl(
     review_overrides = load_review_overrides(job_dir)
     review_statuses = _apply_review_overrides(segments, review_overrides)
     manual_review_ids = set(review_overrides)
+    reviewed_terminology_qa = validate_terminology_segments(segments, glossary)
+    if not reviewed_terminology_qa["passed"]:
+        first_failure = next(
+            item for item in reviewed_terminology_qa["items"] if not item["passed"]
+        )
+        raise RuntimeError(
+            "Manual review violates terminology policy: "
+            f"segment {first_failure['segment_id']} -> {first_failure['violations']}"
+        )
 
     console.rule("4/6 TTS tiếng Việt + khớp thời lượng")
     progress(0.52, "Đang chuẩn bị giọng tiếng Việt", stage="reference_selection")
@@ -1162,7 +1188,7 @@ def _run_pipeline_impl(
         "reference_selection",
         inputs=reference_inputs,
         config=reference_config,
-        versions={"policy": 2},
+        versions={"policy": 3},
     )
     references: dict[str, Path] = {}
     reference_selection_receipts: dict[str, Any] = {}
@@ -1284,7 +1310,7 @@ def _run_pipeline_impl(
         "timing_policy": TIMING_POLICY_VERSION,
         "translation_policy": TRANSLATION_POLICY_VERSION,
         "semantic_question_policy": SEMANTIC_QA_QUESTION_VERSION,
-        "pronunciation_policy": 1,
+        "pronunciation_policy": 2,
         "semantic_rewrite_gate_policy": 1,
         **runtime_versions("vieneu", "torch"),
     }
@@ -1305,9 +1331,15 @@ def _run_pipeline_impl(
         resume=resume,
     )
     current_rewrite_stats: dict[str, Any] = {}
-    pronunciation_map = dict(tts_config.get("pronunciation_map", {}) or {})
+    pronunciation_map = merge_pronunciation_map(
+        tts_config.get("pronunciation_map", {}) or {},
+        glossary,
+    )
 
     def verify_rewrite(segment: Segment, candidate_text: str) -> bool:
+        terminology_gate = validate_terminology_candidate(segment, candidate_text, glossary)
+        if not terminology_gate["passed"]:
+            return False
         return verify_semantic_candidate(segment, candidate_text, "rewrite_candidate")
 
     def tts_text(segment: Segment) -> str:

@@ -14,7 +14,7 @@ from vi_dubber.metrics import MetricsRecorder
 from vi_dubber.qa import evaluate_segment_qa, selective_repair_ids
 from vi_dubber.reference import rank_reference_candidates
 from vi_dubber.timing import allocate_timing_windows, timing_action
-from vi_dubber.types import Segment
+from vi_dubber.types import Segment, WordToken
 
 
 def test_reference_ranking_rejects_overlap_and_prefers_clean_audio(tmp_path: Path) -> None:
@@ -76,6 +76,54 @@ def test_reference_clip_selector_uses_acoustic_rank_and_3_to_8_second_window(
     assert receipts["A"]["fallback"] is None
     assert receipts["A"]["candidates"][0]["segment_id"] == 2
     assert receipts["B"]["selected_segment_id"] is None
+
+
+def test_reference_ranking_prefers_complete_moderate_delivery_when_audio_is_equal(
+    tmp_path: Path,
+) -> None:
+    sample_rate = 48000
+    t = np.arange(sample_rate * 10, dtype=np.float32) / sample_rate
+    audio = 0.18 * np.sin(2 * np.pi * 185 * t)
+    vocals = tmp_path / "equal-acoustics.wav"
+    sf.write(vocals, audio, sample_rate)
+
+    natural = Segment(
+        id=1,
+        start=0.0,
+        end=5.0,
+        text="This is a complete explanatory sentence.",
+        speaker="A",
+        words=[
+            WordToken(text="This", start=0.2, end=0.55),
+            WordToken(text="is", start=0.65, end=0.90),
+            WordToken(text="a", start=1.00, end=1.18),
+            WordToken(text="complete", start=1.30, end=1.78),
+            WordToken(text="explanatory", start=1.92, end=2.52),
+            WordToken(text="sentence", start=2.66, end=3.20),
+        ],
+    )
+    rushed_fragment = Segment(
+        id=2,
+        start=5.0,
+        end=10.0,
+        text="and then another fragment",
+        speaker="A",
+        words=[
+            WordToken(text="and", start=5.10, end=5.20),
+            WordToken(text="then", start=5.22, end=5.32),
+            WordToken(text="another", start=5.34, end=5.44),
+            WordToken(text="fragment", start=5.46, end=5.56),
+        ],
+    )
+
+    ranked = rank_reference_candidates(vocals, [rushed_fragment, natural])
+
+    assert ranked[0].segment_id == 1
+    assert ranked[0].delivery_score > ranked[1].delivery_score
+    assert ranked[0].phrase_complete is True
+    assert ranked[1].phrase_complete is False
+    assert ranked[0].words_per_second is not None
+    assert ranked[1].words_per_second is not None
 
 
 def test_timing_allocator_borrows_only_adjacent_silence() -> None:

@@ -1,0 +1,563 @@
+{
+  "ab_comparisons": [
+    {
+      "after": {
+        "artifact_id": "p17-clean-talking-head-after",
+        "categories": [
+          "modality",
+          "name",
+          "negation",
+          "number"
+        ],
+        "failures": [],
+        "passed": true,
+        "segment_ids": [
+          9,
+          10,
+          11,
+          12
+        ]
+      },
+      "before": {
+        "artifact_id": "p17-clean-talking-head-before",
+        "categories": [
+          "modality",
+          "name",
+          "negation",
+          "number"
+        ],
+        "failures": [],
+        "passed": true,
+        "segment_ids": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "claim": "labeled_critical_fact_parity_only",
+      "id": "clean-talking-head-critical-fact-parity",
+      "passed": true,
+      "required_categories": [
+        "modality",
+        "name",
+        "negation",
+        "number"
+      ]
+    }
+  ],
+  "category_case_counts": {
+    "critical_fact": 6,
+    "glossary": 2,
+    "modality": 8,
+    "name": 9,
+    "negation": 16,
+    "number": 10
+  },
+  "context_cases": [
+    {
+      "actual": [
+        {
+          "after_ids": [
+            12
+          ],
+          "before_ids": [
+            10
+          ],
+          "before_translation_vi": [
+            "Cau dau"
+          ],
+          "id": 11,
+          "speaker": "SPEAKER_01",
+          "target_duration_sec": 1.4
+        },
+        {
+          "after_ids": [
+            13
+          ],
+          "before_ids": [
+            11
+          ],
+          "before_translation_vi": [],
+          "id": 12,
+          "speaker": "SPEAKER_01",
+          "target_duration_sec": 1.6
+        }
+      ],
+      "id": "bounded-bilingual-neighbor-context",
+      "passed": true
+    }
+  ],
+  "contract_id": "p04-quality-contract-v1",
+  "duration_fit_cases": [
+    {
+      "actual": {
+        "chars_per_second": 13.0,
+        "expected_seconds": 0.5385,
+        "expected_to_target_ratio": null,
+        "fit": "unknown",
+        "target_seconds": 0.0,
+        "uncertainty_seconds": 0.12,
+        "upper_bound_seconds": 0.6585,
+        "upper_to_target_ratio": null
+      },
+      "expected_fit": "unknown",
+      "id": "zero-window-is-unknown",
+      "passed": true
+    },
+    {
+      "actual": {
+        "chars_per_second": 13.0,
+        "expected_seconds": 0.7754,
+        "expected_to_target_ratio": 0.7754,
+        "fit": "comfortable",
+        "target_seconds": 1.0,
+        "uncertainty_seconds": 0.1551,
+        "upper_bound_seconds": 0.9305,
+        "upper_to_target_ratio": 0.9305
+      },
+      "expected_fit": "comfortable",
+      "id": "comfortable-window",
+      "passed": true
+    },
+    {
+      "actual": {
+        "chars_per_second": 13.0,
+        "expected_seconds": 0.7754,
+        "expected_to_target_ratio": 0.8616,
+        "fit": "tight",
+        "target_seconds": 0.9,
+        "uncertainty_seconds": 0.1551,
+        "upper_bound_seconds": 0.9305,
+        "upper_to_target_ratio": 1.0339
+      },
+      "expected_fit": "tight",
+      "id": "uncertainty-makes-window-tight",
+      "passed": true
+    },
+    {
+      "actual": {
+        "chars_per_second": 13.0,
+        "expected_seconds": 1.6154,
+        "expected_to_target_ratio": 1.6154,
+        "fit": "likely_overflow",
+        "target_seconds": 1.0,
+        "uncertainty_seconds": 0.3231,
+        "upper_bound_seconds": 1.9385,
+        "upper_to_target_ratio": 1.9385
+      },
+      "expected_fit": "likely_overflow",
+      "id": "spoken-number-expansion-overflows",
+      "passed": true
+    }
+  ],
+  "fixture_sha256": "421182947941722109c06d7977516d54ed5778d42ed8e9d4a22f70095846dad6",
+  "glossary": {
+    "mismatches": {},
+    "passed": true,
+    "path": "glossary.yaml",
+    "sha256": "b4798087b443064dbd75d53ee18d39a679f9ca52e3c1e8f6e8edcf87f81a51bb",
+    "terms_checked": 5
+  },
+  "limitations": [
+    "Labeled substring checks do not establish full semantic equivalence.",
+    "The retained A/B receipt establishes labeled critical-fact parity, not translation superiority.",
+    "Duration-fit output is a deterministic proxy with provisional calibration.",
+    "Naturalness and listening quality require human blind A/B evidence."
+  ],
+  "passed": true,
+  "quality_cases": [
+    {
+      "actual_pass": true,
+      "categories": [
+        "glossary"
+      ],
+      "conforms": true,
+      "expected_pass": true,
+      "failures": [],
+      "id": "glossary-positive"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "glossary"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "glossary",
+          "missing": [
+            "cau truc thi truong"
+          ]
+        }
+      ],
+      "id": "glossary-missing-negative"
+    },
+    {
+      "actual_pass": true,
+      "categories": [
+        "name",
+        "number"
+      ],
+      "conforms": true,
+      "expected_pass": true,
+      "failures": [],
+      "id": "names-and-numbers-positive"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "name",
+        "number"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "name",
+          "missing": [
+            "OpenAI"
+          ]
+        }
+      ],
+      "id": "name-missing-negative"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "name",
+        "number"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "number",
+          "missing": [
+            "12,5%"
+          ]
+        }
+      ],
+      "id": "number-missing-negative"
+    },
+    {
+      "actual_pass": true,
+      "categories": [
+        "modality",
+        "negation"
+      ],
+      "conforms": true,
+      "expected_pass": true,
+      "failures": [],
+      "id": "negation-and-modality-positive"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "modality",
+        "negation"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "negation",
+          "missing": [
+            "khong duoc ban"
+          ]
+        }
+      ],
+      "id": "negation-dropped-negative"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "modality",
+        "negation"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "modality",
+          "missing": [
+            "phai doi",
+            "co the huy"
+          ]
+        }
+      ],
+      "id": "modality-dropped-negative"
+    },
+    {
+      "actual_pass": true,
+      "categories": [
+        "critical_fact"
+      ],
+      "conforms": true,
+      "expected_pass": true,
+      "failures": [],
+      "id": "critical-direction-positive"
+    },
+    {
+      "actual_pass": false,
+      "categories": [
+        "critical_fact"
+      ],
+      "conforms": true,
+      "expected_pass": false,
+      "failures": [
+        {
+          "category": "critical_fact",
+          "missing": [
+            "thang la 66%",
+            "thua la 33%"
+          ]
+        }
+      ],
+      "id": "critical-direction-swapped-negative"
+    }
+  ],
+  "retained_artifacts": [
+    {
+      "actual_sha256": "289c9f7db726c19f94d65453a63c36b707e8d21b2818cdb4d2df5fc33451152c",
+      "cases": [
+        {
+          "categories": [
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 32
+        },
+        {
+          "categories": [
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 34
+        },
+        {
+          "categories": [
+            "name"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 36
+        },
+        {
+          "categories": [
+            "modality",
+            "name"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 39
+        },
+        {
+          "categories": [
+            "modality",
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 40
+        },
+        {
+          "categories": [
+            "name",
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 44
+        },
+        {
+          "categories": [
+            "critical_fact",
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 48
+        }
+      ],
+      "expected_sha256": "289c9f7db726c19f94d65453a63c36b707e8d21b2818cdb4d2df5fc33451152c",
+      "failures": [],
+      "id": "p12-routing-e2e",
+      "passed": true,
+      "path": "work/p12-routing-e2e-20260923-0945/job-4c8236a32c685a11/segments_translated.json"
+    },
+    {
+      "actual_sha256": "ca27fe5ac594ba96408c88d6c317507fdee0ec5c18cd0e0115a8845d8b70a752",
+      "cases": [
+        {
+          "categories": [
+            "negation",
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 2
+        },
+        {
+          "categories": [
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 3
+        },
+        {
+          "categories": [
+            "name",
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 4
+        },
+        {
+          "categories": [
+            "modality",
+            "negation",
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 5
+        }
+      ],
+      "expected_sha256": "ca27fe5ac594ba96408c88d6c317507fdee0ec5c18cd0e0115a8845d8b70a752",
+      "failures": [],
+      "id": "p17-clean-talking-head-before",
+      "passed": true,
+      "path": "work/benchmarks/p17-clean-talking-head/before-segments_translated.json"
+    },
+    {
+      "actual_sha256": "7d20c5b1ddd3f773ad7803f73dec79cda0de1e1e7b4e9d86692f82e6d7d14ad4",
+      "cases": [
+        {
+          "categories": [
+            "negation",
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 9
+        },
+        {
+          "categories": [
+            "name",
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 10
+        },
+        {
+          "categories": [
+            "modality",
+            "name",
+            "negation",
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 11
+        },
+        {
+          "categories": [
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 12
+        }
+      ],
+      "expected_sha256": "7d20c5b1ddd3f773ad7803f73dec79cda0de1e1e7b4e9d86692f82e6d7d14ad4",
+      "failures": [],
+      "id": "p17-clean-talking-head-after",
+      "passed": true,
+      "path": "work/benchmarks/p17-clean-talking-head/after-segments_translated.json"
+    },
+    {
+      "actual_sha256": "adbf1c73b26dd48f016f6e9a076818027bab94959666980f83ecaef72027c11c",
+      "cases": [
+        {
+          "categories": [
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 1
+        },
+        {
+          "categories": [
+            "critical_fact",
+            "modality",
+            "negation"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 8
+        }
+      ],
+      "expected_sha256": "adbf1c73b26dd48f016f6e9a076818027bab94959666980f83ecaef72027c11c",
+      "failures": [],
+      "id": "p17-fast-english",
+      "passed": true,
+      "path": "work/benchmarks/p17-fast-english/current-segments_translated.json"
+    },
+    {
+      "actual_sha256": "6f68d99ebbd31e07f04ac9fe90ca920e65712050c96c41609fb9db050b271fac",
+      "cases": [
+        {
+          "categories": [
+            "number"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 1
+        },
+        {
+          "categories": [
+            "critical_fact"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 4
+        },
+        {
+          "categories": [
+            "critical_fact"
+          ],
+          "failures": [],
+          "passed": true,
+          "segment_id": 19
+        }
+      ],
+      "expected_sha256": "6f68d99ebbd31e07f04ac9fe90ca920e65712050c96c41609fb9db050b271fac",
+      "failures": [],
+      "id": "p17-technical-terms",
+      "passed": true,
+      "path": "work/benchmarks/p17-technical-terms/current-segments_translated.json"
+    }
+  ],
+  "schema_version": 1,
+  "scope": {
+    "human_ab_required": true,
+    "machine_verifiable_only": true,
+    "naturalness_assessed": false,
+    "semantic_equivalence_assessed": false
+  },
+  "sections": {
+    "context": true,
+    "duration_fit": true,
+    "glossary_snapshot": true,
+    "golden_checker_conformance": true,
+    "retained_ab_critical_fact_parity": true,
+    "retained_artifacts": true
+  }
+}

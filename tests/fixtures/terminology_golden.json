@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "profile": "trading-tech-v1",
+  "cases": [
+    {
+      "id": "bullish-engulfing-keep",
+      "source": "This bullish engulfing breaks above resistance.",
+      "accepted": "Cây Bullish Engulfing này phá lên khỏi vùng kháng cự.",
+      "rejected": "Cây nến nhấn chìm tăng giá này phá lên khỏi vùng kháng cự."
+    },
+    {
+      "id": "bearish-engulfing-keep",
+      "source": "The bearish engulfing closes below support.",
+      "accepted": "Bearish Engulfing đóng cửa dưới vùng hỗ trợ.",
+      "rejected": "Nến nhấn chìm giảm giá đóng cửa dưới vùng hỗ trợ."
+    },
+    {
+      "id": "fvg-keep",
+      "source": "Price may revisit the FVG.",
+      "accepted": "Giá có thể quay lại FVG.",
+      "rejected": "Giá có thể quay lại khoảng trống giá trị hợp lý."
+    },
+    {
+      "id": "order-block-prefer-en",
+      "source": "Wait for the order block.",
+      "accepted": "Chờ giá quay về order block.",
+      "rejected": "Chờ giá quay về vùng lệnh."
+    },
+    {
+      "id": "liquidity-sweep-vi",
+      "source": "Wait for a liquidity sweep before entry.",
+      "accepted": "Chờ một cú quét thanh khoản trước khi vào lệnh.",
+      "rejected": "Chờ một liquidity sweep trước khi vào lệnh."
+    },
+    {
+      "id": "market-structure-vi",
+      "source": "Market structure is still bullish.",
+      "accepted": "Cấu trúc thị trường vẫn đang tăng.",
+      "rejected": "Market structure vẫn đang tăng."
+    },
+    {
+      "id": "stop-loss-prefer-en",
+      "source": "Move your stop loss to breakeven.",
+      "accepted": "Dời stop loss về breakeven.",
+      "rejected": "Dời cắt lỗ về breakeven."
+    },
+    {
+      "id": "take-profit-prefer-en",
+      "source": "Set take profit at the previous high.",
+      "accepted": "Đặt take profit ở đỉnh trước.",
+      "rejected": "Đặt chốt lời ở đỉnh trước."
+    },
+    {
+      "id": "breakout-prefer-en",
+      "source": "Do not chase the breakout.",
+      "accepted": "Đừng đuổi theo breakout.",
+      "rejected": "Đừng đuổi theo cú phá vỡ."
+    },
+    {
+      "id": "pullback-prefer-en",
+      "source": "Wait for the pullback.",
+      "accepted": "Chờ pullback.",
+      "rejected": "Chờ nhịp hồi."
+    },
+    {
+      "id": "bos-keep",
+      "source": "BOS confirms continuation.",
+      "accepted": "BOS xác nhận xu hướng tiếp diễn.",
+      "rejected": "Phá vỡ cấu trúc xác nhận xu hướng tiếp diễn."
+    },
+    {
+      "id": "choch-keep",
+      "source": "CHoCH can warn of a possible shift.",
+      "accepted": "CHoCH có thể báo hiệu khả năng đổi hướng.",
+      "rejected": "Thay đổi tính chất có thể báo hiệu khả năng đổi hướng."
+    },
+    {
+      "id": "prompt-prefer-en",
+      "source": "The prompt changes the model behavior.",
+      "accepted": "Prompt làm thay đổi hành vi của model.",
+      "rejected": "Lời nhắc làm thay đổi hành vi của model."
+    },
+    {
+      "id": "token-prefer-en",
+      "source": "This request uses more tokens.",
+      "accepted": "Request này dùng nhiều token hơn.",
+      "rejected": "Request này dùng nhiều đơn vị từ hơn."
+    },
+    {
+      "id": "api-keep",
+      "source": "The API returned an error.",
+      "accepted": "API trả về lỗi.",
+      "rejected": "Giao diện lập trình ứng dụng trả về lỗi."
+    },
+    {
+      "id": "gpu-keep",
+      "source": "The GPU handles local inference.",
+      "accepted": "GPU xử lý inference cục bộ.",
+      "rejected": "Bộ xử lý đồ họa xử lý inference cục bộ."
+    }
+  ]
+}

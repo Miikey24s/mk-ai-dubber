@@ -4,3 +4,102 @@ terms:
   order block: order block
   liquidity sweep: "qu\u00e9t thanh kho\u1ea3n"
   market structure: "c\u1ea5u tr\u00fac th\u1ecb tr\u01b0\u1eddng"
+  engulfing: Engulfing
+  bullish engulfing: Bullish Engulfing
+  bearish engulfing: Bearish Engulfing
+  stop loss: stop loss
+  take profit: take profit
+  breakeven: breakeven
+  breakout: breakout
+  pullback: pullback
+  BOS: BOS
+  CHoCH: CHoCH
+  prompt: prompt
+  token: token
+  API: API
+  GPU: GPU
+
+profile:
+  audience: Vietnamese viewers familiar with trading and technical content
+  register: conversational/explanatory
+  terminology_style: mixed Vietnamese + common English domain terms
+
+terminology:
+  FVG:
+    policy: KEEP_EN
+    spoken: "\u00e9p vi gi"
+    rejected:
+      - "kho\u1ea3ng tr\u1ed1ng gi\u00e1 tr\u1ecb h\u1ee3p l\u00fd"
+    domain: trading
+  fair value gap:
+    policy: PREFER_EN
+    domain: trading
+  order block:
+    policy: PREFER_EN
+    domain: trading
+  liquidity sweep:
+    policy: VI
+    rejected:
+      - liquidity sweep
+    domain: trading
+  market structure:
+    policy: VI
+    domain: trading
+  engulfing:
+    policy: KEEP_EN
+    rejected:
+      - "n\u1ebfn nh\u1ea5n ch\u00ecm"
+    domain: trading
+  bullish engulfing:
+    policy: KEEP_EN
+    rejected:
+      - "n\u1ebfn nh\u1ea5n ch\u00ecm t\u0103ng"
+      - "n\u1ebfn nh\u1ea5n ch\u00ecm t\u0103ng gi\u00e1"
+    domain: trading
+  bearish engulfing:
+    policy: KEEP_EN
+    rejected:
+      - "n\u1ebfn nh\u1ea5n ch\u00ecm gi\u1ea3m"
+      - "n\u1ebfn nh\u1ea5n ch\u00ecm gi\u1ea3m gi\u00e1"
+    domain: trading
+  stop loss:
+    policy: PREFER_EN
+    rejected:
+      - "c\u1eaft l\u1ed7"
+    domain: trading
+  take profit:
+    policy: PREFER_EN
+    domain: trading
+  breakeven:
+    policy: PREFER_EN
+    domain: trading
+  breakout:
+    policy: PREFER_EN
+    domain: trading
+  pullback:
+    policy: PREFER_EN
+    domain: trading
+  BOS:
+    policy: KEEP_EN
+    spoken: "bi \u00f4 \u00e9t"
+    domain: trading
+  CHoCH:
+    policy: KEEP_EN
+    spoken: "ch\u00f3c"
+    domain: trading
+  prompt:
+    policy: PREFER_EN
+    domain: ai/software
+  token:
+    policy: PREFER_EN
+    aliases:
+      - tokens
+    domain: ai/software
+  API:
+    policy: KEEP_EN
+    spoken: "\u00e2y pi ai"
+    domain: ai/software
+  GPU:
+    policy: KEEP_EN
+    spoken: "gi pi diu"
+    domain: ai/software

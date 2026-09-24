@@ -57,6 +57,8 @@ Khi dùng WebGPT, pipeline không đổi route global trong `~/.codex/config.tom
 
 Semantic QA dùng TypeSafe khi `TYPESAFE_API_KEY` có trong environment. Nội dung English/Vietnamese của các segment được gửi tới TypeSafe để chấm `faithful / partial / wrong` và kiểm tra các fact quan trọng. Chế độ hiện tại là `shadow`: kết quả được lưu vào `work/<job>/semantic_qa.json`, nhưng lỗi TypeSafe hoặc đoạn bị flag không làm dừng tác vụ.
 
+Terminology domain được cấu hình trong `glossary.yaml`. Ngoài mapping cũ `source -> target`, glossary có thể khai báo policy `KEEP_EN`, `PREFER_EN`, `VI` hoặc `CONTEXTUAL`, audience profile, dạng hiển thị và dạng đọc TTS riêng. Pipeline kiểm tra deterministic sau dịch và sau duration rewrite để các term đã khóa như `Engulfing`, `FVG`, `order block` không bị Việt hóa hoặc đổi form ngoài policy; subtitle vẫn giữ display form còn TTS có thể dùng spoken override riêng.
+
 CLI:
 
 Một người nói, không cần token:

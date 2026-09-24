@@ -21,6 +21,10 @@ class ReferenceScore:
     clipping_ratio: float
     snr_db: float
     overlap: bool
+    words_per_second: float | None
+    pause_ratio: float | None
+    phrase_complete: bool
+    delivery_score: float
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -46,6 +50,45 @@ def _read_audio_window(path: Path, *, start: float, duration: float) -> tuple[np
     if audio.size == 0:
         return np.zeros(0, dtype=np.float32), sample_rate
     return audio.mean(axis=1), sample_rate
+
+
+def _delivery_metrics(segment: Segment) -> tuple[float | None, float | None, bool, float]:
+    phrase_complete = bool(segment.text.strip()) and segment.text.rstrip().endswith((".", "?", "!"))
+    timed_words = [
+        word
+        for word in segment.words
+        if word.start is not None and word.end is not None and float(word.end) > float(word.start)
+    ]
+    if len(timed_words) < 2:
+        # Missing alignment metadata must not disqualify an otherwise clean reference.
+        return None, None, phrase_complete, 0.65 if phrase_complete else 0.50
+
+    ordered = sorted(timed_words, key=lambda word: (float(word.start), float(word.end)))
+    span = max(0.1, float(ordered[-1].end) - float(ordered[0].start))
+    words_per_second = len(ordered) / span
+    pause_seconds = sum(
+        max(0.0, float(current.start) - float(previous.end))
+        for previous, current in zip(ordered, ordered[1:], strict=False)
+    )
+    pause_ratio = min(1.0, pause_seconds / span)
+
+    if 1.8 <= words_per_second <= 3.4:
+        pace_score = 1.0
+    elif words_per_second < 1.8:
+        pace_score = max(0.0, (words_per_second - 0.8) / 1.0)
+    else:
+        pace_score = max(0.0, (5.0 - words_per_second) / 1.6)
+
+    if 0.03 <= pause_ratio <= 0.20:
+        pause_score = 1.0
+    elif pause_ratio < 0.03:
+        pause_score = 0.75 + (pause_ratio / 0.03) * 0.25
+    else:
+        pause_score = max(0.0, 1.0 - ((pause_ratio - 0.20) / 0.30))
+
+    completeness_score = 1.0 if phrase_complete else 0.55
+    delivery_score = 0.50 * pace_score + 0.25 * pause_score + 0.25 * completeness_score
+    return words_per_second, pause_ratio, phrase_complete, float(delivery_score)
 
 
 def score_reference_candidate(vocals: Path, segment: Segment) -> ReferenceScore:
@@ -76,11 +119,14 @@ def score_reference_candidate(vocals: Path, segment: Segment) -> ReferenceScore:
     if segment.avg_logprob is not None:
         confidence_score = min(1.0, max(0.0, (float(segment.avg_logprob) + 1.5) / 1.5))
 
+    words_per_second, pause_ratio, phrase_complete, delivery_score = _delivery_metrics(segment)
+
     score = (
-        0.28 * duration_score
-        + 0.32 * speech_score
-        + 0.24 * snr_score
-        + 0.16 * confidence_score
+        0.24 * duration_score
+        + 0.28 * speech_score
+        + 0.21 * snr_score
+        + 0.12 * confidence_score
+        + 0.15 * delivery_score
         - 2.0 * clipping_ratio
         - 0.35 * max(0.0, silence_ratio - 0.25)
         - (1.0 if segment.overlap else 0.0)
@@ -96,6 +142,10 @@ def score_reference_candidate(vocals: Path, segment: Segment) -> ReferenceScore:
         clipping_ratio=clipping_ratio,
         snr_db=snr_db,
         overlap=segment.overlap,
+        words_per_second=words_per_second,
+        pause_ratio=pause_ratio,
+        phrase_complete=phrase_complete,
+        delivery_score=delivery_score,
     )
 
 

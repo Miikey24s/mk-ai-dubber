@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-25",
+  "hardware": "NVIDIA GeForce RTX 2070 SUPER 8 GB",
+  "backend": "pytorch/cuda/float16",
+  "baseline": "vieneu 3.7.1",
+  "candidate": "vieneu 3.8.3",
+  "reference": "work/job-4c8236a32c685a11/references/SPEAKER_00.wav",
+  "batch_results": [
+    {
+      "batch_size": 4,
+      "baseline_wall_s": 1.4543035,
+      "candidate_wall_s": 1.6505116,
+      "wall_delta_pct": 13.4916,
+      "baseline_rtf": 0.0724255,
+      "candidate_rtf": 0.0842098,
+      "rtf_delta_pct": 16.2709,
+      "baseline_peak_allocated_mib": 719.2598,
+      "candidate_peak_allocated_mib": 719.2603
+    },
+    {
+      "batch_size": 8,
+      "baseline_wall_s": 2.2965862,
+      "candidate_wall_s": 2.5995411,
+      "wall_delta_pct": 13.1915,
+      "baseline_rtf": 0.0562889,
+      "candidate_rtf": 0.0630957,
+      "rtf_delta_pct": 12.0926,
+      "baseline_peak_allocated_mib": 861.7598,
+      "candidate_peak_allocated_mib": 854.229
+    },
+    {
+      "batch_size": 16,
+      "baseline_wall_s": 3.3700642,
+      "candidate_wall_s": 3.7073724,
+      "wall_delta_pct": 10.009,
+      "baseline_rtf": 0.0373787,
+      "candidate_rtf": 0.0395749,
+      "rtf_delta_pct": 5.8754,
+      "baseline_peak_allocated_mib": 1182.9712,
+      "candidate_peak_allocated_mib": 1182.9727
+    }
+  ],
+  "listening_gate": {
+    "status": "pending_human_votes",
+    "minimum_completed_votes": 3,
+    "media_integrity_passed": true,
+    "automatic_winner_selected": false,
+    "local_packet": "work/benchmarks/vieneu-371-vs-383-20260925/blind-packet/"
+  },
+  "decision": "retain_vieneu_3.7.1_default",
+  "reason": "3.8.3 showed no throughput advantage on this GPU/fixture and human quality parity is still open",
+  "production_lock_changed": false
+}

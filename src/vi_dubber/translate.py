@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 import requests
-import yaml
 from huggingface_hub import hf_hub_download
 
 from .pronunciation import normalize_pronunciation
 from .runtime import MODELS_DIR, PROJECT_ROOT, find_codex_exe, llama_server_exe
+from .terminology import glossary_prompt_json, load_terminology_glossary
 from .types import Segment
 
 
@@ -28,6 +28,8 @@ Rules:
 - Preserve the exact meaning, intent, numbers, negation, named entities, and technical relationships.
 - Never add explanations, examples, opinions, or facts that the source did not say.
 - Follow the supplied glossary exactly when a term is present.
+- Follow terminology policies exactly. KEEP_EN/PREFER_EN keep the approved English display form; VI uses the approved Vietnamese display form; CONTEXTUAL must stay consistent and avoid rejected forms.
+- Use Vietnamese grammar around retained English technical terms; do not translate a technical term merely because a literal Vietnamese equivalent exists.
 - Keep common technical abbreviations in English when that is natural for Vietnamese viewers.
 - Use natural Vietnamese word order and conversational rhythm.
 - The Vietnamese line must fit the supplied speaking duration. Prefer concise natural wording over fast speech.
@@ -37,16 +39,12 @@ Rules:
 """
 
 ProgressCallback = Callable[[float, str], None]
-TRANSLATION_POLICY_VERSION = 3
+TRANSLATION_POLICY_VERSION = 4
 WEBGPT_TRANSLATION_RECEIPT_NAMESPACE = "vi-dubber.webgpt.translation.v1"
 
 
 def load_glossary(path: Path | None) -> dict[str, str]:
-    if path is None or not path.exists():
-        return {}
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    terms = data.get("terms", data)
-    return {str(k): str(v) for k, v in dict(terms).items()}
+    return load_terminology_glossary(path)
 
 
 def estimate_spoken_duration(
@@ -348,7 +346,7 @@ class LocalTranslator:
     ) -> list[Segment]:
         batch_size = max(1, int(self.config.get("max_segments_per_batch", 16)))
         context_window = max(0, int(self.config.get("context_window", 2)))
-        glossary_text = json.dumps(glossary, ensure_ascii=False)
+        glossary_text = glossary_prompt_json(glossary)
 
         cache_path = self.work_dir / "translations_cache.json"
         cached_by_id: dict[int, str] = {}
@@ -420,7 +418,7 @@ class LocalTranslator:
             "Rewrite ONE Vietnamese dubbing line so it says the same thing but fits a shorter slot. "
             "Do not delete numbers, negation, names, or essential technical meaning. "
             "Return only JSON object {\"vi\": string}.\n"
-            f"Glossary={json.dumps(glossary, ensure_ascii=False)}\n"
+            f"Glossary={glossary_prompt_json(glossary)}\n"
             f"Source English={json.dumps(segment.text, ensure_ascii=False)}\n"
             f"Current Vietnamese={json.dumps(segment.vi, ensure_ascii=False)}\n"
             f"Target duration={segment.duration:.2f}s; current audio={measured_duration:.2f}s; "
@@ -437,7 +435,7 @@ class LocalTranslator:
     ) -> dict[int, str]:
         if not batch_items:
             return {}
-        glossary_text = json.dumps(glossary, ensure_ascii=False)
+        glossary_text = glossary_prompt_json(glossary)
         payload = [
             {
                 "id": seg.id,
@@ -961,7 +959,7 @@ class WebGptTranslator:
     ) -> list[Segment]:
         batch_size = max(1, int(self.config.get("codex_segments_per_batch", 32)))
         context_window = max(0, int(self.config.get("context_window", 2)))
-        glossary_text = json.dumps(glossary, ensure_ascii=False)
+        glossary_text = glossary_prompt_json(glossary)
         schema = {
             "type": "object",
             "properties": {
@@ -1091,7 +1089,7 @@ class WebGptTranslator:
             SYSTEM_PROMPT.replace("/no_think\n", "")
             + "\nYou are running as a translation backend. Do not inspect files or call tools.\n"
             + "Rewrite one Vietnamese dubbing line to fit a shorter slot without losing essential meaning.\n"
-            + f"Glossary={json.dumps(glossary, ensure_ascii=False)}\n"
+            + f"Glossary={glossary_prompt_json(glossary)}\n"
             + f"Source English={json.dumps(segment.text, ensure_ascii=False)}\n"
             + f"Current Vietnamese={json.dumps(segment.vi, ensure_ascii=False)}\n"
             + f"Target duration={segment.duration:.2f}s; current audio={measured_duration:.2f}s; "
@@ -1108,7 +1106,7 @@ class WebGptTranslator:
     ) -> dict[int, str]:
         if not batch_items:
             return {}
-        glossary_text = json.dumps(glossary, ensure_ascii=False)
+        glossary_text = glossary_prompt_json(glossary)
         schema = {
             "type": "object",
             "properties": {
@@ -1469,7 +1467,7 @@ class AuroraTranslator:
             "required": ["translations"],
             "additionalProperties": False,
         }
-        glossary_text = json.dumps(glossary, ensure_ascii=False)
+        glossary_text = glossary_prompt_json(glossary)
         for offset in range(0, len(segments), batch_size):
             batch = segments[offset : offset + batch_size]
             if all(bool(item.vi and item.vi.strip()) for item in batch):
@@ -1525,7 +1523,7 @@ class AuroraTranslator:
         }
         prompt = (
             "Rewrite one Vietnamese dubbing line to fit a shorter slot without losing essential meaning.\n"
-            f"Glossary={json.dumps(glossary, ensure_ascii=False)}\n"
+            f"Glossary={glossary_prompt_json(glossary)}\n"
             f"Source English={json.dumps(segment.text, ensure_ascii=False)}\n"
             f"Current Vietnamese={json.dumps(segment.vi, ensure_ascii=False)}\n"
             f"Target duration={segment.duration:.2f}s; current audio={measured_duration:.2f}s; "
@@ -1573,7 +1571,7 @@ class AuroraTranslator:
         prompt = (
             "Rewrite each Vietnamese dubbing line to fit the target duration while preserving essential meaning, "
             "facts, numbers, names, negation, modality, and technical terms.\n"
-            f"Glossary={json.dumps(glossary, ensure_ascii=False)}\n"
+            f"Glossary={glossary_prompt_json(glossary)}\n"
             f"INPUT={json.dumps(payload, ensure_ascii=False)}"
         )
         result = self._post_json(prompt, schema, max_tokens=2048)
