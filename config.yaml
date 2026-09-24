@@ -45,10 +45,10 @@ translation:
 tts:
   preset_voice: "Minh Quân"
   clone_original_voice: true
-  backend: onnx
-  device: cpu
-  precision: fp32
-  batch_size: 1
+  backend: pytorch
+  device: cuda
+  precision: fp16
+  batch_size: 4
   sample_rate: 48000
   pronunciation_map: {}
 

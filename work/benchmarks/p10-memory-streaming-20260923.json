@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "phase": "P10",
+  "date": "2026-09-23",
+  "timeline_seconds": 3238.672812,
+  "sample_rate": 48000,
+  "block_seconds": 30.0,
+  "elapsed_seconds": 2.532890199996473,
+  "baseline_rss_mib": 28.60546875,
+  "peak_rss_mib": 45.29296875,
+  "delta_peak_rss_mib": 16.6875,
+  "final_rss_mib": 29.12890625,
+  "output_bytes_before_cleanup": 310912634,
+  "output_frames": 155456295,
+  "output_duration_seconds": 3238.6728125,
+  "expected_legacy_full_buffers_mib": 889.52805519104,
+  "rss_samples": 241,
+  "rss_failures": 0,
+  "notes": "Measured in-process on Windows using GetProcessMemoryInfo while assemble_voice_track rendered a 3238.67 s 48 kHz timeline with 30 s streaming blocks. The large temporary WAV was deleted after validation. The legacy comparison is the deterministic size of the old float32 timeline buffer plus uint16 overlap-count buffer, not a measured historical RSS sample."
+}

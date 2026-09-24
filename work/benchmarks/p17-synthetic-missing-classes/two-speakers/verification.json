@@ -1,0 +1,23 @@
+﻿{
+    "schema_version":  1,
+    "fixture_class":  "two-speakers",
+    "generation_kind":  "synthetic",
+    "source_file":  "source.mp4",
+    "source_sha256":  "245fef386fd06143aa78266a24c8de34fcbbe9ef29b9aebe476e207f4415699d",
+    "duration_seconds":  23.798,
+    "generator":  "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+    "voices":  [
+                   "Microsoft David Desktop",
+                   "Microsoft Zira Desktop"
+               ],
+    "behavior_probe":  {
+                           "designed_overlap_seconds":  0,
+                           "speaker_voices":  [
+                                                  "Microsoft David Desktop",
+                                                  "Microsoft Zira Desktop"
+                                              ],
+                           "alternating_turns":  4,
+                           "distinct_synthetic_speakers":  2
+                       },
+    "limitation":  "Two distinct synthetic voices exercise speaker-turn handling, but this is not evidence of real-human diarization quality."
+}

@@ -167,7 +167,7 @@ def run_acceptance(
             source_hash = _sha256(source_path)
             verification_hash = _sha256(verification_path)
             passed = (
-                fixture.get("status") == "source-ready"
+                fixture.get("status") in {"source-ready", "available"}
                 and source_hash == source.get("sha256")
                 and verification_hash == verification.get("sha256")
                 and receipt.get("source_sha256") == source_hash

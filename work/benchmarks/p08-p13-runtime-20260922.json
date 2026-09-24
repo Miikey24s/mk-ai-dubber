@@ -1,0 +1,235 @@
+{
+  "schema": "vi-dubber-p08-p13-runtime-benchmark-v1",
+  "machine": {
+    "timestamp_local": "2026-09-22T11:48:35+0700",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.10",
+    "torch": "2.8.0+cu128",
+    "vieneu": "3.7.1",
+    "whisperx": "3.8.6",
+    "cuda_available": true,
+    "cuda_device": "NVIDIA GeForce RTX 2070 SUPER",
+    "cuda_total_gib": 8.0,
+    "cuda_capability": [
+      7,
+      5
+    ],
+    "bf16_supported": true,
+    "offline": true
+  },
+  "vieneu": {
+    "phrase_set": [
+      "Xin chào, đây là một bài kiểm tra giọng nói tiếng Việt.",
+      "Thị trường đang tăng nhanh, nhưng rủi ro vẫn cần được kiểm soát.",
+      "Bạn nên đặt điểm dừng lỗ trước khi vào lệnh.",
+      "Giá vừa phá vùng kháng cự và đang kiểm tra lại."
+    ],
+    "notes": [
+      "VieNeu v3turbo precision controls ONNX/CPU only; PyTorch uses dtype.",
+      "GPU FP16 benchmark uses dtype=float16 explicitly because precision=fp16 does not select PyTorch dtype.",
+      "Timing is speed/stability evidence only; no quality parity is claimed."
+    ],
+    "combination_probes": [
+      {
+        "requested": {
+          "backend": "onnx",
+          "device": "cpu",
+          "precision": "fp32"
+        },
+        "status": "ok",
+        "effective": {
+          "backend": "onnx",
+          "device": "cpu",
+          "dtype": "fp32"
+        },
+        "load_wall_s": 5.3426,
+        "one_phrase_wall_s": 1.7401,
+        "one_phrase_audio_s": 2.72
+      },
+      {
+        "requested": {
+          "backend": "onnx",
+          "device": "cpu",
+          "precision": "int8"
+        },
+        "status": "unsupported_offline_or_error",
+        "error": "LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on."
+      },
+      {
+        "requested": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "precision": "fp16",
+          "dtype": "float16"
+        },
+        "status": "ok",
+        "effective": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "dtype": "torch.float16"
+        },
+        "load_wall_s": 9.4221,
+        "model_resident_cuda_mib": 558.54
+      },
+      {
+        "requested": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "precision": "fp16",
+          "dtype": "auto"
+        },
+        "status": "ok",
+        "effective": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "dtype": "torch.bfloat16"
+        },
+        "load_wall_s": 4.1122,
+        "model_resident_cuda_mib": 376.68
+      },
+      {
+        "requested": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "precision": "fp32_label",
+          "dtype": "float32"
+        },
+        "status": "ok",
+        "effective": {
+          "backend": "pytorch",
+          "device": "cuda",
+          "dtype": "torch.float32"
+        },
+        "load_wall_s": 3.6756,
+        "model_resident_cuda_mib": 598.04
+      },
+      {
+        "requested": {
+          "backend": "onnx",
+          "device": "cuda",
+          "precision": "fp32"
+        },
+        "status": "semantic_mismatch_not_benchmarked",
+        "effective": {
+          "backend": "onnx",
+          "device": "cpu"
+        },
+        "reason": "V3Turbo ONNX constructor does not pass device/CUDAExecutionProvider; device=cuda only affects backend auto-selection logic."
+      }
+    ],
+    "gpu_infer_vs_infer_batch": [
+      {
+        "method": "infer_sequential",
+        "batch_n": 1,
+        "wall_s": 0.5208,
+        "audio_s": 2.8,
+        "rtf": 0.186,
+        "cuda_alloc_before_mib": 595.06,
+        "cuda_peak_alloc_mib": 625.29,
+        "cuda_peak_increment_mib": 30.23
+      },
+      {
+        "method": "infer_batch",
+        "batch_n": 1,
+        "wall_s": 0.5809,
+        "audio_s": 2.8,
+        "rtf": 0.2075,
+        "cuda_alloc_before_mib": 595.06,
+        "cuda_peak_alloc_mib": 625.29,
+        "cuda_peak_increment_mib": 30.23
+      },
+      {
+        "method": "infer_sequential",
+        "batch_n": 2,
+        "wall_s": 1.0354,
+        "audio_s": 5.6,
+        "rtf": 0.1849,
+        "cuda_alloc_before_mib": 595.06,
+        "cuda_peak_alloc_mib": 625.94,
+        "cuda_peak_increment_mib": 30.88
+      },
+      {
+        "method": "infer_batch",
+        "batch_n": 2,
+        "wall_s": 1.4025,
+        "audio_s": 5.52,
+        "rtf": 0.2541,
+        "cuda_alloc_before_mib": 595.06,
+        "cuda_peak_alloc_mib": 657.7,
+        "cuda_peak_increment_mib": 62.64
+      },
+      {
+        "method": "infer_sequential",
+        "batch_n": 4,
+        "wall_s": 1.7942,
+        "audio_s": 10.08,
+        "rtf": 0.178,
+        "cuda_alloc_before_mib": 627.46,
+        "cuda_peak_alloc_mib": 659.7,
+        "cuda_peak_increment_mib": 32.23
+      },
+      {
+        "method": "infer_batch",
+        "batch_n": 4,
+        "wall_s": 1.2513,
+        "audio_s": 10.56,
+        "rtf": 0.1185,
+        "cuda_alloc_before_mib": 627.46,
+        "cuda_peak_alloc_mib": 728.83,
+        "cuda_peak_increment_mib": 101.37
+      }
+    ]
+  },
+  "whisperx": {
+    "status": "ok",
+    "reason": null,
+    "fixture": "work\\job-cafbd0adb862d5ae\\stems\\original_(Vocals)_model_bs_roformer_ep_317_sdr_12.wav",
+    "slice_seconds": [
+      3.0,
+      26.0
+    ],
+    "rows": [
+      {
+        "batch_size": 4,
+        "wall_s": 1.9176,
+        "audio_input_s": 23.0,
+        "rtf": 0.0834,
+        "cuda_alloc_before_mib": 46.86,
+        "cuda_peak_alloc_mib": 280.57,
+        "cuda_peak_increment_mib": 233.71,
+        "segment_count": 1,
+        "transcript": "Time is short. What is your life? It's even a vapor that appeareth for a little time and then vanisheth away. If someone had told me when I was 20 years old that life was very short and would pass just like that, I wouldn't have believed it. And if I tell you that, you don't believe it either."
+      },
+      {
+        "batch_size": 6,
+        "wall_s": 1.6475,
+        "audio_input_s": 23.0,
+        "rtf": 0.0716,
+        "cuda_alloc_before_mib": 46.86,
+        "cuda_peak_alloc_mib": 280.57,
+        "cuda_peak_increment_mib": 233.71,
+        "segment_count": 1,
+        "transcript": "Time is short. What is your life? It's even a vapor that appeareth for a little time and then vanisheth away. If someone had told me when I was 20 years old that life was very short and would pass just like that, I wouldn't have believed it. And if I tell you that, you don't believe it either."
+      },
+      {
+        "batch_size": 8,
+        "wall_s": 1.704,
+        "audio_input_s": 23.0,
+        "rtf": 0.0741,
+        "cuda_alloc_before_mib": 46.86,
+        "cuda_peak_alloc_mib": 280.57,
+        "cuda_peak_increment_mib": 233.71,
+        "segment_count": 1,
+        "transcript": "Time is short. What is your life? It's even a vapor that appeareth for a little time and then vanisheth away. If someone had told me when I was 20 years old that life was very short and would pass just like that, I wouldn't have believed it. And if I tell you that, you don't believe it either."
+      }
+    ],
+    "quality_note": "Transcript text is compared across batches; alignment is not re-run because asr.batch_size is only passed to model.transcribe, not whisperx.align in project code.",
+    "model_load_wall_s": 8.0504,
+    "transcript_equal_to_batch4": {
+      "4": true,
+      "6": true,
+      "8": true
+    }
+  },
+  "quality_gate": "pending; speed/stability benchmark only"
+}

@@ -41,4 +41,15 @@ work/*
 !work/.gitkeep
 !work/checkpoints/
 !work/checkpoints/**
+!work/benchmarks/
+work/benchmarks/*
 !work/benchmarks/fixtures.json
+!work/benchmarks/*.json
+!work/benchmarks/p14-synthetic-acceptance/
+!work/benchmarks/p14-synthetic-acceptance/*.json
+!work/benchmarks/p17-synthetic-missing-classes/
+work/benchmarks/p17-synthetic-missing-classes/*
+!work/benchmarks/p17-synthetic-missing-classes/generate.ps1
+!work/benchmarks/p17-synthetic-missing-classes/*/
+work/benchmarks/p17-synthetic-missing-classes/*/*
+!work/benchmarks/p17-synthetic-missing-classes/*/*.json

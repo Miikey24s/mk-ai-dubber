@@ -1,0 +1,26 @@
+﻿{
+    "schema_version":  1,
+    "fixture_class":  "music-under-dialogue",
+    "generation_kind":  "synthetic",
+    "source_file":  "source.mp4",
+    "source_sha256":  "057696a792e2d01d1739e3c37f5f73037725bacb15d6331cbbc5df70b240b070",
+    "duration_seconds":  8.808,
+    "generator":  "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+    "voices":  [
+                   "Microsoft David Desktop",
+                   "Microsoft Zira Desktop"
+               ],
+    "behavior_probe":  {
+                           "simultaneous_background":  true,
+                           "speech_voice":  "Microsoft David Desktop",
+                           "music_gains":  [
+                                               0.1,
+                                               0.07
+                                           ],
+                           "music_frequencies_hz":  [
+                                                        220,
+                                                        330
+                                                    ]
+                       },
+    "limitation":  "Synthetic tonal bed validates separator/ASR behavior with deterministic music-like interference; it is not human-performed music."
+}

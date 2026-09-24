@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "task_id": "P01-HASH-BENCH",
+  "created_at_utc": "2026-09-22T01:58:47.022782+00:00",
+  "method": {
+    "helper": "vi_dubber.artifacts.fingerprint_file",
+    "algorithm": "sha256",
+    "chunk_size_bytes": 1048576,
+    "trials_per_file": 5,
+    "timing_clock": "time.perf_counter_ns",
+    "cache_control": "none; first pass labeled separately, later passes may benefit from OS cache"
+  },
+  "environment": {
+    "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64"
+  },
+  "inputs": [
+    {
+      "label": "short_real_source",
+      "fixture_id": "baseline-short-pwkw-20260916",
+      "fixture_field": "source",
+      "path": "work/youtube/PWKWNb550Cw.mp4",
+      "expected_sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+      "absolute_path": "D:\\ANNAM\\TradingWorkspace\\projects\\vi-dubber\\work\\youtube\\PWKWNb550Cw.mp4",
+      "size_bytes": 46856668,
+      "size_mib": 44.68600082397461,
+      "trials": [
+        {
+          "trial": 1,
+          "cache_hint": "first-pass",
+          "elapsed_seconds": 0.1365615,
+          "throughput_mib_per_s": 327.22253947104133,
+          "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+          "size_bytes": 46856668,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 2,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 0.1404026,
+          "throughput_mib_per_s": 318.27046524761374,
+          "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+          "size_bytes": 46856668,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 3,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 0.1433526,
+          "throughput_mib_per_s": 311.7208953585398,
+          "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+          "size_bytes": 46856668,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 4,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 0.1363907,
+          "throughput_mib_per_s": 327.63231528230745,
+          "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+          "size_bytes": 46856668,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 5,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 0.1528466,
+          "throughput_mib_per_s": 292.35848768618087,
+          "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7",
+          "size_bytes": 46856668,
+          "matches_fixture_sha256": true
+        }
+      ],
+      "summary": {
+        "trial_count": 5,
+        "elapsed_seconds_median": 0.1404026,
+        "throughput_mib_per_s_median": 318.27046524761374,
+        "throughput_mib_per_s_min": 292.35848768618087,
+        "throughput_mib_per_s_max": 327.63231528230745,
+        "all_hashes_match_fixture": true
+      }
+    },
+    {
+      "label": "large_representative_media",
+      "fixture_id": "baseline-long-trading-strategies-20260916",
+      "fixture_field": "artifacts.final_video",
+      "path": "work/outputs/Trading Strategies That Work (full training)_vi.mp4",
+      "expected_sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+      "absolute_path": "D:\\ANNAM\\TradingWorkspace\\projects\\vi-dubber\\work\\outputs\\Trading Strategies That Work (full training)_vi.mp4",
+      "size_bytes": 448159610,
+      "size_mib": 427.3983097076416,
+      "trials": [
+        {
+          "trial": 1,
+          "cache_hint": "first-pass",
+          "elapsed_seconds": 1.4211601,
+          "throughput_mib_per_s": 300.73902983037704,
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+          "size_bytes": 448159610,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 2,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 1.3704255,
+          "throughput_mib_per_s": 311.87270647520904,
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+          "size_bytes": 448159610,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 3,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 1.5419698,
+          "throughput_mib_per_s": 277.17683556943956,
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+          "size_bytes": 448159610,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 4,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 1.3757542,
+          "throughput_mib_per_s": 310.6647319031565,
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+          "size_bytes": 448159610,
+          "matches_fixture_sha256": true
+        },
+        {
+          "trial": 5,
+          "cache_hint": "subsequent-pass-os-cache-uncontrolled",
+          "elapsed_seconds": 1.3571049,
+          "throughput_mib_per_s": 314.93387851421187,
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119",
+          "size_bytes": 448159610,
+          "matches_fixture_sha256": true
+        }
+      ],
+      "summary": {
+        "trial_count": 5,
+        "elapsed_seconds_median": 1.3757542,
+        "throughput_mib_per_s_median": 310.6647319031565,
+        "throughput_mib_per_s_min": 277.17683556943956,
+        "throughput_mib_per_s_max": 314.93387851421187,
+        "all_hashes_match_fixture": true
+      }
+    }
+  ],
+  "moved_manifest_smoke": {
+    "before_move_valid": true,
+    "after_copy_valid": true,
+    "portable_artifact_path": "tts/00001.wav",
+    "fingerprint_preserved": true
+  }
+}

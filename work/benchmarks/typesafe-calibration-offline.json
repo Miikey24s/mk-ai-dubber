@@ -1,0 +1,71 @@
+{
+  "fixture_set": "p05-semantic-calibration-golden-v1",
+  "sample_count": 7,
+  "label_provenance": "synthetic_regression_labels",
+  "probability_source": "synthetic_fixture_probabilities",
+  "question_policy_version": 3,
+  "coverage": {
+    "required": [
+      "good_faithful_translation",
+      "subtle_loss",
+      "negation_reversal",
+      "modality_loss",
+      "number_name_issue",
+      "telegraphic_vietnamese",
+      "valid_natural_compression"
+    ],
+    "present": [
+      "good_faithful_translation",
+      "modality_loss",
+      "negation_reversal",
+      "number_name_issue",
+      "subtle_loss",
+      "telegraphic_vietnamese",
+      "valid_natural_compression"
+    ],
+    "missing": []
+  },
+  "cost_policy": {
+    "false_pass_cost": 5.0,
+    "false_retry_cost": 1.0,
+    "meaning": "false_pass = should_retry labeled sample allowed through; false_retry = non-retry sample sent to retry"
+  },
+  "offline_candidate_threshold": 0.72,
+  "selected_metrics": {
+    "threshold": 0.72,
+    "confusion": {
+      "true_positive": 4,
+      "false_positive": 0,
+      "true_negative": 3,
+      "false_negative": 0
+    },
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "cost": 0.0
+  },
+  "severe_semantic_error": {
+    "count": 3,
+    "caught": 3,
+    "recall": 1.0
+  },
+  "awkward_but_semantically_correct": {
+    "count": 1,
+    "sent_to_retry": 0
+  },
+  "model_pinning": {
+    "requested_model": "jev-latest",
+    "response_models": [
+      "jev-1.13.0"
+    ],
+    "versioned_model": "jev-1.13.0",
+    "production_pinning_ready": false,
+    "suggested_pinned_model": null,
+    "blockers": [
+      "requires_human_labels",
+      "requires_recorded_typesafe_artifact"
+    ]
+  },
+  "production_threshold_lock_allowed": false,
+  "production_note": "Offline/synthetic calibration validates the harness only; keep production thresholds and model defaults unchanged until human-labeled recorded TypeSafe evidence passes this contract."
+}

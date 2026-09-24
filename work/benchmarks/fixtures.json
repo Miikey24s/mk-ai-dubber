@@ -1,0 +1,703 @@
+{
+  "schema_version": 1,
+  "purpose": "Stable local fixture registry for vi-dubber regression and performance comparisons.",
+  "open_source_gate": {
+    "decision": "BUILD",
+    "scope": "control-plane benchmark harness",
+    "rationale": "This phase only reads project-owned JSON artifacts and computes deterministic summary metrics; adopting an external benchmark framework would add dependency and format coupling without improving the current offline baseline freeze."
+  },
+  "fixtures": [
+    {
+      "id": "baseline-short-pwkw-20260916",
+      "role": "short-real-baseline",
+      "status": "available",
+      "categories": [
+        "single-speaker",
+        "short-fragmented-subtitle-style-speech"
+      ],
+      "source": {
+        "status": "available",
+        "path": "work/youtube/PWKWNb550Cw.mp4",
+        "sha256": "cafbd0adb862d5aee023d701361f3a77610ad4dd6f88639494e2a462abbf95a7"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/PWKWNb550Cw-819968d7da/result.json",
+          "sha256": "b52d40d22765e3d7fbaeb8ac76f65e3b4aa94b4e2382e4c475b78a1292b8566c"
+        },
+        "tts_stats": {
+          "path": "work/PWKWNb550Cw-819968d7da/tts_stats.json",
+          "sha256": "0a4432d3652d446046adcce1799a9762f4936d845898d25120b6093429908662"
+        },
+        "final_video": {
+          "path": "work/outputs/PWKWNb550Cw_vi.mp4",
+          "sha256": "84a3c8ee68db1d718cbd4b54ce68a051e92e59e04bab405a4c9f890e7c40cf04"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 226.081,
+        "elapsed_seconds": 772.5222396000026,
+        "real_time_factor": 3.4170153157496768,
+        "segments": 53,
+        "rewritten_segments": 24,
+        "rewrite_rate": 0.4528301886792453,
+        "overflow_segments": 11,
+        "overflow_rate": 0.20754716981132076,
+        "tempo_p50": 1.097895699908507,
+        "tempo_p95": 1.25,
+        "average_tempo": 1.1084665999849277,
+        "max_tempo": 1.25
+      }
+    },
+    {
+      "id": "baseline-long-trading-strategies-20260916",
+      "role": "long-real-baseline",
+      "status": "available",
+      "categories": [
+        "single-speaker",
+        "long-monologue"
+      ],
+      "source": {
+        "status": "unresolved",
+        "path": null,
+        "note": "The completed job artifact exists, but the original source video path is not recorded in result.json. Do not guess a source mapping; resolve and hash it before using source-level golden checks."
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/Trading_Strategies_That_Work__full_training_-7a8ee35de0/result.json",
+          "sha256": "b43815cd1225535914c240c258e98495ebc6a36f057e872985962b141a0934b1"
+        },
+        "tts_stats": {
+          "path": "work/Trading_Strategies_That_Work__full_training_-7a8ee35de0/tts_stats.json",
+          "sha256": "abe0f864c60f77cbb7d8a631d599f9bc7b5b4b27cd192e538bc3f85963a73194"
+        },
+        "final_video": {
+          "path": "work/outputs/Trading Strategies That Work (full training)_vi.mp4",
+          "sha256": "abe06734455a76a11c38d11d646b7f14a462f971a7d996e788e7322b739f9119"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 3238.672812,
+        "elapsed_seconds": 5652.5999912,
+        "real_time_factor": 1.7453445652972,
+        "segments": 734,
+        "rewritten_segments": 523,
+        "rewrite_rate": 0.7125340599455041,
+        "overflow_segments": 199,
+        "overflow_rate": 0.27111716621253407,
+        "tempo_p50": 1.1080019422678393,
+        "tempo_p95": 1.25,
+        "average_tempo": 1.11842819501372,
+        "max_tempo": 1.25
+      }
+    },
+    {
+      "id": "golden-clean-single-speaker-talking-head",
+      "role": "clean-talking-head-real-regression",
+      "status": "available",
+      "categories": [
+        "clean-single-speaker-talking-head"
+      ],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-clean-talking-head/source-60s.mp4",
+        "sha256": "4fce48270d1f328cfcabf2d0bcfc95bb6a1f89db82232ac2965dac25ee160c87"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-result.json",
+          "sha256": "b1e5fc0681918e5e7dd19d7298d9636fe3207cb28e80e68c3fd8f8d39e08b4a4"
+        },
+        "tts_stats": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-tts_stats.json",
+          "sha256": "7e5c4d04722234836952b2eb147d114e4cc80d74d73820701a28b11cf6f20dfa"
+        },
+        "metrics": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-metrics.json",
+          "sha256": "94c7b74fa876d3ffa08066883ef9e2e4b6cadd5e3034c49c56f7d0f77c0ea71b"
+        },
+        "segment_qa": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-segment_qa.json",
+          "sha256": "9fff499d6ff1d8da311512b303fd16555895a67c7ceffcd2f8eaf1d44f1425e6"
+        },
+        "semantic_qa": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-semantic_qa.json",
+          "sha256": "c2508d06b84e97f00f06b4fbff6654ee37540e84199bbf2b9be5474ef6d92601"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-clean-talking-head/after-smart.mp4",
+          "sha256": "42107c7417b24938510671592228b5f5548a2a298e0d89d7630b7c8f62818cd0"
+        },
+        "comparison_cold": {
+          "path": "work/benchmarks/p17-clean-talking-head/comparison-cold.json",
+          "sha256": "40e592d55e3fc1af15d7bee1108c26a14f5ab76e39f48b4c5c2f694d3cfbfa82"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 60.0,
+        "elapsed_seconds": 584.0670671999978,
+        "real_time_factor": 9.734451119999964,
+        "segments": 13,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0972717092537927,
+        "average_tempo": 1.0049124599443342,
+        "max_tempo": 1.118421052631579
+      },
+      "quality_receipt": {
+        "cold_before_wer": 0.09090909090909091,
+        "cold_after_wer": 0.07065217391304347,
+        "critical_token_accuracy": 1.0,
+        "global_re_asr_similarity": 0.9820971867007673,
+        "semantic_segments_checked": 13,
+        "semantic_needs_review": 2,
+        "cold_before_rtf": 9.330556890000056,
+        "cold_after_rtf": 9.734451119999964,
+        "note": "Quality improved on the cold-vs-cold receipt, but RTF and tempo p95 regressed; do not claim a speed win from this fixture."
+      }
+    },
+    {
+      "id": "golden-fast-english-speech",
+      "role": "fast-english-real-regression",
+      "status": "available",
+      "categories": [
+        "fast-english-speech"
+      ],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-fast-english/source-83s.mp4",
+        "sha256": "912ef48c16d4d0f39841df20fcee6e52ac52d9d4dfc6bad6ca37ecac87c9ced2",
+        "provenance": {
+          "video": "work/outputs/Trading Strategies That Work (full training)_vi.mp4",
+          "audio": "work/Trading_Strategies_That_Work__full_training_-7a8ee35de0/original.wav",
+          "slice_start_seconds": 3139.36,
+          "slice_duration_seconds": 83.28,
+          "selection_receipt": "The retained ASR transcript's densest rolling 60-second window starts at 3139.36 s with 317 words/60 s; the surrounding 83.28-second source slice contains 317 words over the full wall window and several individual spans above 5 words/s.",
+          "note": "The source clip remuxes retained video content with the job's extracted original English audio using the same duration-alignment provenance as the technical fixture."
+        }
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/benchmarks/p17-fast-english/current-result.json",
+          "sha256": "cd81bd402189589297cccf1755106224359b8a08ee3f744375ee5970d0422cc0"
+        },
+        "tts_stats": {
+          "path": "work/benchmarks/p17-fast-english/current-tts_stats.json",
+          "sha256": "9cc473da3632aad2e6bb83a0ee5afe14152d8358b075ae27a4d6a76ae18896cf"
+        },
+        "metrics": {
+          "path": "work/benchmarks/p17-fast-english/current-metrics.json",
+          "sha256": "32fc0cfaaf386cc7c3fc7abb9c65dcee8cdd2ded1febe7a987c23771b32b18d9"
+        },
+        "segment_qa": {
+          "path": "work/benchmarks/p17-fast-english/current-segment_qa.json",
+          "sha256": "6680f333f7fd9adcee36185c3c9a815d447ea6c904a20e0d9be63dfa00a76017"
+        },
+        "semantic_qa": {
+          "path": "work/benchmarks/p17-fast-english/current-semantic_qa.json",
+          "sha256": "ff7c61839a37ef5d990b552b3c582589d5a4d0304c04bab4a58f6df87e339333"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-fast-english/current-smart.mp4",
+          "sha256": "668ebb8865b2d9d7b8d640581230a2c784adc5d9201d08e925c80493bb78724d"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 83.3,
+        "elapsed_seconds": 749.9090507000001,
+        "real_time_factor": 9.0025096122449,
+        "segments": 20,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.1316063035664914,
+        "average_tempo": 1.01371270029483,
+        "max_tempo": 1.2
+      },
+      "quality_receipt": {
+        "wer": 0.028368794326241134,
+        "word_errors": 8,
+        "reference_words": 282,
+        "critical_token_accuracy": 1.0,
+        "critical_tokens": 18,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 0.994435612082671,
+        "segment_qa_failed": 0,
+        "semantic_segments_checked": 20,
+        "semantic_needs_review": 1,
+        "note": "Fresh smart baseline for the high-speech-density class; no release claim is inferred beyond this fixture."
+      }
+    },
+    {
+      "id": "golden-music-under-dialogue",
+      "role": "synthetic-source-regression",
+      "status": "available",
+      "categories": ["music-under-dialogue"],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-synthetic-missing-classes/music-under-dialogue/source.mp4",
+        "sha256": "057696a792e2d01d1739e3c37f5f73037725bacb15d6331cbbc5df70b240b070",
+        "provenance": {
+          "kind": "synthetic",
+          "generator": {
+            "path": "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+            "sha256": "280ed0d304d6e7b002cb960b380b44a819fc2220fc69240a297f1659336eb036"
+          },
+          "speech_voice": "Microsoft David Desktop",
+          "background": "220 Hz + 330 Hz synthetic tonal bed",
+          "note": "Deterministic synthetic source for separator/ASR stress. Do not describe it as real-human or real-music coverage."
+        }
+      },
+      "verification": {
+        "path": "work/benchmarks/p17-synthetic-missing-classes/music-under-dialogue/verification.json",
+        "sha256": "5c2be91dd386e13b62c21af36e8e8a453da66c84c46ee7eebc8f6295ba312298"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/job-057696a792e2d01d/result.json",
+          "sha256": "0ba32f6bf751397bfe5062fffb12403c1ed274390a5b45d1ae16636140fcbdd8"
+        },
+        "tts_stats": {
+          "path": "work/job-057696a792e2d01d/tts_stats.json",
+          "sha256": "bdc6dfbf8c15238385870bc3f593fb2a29788ee02e5e840c4637aff4b89e22e0"
+        },
+        "metrics": {
+          "path": "work/job-057696a792e2d01d/metrics.json",
+          "sha256": "20d92d36eee779d41a280c4079e871eeb93016db40dbc27e826e00ea48da9d51"
+        },
+        "segment_qa": {
+          "path": "work/job-057696a792e2d01d/segment_qa.json",
+          "sha256": "ab2cdfbf276b320b50169592fce2e180a8588cf9a79355ac2e7da2cac47db5e1"
+        },
+        "semantic_qa": {
+          "path": "work/job-057696a792e2d01d/semantic_qa.json",
+          "sha256": "cf112dc05906b0ed198ea6faa1bbf5ab77dcc50a8c6a629de3af222b32a9440f"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-synthetic-missing-classes/music-under-dialogue/current-balanced-local.mp4",
+          "sha256": "c95c36c61fefae97ccb45758d2e7fc7ed92900a881ea06d4a687c2dd442bf114"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 8.808,
+        "elapsed_seconds": 168.84801539999899,
+        "real_time_factor": 19.169847343324136,
+        "segments": 2,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0,
+        "average_tempo": 1.0,
+        "max_tempo": 1.0
+      },
+      "quality_receipt": {
+        "wer": 0.0,
+        "word_errors": 0,
+        "reference_words": 26,
+        "critical_tokens": 0,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 1.0,
+        "segment_qa_failed": 0,
+        "semantic_segments_checked": 2,
+        "semantic_needs_review": 0,
+        "note": "Completed local synthetic stress fixture. This is benchmark-ready evidence for the deterministic music-under-dialogue class only; it is not real-human or real-music coverage."
+      }
+    },
+    {
+      "id": "golden-noisy-speech",
+      "role": "synthetic-source-regression",
+      "status": "available",
+      "categories": ["noisy-speech"],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-synthetic-missing-classes/noisy-speech/source.mp4",
+        "sha256": "69e16c5a33cf91ffcbc5676f17a5dc45e63e3c9bb493ea181f6f272fe8c73de2",
+        "provenance": {
+          "kind": "synthetic",
+          "generator": {
+            "path": "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+            "sha256": "280ed0d304d6e7b002cb960b380b44a819fc2220fc69240a297f1659336eb036"
+          },
+          "speech_voice": "Microsoft David Desktop",
+          "background": "FFmpeg pink noise, amplitude 0.09, seed 1701",
+          "note": "Deterministic synthetic noise stressor. It does not represent every real room or microphone noise profile."
+        }
+      },
+      "verification": {
+        "path": "work/benchmarks/p17-synthetic-missing-classes/noisy-speech/verification.json",
+        "sha256": "745737b2bc610b8c083ec80d007d77e6568e7eb84c39c5151e5bda79c720604d"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/job-69e16c5a33cf91ff/result.json",
+          "sha256": "9fbb22b44b60b70ae22713633fe9ec9ef120723b066772b2ff3545bea9f94e84"
+        },
+        "tts_stats": {
+          "path": "work/job-69e16c5a33cf91ff/tts_stats.json",
+          "sha256": "0785be406bcf06473b8cfd9c9c1604ab9a484dee387a7a539d359d772f20ad96"
+        },
+        "metrics": {
+          "path": "work/job-69e16c5a33cf91ff/metrics.json",
+          "sha256": "f0c526691d432eb186cc36fbc560782ac9631a663e1d8efa20061c13b3704ed7"
+        },
+        "segment_qa": {
+          "path": "work/job-69e16c5a33cf91ff/segment_qa.json",
+          "sha256": "a09d21e78e14ecc1eb71d2ddc604ddf46b4de82a7ff87ad8be22b6039daa4b19"
+        },
+        "semantic_qa": {
+          "path": "work/job-69e16c5a33cf91ff/semantic_qa.json",
+          "sha256": "cf112dc05906b0ed198ea6faa1bbf5ab77dcc50a8c6a629de3af222b32a9440f"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-synthetic-missing-classes/noisy-speech/current-balanced-local.mp4",
+          "sha256": "dd2573cb9d1d8a0e088cb8fe23c40c70753b8b03c5e4488fc7ddfd8cf2e7c65d"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 8.808,
+        "elapsed_seconds": 366.7274583000003,
+        "real_time_factor": 41.635724148501396,
+        "segments": 2,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0,
+        "average_tempo": 1.0,
+        "max_tempo": 1.0
+      },
+      "quality_receipt": {
+        "wer": 0.0,
+        "word_errors": 0,
+        "reference_words": 26,
+        "critical_tokens": 0,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 1.0,
+        "segment_qa_failed": 0,
+        "semantic_segments_checked": 2,
+        "semantic_needs_review": 0,
+        "note": "Fresh completed local synthetic noise stress fixture. This validates only the deterministic pink-noise class and is not a claim about all real-world noise profiles."
+      }
+    },
+    {
+      "id": "golden-two-speakers",
+      "role": "synthetic-source-regression",
+      "status": "available",
+      "categories": ["two-speakers"],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-synthetic-missing-classes/two-speakers/source.mp4",
+        "sha256": "245fef386fd06143aa78266a24c8de34fcbbe9ef29b9aebe476e207f4415699d",
+        "provenance": {
+          "kind": "synthetic",
+          "generator": {
+            "path": "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+            "sha256": "280ed0d304d6e7b002cb960b380b44a819fc2220fc69240a297f1659336eb036"
+          },
+          "voices": ["Microsoft David Desktop", "Microsoft Zira Desktop"],
+          "turns": 4,
+          "note": "Alternating distinct synthetic voices with no designed overlap. This is not evidence of real-human diarization quality."
+        }
+      },
+      "verification": {
+        "path": "work/benchmarks/p17-synthetic-missing-classes/two-speakers/verification.json",
+        "sha256": "dec029f004912e955d836bdd581e250553f4abe7dd326050fd3ec64189fb748b"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/job-245fef386fd06143/result.json",
+          "sha256": "413cc4dbc1592ddb9e8baa38826271d842424655b1badea8e4e8d494f9a10899"
+        },
+        "tts_stats": {
+          "path": "work/job-245fef386fd06143/tts_stats.json",
+          "sha256": "88edabaf5bf4fe085a8c294045f4ae074a0125e7bdaba9dbb68cf0ea476679af"
+        },
+        "metrics": {
+          "path": "work/job-245fef386fd06143/metrics.json",
+          "sha256": "a2c0556790f4bcddd274a0247c798195fd7b69a4e4c5a601a1782fde33d60c6d"
+        },
+        "segment_qa": {
+          "path": "work/job-245fef386fd06143/segment_qa.json",
+          "sha256": "4a045a0f577718f649adfa7f7b77f5083c45266c24d84e18a53327716b3e7963"
+        },
+        "semantic_qa": {
+          "path": "work/job-245fef386fd06143/semantic_qa.json",
+          "sha256": "81d8e1ad840bdfc3adb7a5a97e431232c5ac65e2a107fa6250cf51ed0e06421c"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-synthetic-missing-classes/two-speakers/current-balanced-local.mp4",
+          "sha256": "f3f519b4e6e00ebda231b3b1c47f6d80f0a5d32937f911c4cd353785d44d235c"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 23.798,
+        "elapsed_seconds": 188.3898231,
+        "real_time_factor": 7.91620401,
+        "segments": 5,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0,
+        "average_tempo": 1.0,
+        "max_tempo": 1.0
+      },
+      "quality_receipt": {
+        "wer": 0.0,
+        "word_errors": 0,
+        "reference_words": 52,
+        "critical_tokens": 0,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 1.0,
+        "segment_qa_failed": 0,
+        "semantic_segments_checked": 5,
+        "semantic_needs_review": 0,
+        "note": "Completed synthetic two-speakers fixture."
+      }
+    },
+    {
+      "id": "golden-overlapping-speech",
+      "role": "synthetic-source-regression",
+      "status": "available",
+      "categories": ["overlapping-speech"],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-synthetic-missing-classes/overlapping-speech/source.mp4",
+        "sha256": "818d0c0945f5909845799e21f8d518963b2e128ec6a44e7b6af2d488274d4232",
+        "provenance": {
+          "kind": "synthetic",
+          "generator": {
+            "path": "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+            "sha256": "280ed0d304d6e7b002cb960b380b44a819fc2220fc69240a297f1659336eb036"
+          },
+          "voices": ["Microsoft David Desktop", "Microsoft Zira Desktop"],
+          "second_speaker_delay_seconds": 1.2,
+          "designed_overlap_seconds": 5.273,
+          "note": "Two synthetic voices overlap by construction. This is not evidence of real conversational crosstalk performance."
+        }
+      },
+      "verification": {
+        "path": "work/benchmarks/p17-synthetic-missing-classes/overlapping-speech/verification.json",
+        "sha256": "6880eb9d05d49c999b2f89986e3d927ab652f084868c93c0099b33a0cb013983"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/job-818d0c0945f59098/result.json",
+          "sha256": "c01a57580d12cb974250c7ae9aad49587e1d7c99dea6d7a7c6e13563aabe72d1"
+        },
+        "tts_stats": {
+          "path": "work/job-818d0c0945f59098/tts_stats.json",
+          "sha256": "d2afee3736f722f1e19c0ff5e3366e3c8e13260ec926970cd9a4d18297caf111"
+        },
+        "metrics": {
+          "path": "work/job-818d0c0945f59098/metrics.json",
+          "sha256": "cf114f2943aa7228e4abd8420af0e7aba8917888ceb8c43089e9977b7a737b83"
+        },
+        "segment_qa": {
+          "path": "work/job-818d0c0945f59098/segment_qa.json",
+          "sha256": "7ce65b40e611aa42d64845724c4924aa7b02bdd7df4521bdb8069354e4cea01a"
+        },
+        "semantic_qa": {
+          "path": "work/job-818d0c0945f59098/semantic_qa.json",
+          "sha256": "f3119c0b8795a7483dabcf62da247e4bc5042445af565c74d9ad5b51ea8bd18d"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-synthetic-missing-classes/overlapping-speech/current-balanced-local.mp4",
+          "sha256": "4a4c1574c05b30ca0f5ed69352cf103c1f7c7e31c71dc2fdb15311cfe3385500"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 8.808,
+        "elapsed_seconds": 204.8063071,
+        "real_time_factor": 23.2523055,
+        "segments": 2,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0,
+        "average_tempo": 1.0,
+        "max_tempo": 1.0
+      },
+      "quality_receipt": {
+        "wer": 0.05,
+        "word_errors": 1,
+        "reference_words": 20,
+        "critical_tokens": 0,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 0.949,
+        "segment_qa_failed": 0,
+        "semantic_segments_checked": 2,
+        "semantic_needs_review": 0,
+        "note": "Completed synthetic overlapping-speech fixture."
+      }
+    },
+    {
+      "id": "golden-names-numbers-technical-terms",
+      "role": "technical-terms-real-regression",
+      "status": "available",
+      "categories": [
+        "names-numbers-technical-terms"
+      ],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-technical-terms/source-90s.mp4",
+        "sha256": "f8ee1a991ac4c443e20320105fbc411609a29c404cde5a793c9be1b1359c7a35",
+        "provenance": {
+          "video": "work/outputs/Trading Strategies That Work (full training)_vi.mp4",
+          "audio": "work/Trading_Strategies_That_Work__full_training_-7a8ee35de0/original.wav",
+          "slice_start_seconds": 843.4,
+          "slice_duration_seconds": 90.0,
+          "note": "The source clip remuxes the preserved video content with the job's extracted original English audio; the full video and original.wav durations were verified within 0.01 seconds before slicing."
+        }
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/benchmarks/p17-technical-terms/current-result.json",
+          "sha256": "3b1702fb3ecbd10f7db82a1c7916fa6e29c0d14f0b08ae07acc6b3ee68c10ac4"
+        },
+        "tts_stats": {
+          "path": "work/benchmarks/p17-technical-terms/current-tts_stats.json",
+          "sha256": "f53e8170e29c7ae7343fbe696fd350d51f68081e8e0a4849c15b922de4ba377c"
+        },
+        "metrics": {
+          "path": "work/benchmarks/p17-technical-terms/current-metrics.json",
+          "sha256": "23c9c532dd9ded264cb27bd5105b239cd1a55a248546b865282b74b7cc168825"
+        },
+        "segment_qa": {
+          "path": "work/benchmarks/p17-technical-terms/current-segment_qa.json",
+          "sha256": "c6b4ace990412735400d2d5ccd6be0641d1496fe7dfb130a67171d56f5debc40"
+        },
+        "semantic_qa": {
+          "path": "work/benchmarks/p17-technical-terms/current-semantic_qa.json",
+          "sha256": "6dbe8eaa188a7f43c74f9ba9aba940bcf11901b70f93e91aa5c2bc05d9d40dc8"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-technical-terms/current-smart.mp4",
+          "sha256": "5d827f1434c5478bba836ccfe2bb80671ff46079cb9aad3347c734ccb4a599c8"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 90.0,
+        "elapsed_seconds": 766.2353549000036,
+        "real_time_factor": 8.513726165555596,
+        "segments": 20,
+        "rewritten_segments": 1,
+        "rewrite_rate": 0.05,
+        "overflow_segments": 0,
+        "overflow_rate": 0.0,
+        "tempo_p50": 1.0,
+        "tempo_p95": 1.0338792795550864,
+        "average_tempo": 1.00666763341846,
+        "max_tempo": 1.1031175059952032
+      },
+      "quality_receipt": {
+        "wer": 0.3320754716981132,
+        "word_errors": 88,
+        "reference_words": 265,
+        "critical_token_accuracy": 0.9629629629629629,
+        "critical_tokens": 27,
+        "critical_missing": 1,
+        "global_re_asr_similarity": 0.971947194719472,
+        "segment_qa_failed": 1,
+        "semantic_segments_checked": 20,
+        "semantic_needs_review": 1,
+        "known_detected_defect": {
+          "segment_id": 9,
+          "missing_critical": "ba mươi ba phần trăm",
+          "expected": "Thắng sáu mươi sáu phần trăm, thua ba mươi ba phần trăm.",
+          "actual": "thẳng 66%, thua 53%."
+        },
+        "note": "This fixture is retained because segment QA detects the serious numeric-token defect that global similarity misses; it expands regression coverage but does not pass the critical-token release gate."
+      }
+    },
+    {
+      "id": "golden-emotional-prosody-stress",
+      "role": "synthetic-source-regression",
+      "status": "available",
+      "categories": ["emotional-prosody-stress"],
+      "source": {
+        "status": "available",
+        "path": "work/benchmarks/p17-synthetic-missing-classes/emotional-prosody-stress/source.mp4",
+        "sha256": "29ec8d1b6baacab327b7c8129c6be10161860de4d83a38405e4886dc765b9653",
+        "provenance": {
+          "kind": "synthetic",
+          "generator": {
+            "path": "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+            "sha256": "280ed0d304d6e7b002cb960b380b44a819fc2220fc69240a297f1659336eb036"
+          },
+          "voice": "Microsoft Zira Desktop",
+          "rate_sequence": [-4, 0, 4],
+          "volume_sequence": [92, 80, 100],
+          "note": "Synthetic rate/volume stress only. It must not be described as real human emotion coverage."
+        }
+      },
+      "verification": {
+        "path": "work/benchmarks/p17-synthetic-missing-classes/emotional-prosody-stress/verification.json",
+        "sha256": "fbed0e51f7eaee02a59a0403451410b57f6ab45717c088309b633ed22d46000a"
+      },
+      "artifacts": {
+        "result": {
+          "path": "work/job-29ec8d1b6baacab3/result.json",
+          "sha256": "e5024cedf8f191206aa3f7320b6099aaf3f6f61d29cf99d0e125859fd0d9a36e"
+        },
+        "tts_stats": {
+          "path": "work/job-29ec8d1b6baacab3/tts_stats.json",
+          "sha256": "8ad3510f8e86361050ec5e51dd793b8a8e615b0b84e57a4f39f46110abcecf6a"
+        },
+        "metrics": {
+          "path": "work/job-29ec8d1b6baacab3/metrics.json",
+          "sha256": "3cf76b242fa11b94b6850aed832342203ee6c7445d831b2bbc15e611280efc44"
+        },
+        "segment_qa": {
+          "path": "work/job-29ec8d1b6baacab3/segment_qa.json",
+          "sha256": "c1c2cc6524b1b7b96959423a35c00d86af11e2161e7858c1ef9d6e39528cf2f5"
+        },
+        "semantic_qa": {
+          "path": "work/job-29ec8d1b6baacab3/semantic_qa.json",
+          "sha256": "5b189e01408ebda40256489313d0742771ad9026788c8afee3b7754b2c21d46e"
+        },
+        "final_video": {
+          "path": "work/benchmarks/p17-synthetic-missing-classes/emotional-prosody-stress/current-balanced-local.mp4",
+          "sha256": "c42eb20a90f9453c0d1ce86362eba7d35ae42e4a4b1cb46d48e7af6bf462d33d"
+        }
+      },
+      "baseline": {
+        "duration_seconds": 16.646,
+        "elapsed_seconds": 487.4690496,
+        "real_time_factor": 29.2844557,
+        "segments": 4,
+        "rewritten_segments": 0,
+        "rewrite_rate": 0.0,
+        "overflow_segments": 1,
+        "overflow_rate": 0.25,
+        "tempo_p50": 1.07889163,
+        "tempo_p95": 1.23616749,
+        "average_tempo": 1.10194582,
+        "max_tempo": 1.25
+      },
+      "quality_receipt": {
+        "wer": 0.0233,
+        "word_errors": 1,
+        "reference_words": 43,
+        "critical_tokens": 1,
+        "critical_missing": 0,
+        "global_re_asr_similarity": 0.9948,
+        "segment_qa_failed": 1,
+        "semantic_segments_checked": 4,
+        "semantic_needs_review": 0,
+        "note": "Completed synthetic emotional-prosody-stress fixture."
+      }
+    }
+  ]
+}

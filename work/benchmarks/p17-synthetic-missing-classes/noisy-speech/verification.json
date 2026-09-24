@@ -1,0 +1,21 @@
+﻿{
+    "schema_version":  1,
+    "fixture_class":  "noisy-speech",
+    "generation_kind":  "synthetic",
+    "source_file":  "source.mp4",
+    "source_sha256":  "69e16c5a33cf91ffcbc5676f17a5dc45e63e3c9bb493ea181f6f272fe8c73de2",
+    "duration_seconds":  8.808,
+    "generator":  "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+    "voices":  [
+                   "Microsoft David Desktop",
+                   "Microsoft Zira Desktop"
+               ],
+    "behavior_probe":  {
+                           "noise_seed":  1701,
+                           "simultaneous_background":  true,
+                           "speech_voice":  "Microsoft David Desktop",
+                           "noise_kind":  "pink",
+                           "noise_amplitude":  0.09
+                       },
+    "limitation":  "Synthetic pink noise is a deterministic stressor for ASR/separation; it does not model every real room or microphone noise profile."
+}

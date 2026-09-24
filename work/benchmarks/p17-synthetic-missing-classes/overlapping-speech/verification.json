@@ -1,0 +1,23 @@
+﻿{
+    "schema_version":  1,
+    "fixture_class":  "overlapping-speech",
+    "generation_kind":  "synthetic",
+    "source_file":  "source.mp4",
+    "source_sha256":  "818d0c0945f5909845799e21f8d518963b2e128ec6a44e7b6af2d488274d4232",
+    "duration_seconds":  8.808,
+    "generator":  "work/benchmarks/p17-synthetic-missing-classes/generate.ps1",
+    "voices":  [
+                   "Microsoft David Desktop",
+                   "Microsoft Zira Desktop"
+               ],
+    "behavior_probe":  {
+                           "designed_overlap_seconds":  5.273,
+                           "speaker_voices":  [
+                                                  "Microsoft David Desktop",
+                                                  "Microsoft Zira Desktop"
+                                              ],
+                           "second_speaker_delay_seconds":  1.2,
+                           "distinct_synthetic_speakers":  2
+                       },
+    "limitation":  "Synthetic two-voice overlap validates overlap visibility and downstream handling; it is not evidence of real conversational crosstalk performance."
+}

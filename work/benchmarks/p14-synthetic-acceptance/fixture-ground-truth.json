@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "evidence_scope": "deterministic synthetic fixture ground truth only",
+  "generator": "tools/p14_fixture_ground_truth.ps1",
+  "two_speakers": {
+    "retained_wav": "work/benchmarks/p17-synthetic-missing-classes/two-speakers/source.wav",
+    "retained_wav_sha256": "8dcb2fd76e82d18c0d62ca3d676161526520f54eb3d64ee8db5886782e77440a",
+    "reconstructed_wav_sha256": "8dcb2fd76e82d18c0d62ca3d676161526520f54eb3d64ee8db5886782e77440a",
+    "byte_identical": true,
+    "duration_seconds": 23.798563,
+    "distinct_speakers": 2,
+    "alternating_turns": 4,
+    "designed_overlap_seconds": 0.0,
+    "turns": [
+      {
+        "index": 0,
+        "speaker": "SPEAKER_00",
+        "voice": "Microsoft David Desktop",
+        "text": "I would wait for the price to close above resistance before changing the plan.",
+        "start": 0.0,
+        "end": 4.763447,
+        "duration": 4.763447,
+        "overlap": false
+      },
+      {
+        "index": 1,
+        "speaker": "SPEAKER_01",
+        "voice": "Microsoft Zira Desktop",
+        "text": "I agree with the risk limit, but I want to see stronger volume before I enter.",
+        "start": 4.763447,
+        "end": 10.036871,
+        "duration": 5.273424,
+        "overlap": false
+      },
+      {
+        "index": 2,
+        "speaker": "SPEAKER_00",
+        "voice": "Microsoft David Desktop",
+        "text": "When the market opens, confirm the trend before entering a position. Keep the risk small and write down the reason for every trade.",
+        "start": 10.036871,
+        "end": 18.844898,
+        "duration": 8.808027,
+        "overlap": false
+      },
+      {
+        "index": 3,
+        "speaker": "SPEAKER_01",
+        "voice": "Microsoft Zira Desktop",
+        "text": "If the breakout fails, I will step aside and review the setup again.",
+        "start": 18.844898,
+        "end": 23.798503,
+        "duration": 4.953605,
+        "overlap": false
+      }
+    ]
+  },
+  "overlapping_speech": {
+    "retained_wav": "work/benchmarks/p17-synthetic-missing-classes/overlapping-speech/source.wav",
+    "retained_wav_sha256": "b8f86150fc77b0a999a892def9a02f33166377346068da73e3d5e620fbad4fec",
+    "reconstructed_wav_sha256": "b8f86150fc77b0a999a892def9a02f33166377346068da73e3d5e620fbad4fec",
+    "byte_identical": true,
+    "duration_seconds": 8.808042,
+    "distinct_speakers": 2,
+    "second_speaker_delay_seconds": 1.2,
+    "designed_overlap_seconds": 5.273,
+    "speaker_spans": [
+      {
+        "speaker": "SPEAKER_00",
+        "start": 0.0,
+        "end": 8.808027
+      },
+      {
+        "speaker": "SPEAKER_01",
+        "start": 1.2,
+        "end": 6.473424
+      }
+    ],
+    "overlap_span": {
+      "start": 1.2,
+      "end": 6.473424
+    }
+  },
+  "limitation": "Byte-identical reconstruction proves the synthetic timeline and voice assignment, not real-human diarization or listening quality."
+}

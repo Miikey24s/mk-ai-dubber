@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "task": "P14-SYNTH-ACCEPT",
+  "passed": true,
+  "acceptance_scope": "machine-verifiable synthetic contract",
+  "real_human_quality_claimed": false,
+  "checks": [
+    {
+      "id": "fixtures.present",
+      "passed": true,
+      "detail": {
+        "found": [
+          "overlapping-speech",
+          "two-speakers"
+        ],
+        "required": [
+          "two-speakers",
+          "overlapping-speech"
+        ]
+      }
+    },
+    {
+      "id": "fixture.two-speakers.provenance",
+      "passed": true,
+      "detail": {
+        "status": "source-ready",
+        "source_sha256": "245fef386fd06143aa78266a24c8de34fcbbe9ef29b9aebe476e207f4415699d",
+        "verification_sha256": "dec029f004912e955d836bdd581e250553f4abe7dd326050fd3ec64189fb748b"
+      }
+    },
+    {
+      "id": "fixture.overlapping-speech.provenance",
+      "passed": true,
+      "detail": {
+        "status": "source-ready",
+        "source_sha256": "818d0c0945f5909845799e21f8d518963b2e128ec6a44e7b6af2d488274d4232",
+        "verification_sha256": "6880eb9d05d49c999b2f89986e3d927ab652f084868c93c0099b33a0cb013983"
+      }
+    },
+    {
+      "id": "ground_truth.byte_identical_reconstruction",
+      "passed": true,
+      "detail": {
+        "two_speakers_wav_sha256": "8dcb2fd76e82d18c0d62ca3d676161526520f54eb3d64ee8db5886782e77440a",
+        "overlapping_speech_wav_sha256": "b8f86150fc77b0a999a892def9a02f33166377346068da73e3d5e620fbad4fec"
+      }
+    },
+    {
+      "id": "ground_truth.matches_p17_receipts",
+      "passed": true,
+      "detail": {
+        "two_speaker_turns": 4,
+        "designed_overlap_seconds": 5.273
+      }
+    },
+    {
+      "id": "two_speakers.identity_and_no_silent_merge",
+      "passed": true,
+      "detail": {
+        "speaker_hints": {
+          "num_speakers": 2
+        },
+        "speaker_sequence": [
+          "SPEAKER_00",
+          "SPEAKER_01",
+          "SPEAKER_00",
+          "SPEAKER_01"
+        ],
+        "turn_count": 4
+      }
+    },
+    {
+      "id": "two_speakers.canonical_reference_isolation",
+      "passed": true,
+      "detail": {
+        "references": {
+          "SPEAKER_00": {
+            "segment_id": 0,
+            "source_speaker": "SPEAKER_00",
+            "selected_start": 0.1,
+            "selected_duration": 4.563447,
+            "sha256": "37907778d2c63fa89da8da7dd1a28aba2ece25781be1707554ec0a94761ae7fa"
+          },
+          "SPEAKER_01": {
+            "segment_id": 3,
+            "source_speaker": "SPEAKER_01",
+            "selected_start": 18.944898,
+            "selected_duration": 4.753605,
+            "sha256": "034edf680067ea0a601402b538ec0d6900b51054a43882127f2f41d8677a5aa1"
+          }
+        }
+      }
+    },
+    {
+      "id": "overlap.distinct_speaker_range",
+      "passed": true,
+      "detail": {
+        "ranges": [
+          [
+            1.2,
+            6.473424
+          ]
+        ],
+        "expected": {
+          "start": 1.2,
+          "end": 6.473424
+        }
+      }
+    },
+    {
+      "id": "overlap.visibility_and_review_contract",
+      "passed": true,
+      "detail": {
+        "speaker_visibility": {
+          "primary_speaker": "SPEAKER_00",
+          "speakers": [
+            "SPEAKER_00",
+            "SPEAKER_01"
+          ],
+          "speaker_count": 2,
+          "multi_speaker": true,
+          "overlap": true,
+          "needs_review": true
+        },
+        "protected_turns": [
+          {
+            "speaker": "SPEAKER_00",
+            "overlap": true,
+            "text": "before"
+          },
+          {
+            "speaker": "SPEAKER_01",
+            "overlap": true,
+            "text": "shared after"
+          }
+        ]
+      }
+    },
+    {
+      "id": "overlap.equal_power_assembly",
+      "passed": true,
+      "detail": {
+        "sample_rate": 8000,
+        "single_speaker_sample": 0.399994,
+        "overlap_sample": 0.565674,
+        "expected_overlap_sample": 0.565685
+      }
+    },
+    {
+      "id": "diarization.fail_closed",
+      "passed": true,
+      "detail": {
+        "missing_token": "Diarization was requested but HUGGINGFACE_TOKEN is missing. The free pyannote community model requires accepting its model terms and a read token.",
+        "invalid_hints": "diarization.num_speakers cannot be combined with min_speakers/max_speakers"
+      }
+    }
+  ],
+  "errors": [],
+  "runtime_probe": {
+    "whisperx_importable": true,
+    "pyannote_audio_importable": true,
+    "huggingface_token_present": false,
+    "project_pyannote_cache_files": 0,
+    "live_diarization_attempted": false,
+    "reason": "Live diarization intentionally not invoked: HUGGINGFACE_TOKEN is absent."
+  },
+  "remaining_acceptance": [
+    "Run diarization on a consented real two-speaker interview with accepted pyannote terms and an authorized HF read token.",
+    "Run a real conversational crosstalk sample and listen for identity continuity, cross-reference contamination, and natural overlap rendering.",
+    "Complete human listening review; synthetic contract evidence cannot establish voice quality or conversational naturalness."
+  ],
+  "provenance": {
+    "manifest": "work\\benchmarks\\fixtures.json",
+    "ground_truth": "work\\benchmarks\\p14-synthetic-acceptance\\fixture-ground-truth.json",
+    "tool": "tools/p14_synthetic_acceptance.py",
+    "tool_sha256": "db4e6d214d0f85ae8c66e98bffc3c254fdac01cca59c14a2f4d313de29681e04",
+    "ground_truth_generator": "tools/p14_fixture_ground_truth.ps1",
+    "ground_truth_generator_sha256": "cb7646ebf85ed5015128c5bc0941b0aadb4cb34faea7a52c7b676cbc4db4c862",
+    "production_contract_sha256": {
+      "src/vi_dubber/asr.py": "70df7d6f1ef8cc981f27c945f921b851caeb61cdb8dd1f3fe030970e2e26090d",
+      "src/vi_dubber/media.py": "710c44ed3101e771763dd4b5de2552d97c53e5ae295f441f3a7c30605cbb8121",
+      "src/vi_dubber/segmentation.py": "272aa4966cfe94d573388fb637eb222587234982fdc30c703d0be630957afa60",
+      "src/vi_dubber/tts.py": "3cc78a6a5afed007aef4a7fd4160858e979d26ffbc5ec063fc4b79be92aedfa0",
+      "src/vi_dubber/types.py": "3bd644c5fcf82bd0127843e696befd7ce61c80b0f7ca13406617f193d7083ecc"
+    }
+  }
+}

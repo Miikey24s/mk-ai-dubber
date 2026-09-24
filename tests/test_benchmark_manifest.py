@@ -122,15 +122,15 @@ def test_real_fixture_manifest_schema_paths_and_hashes_are_valid() -> None:
     assert "fast-english-speech" in available_categories
     assert "names-numbers-technical-terms" in available_categories
     assert REQUIRED_FIXTURE_CATEGORIES <= all_categories
-    assert len(source_ready) == 3
+    assert len(source_ready) == 0
 
     coverage = summarize_fixture_coverage(manifest)
-    assert len(coverage["available_categories"]) == 7
-    assert coverage["complete"] is False
-    assert len(coverage["missing_categories"]) == 3
+    assert len(coverage["available_categories"]) == 10
+    assert coverage["complete"] is True
+    assert len(coverage["missing_categories"]) == 0
     assert coverage["source_complete"] is True
     assert coverage["missing_source_categories"] == []
-    assert set(coverage["source_ready_categories"]) == REQUIRED_FIXTURE_CATEGORIES
+    assert set(coverage["available_categories"]) == REQUIRED_FIXTURE_CATEGORIES
 
 
 def test_source_ready_fixture_receipts_prove_the_designed_stress_conditions() -> None:

@@ -1,0 +1,170 @@
+{
+  "acceptance": {
+    "p03_blockers": [
+      "legacy long source has no retained word timing",
+      "no machine-verifiable long smart segmentation/runtime A/B"
+    ],
+    "p03_can_move_from_partial": false,
+    "p09_blockers": [
+      "timing-only counterfactual reuses legacy generated durations; it is not an executed P03+P09 runtime",
+      "no long smart runtime overflow/tempo receipt",
+      "human timing/naturalness listening A/B remains required"
+    ],
+    "p09_can_move_from_partial": false
+  },
+  "artifacts": {
+    "config": {
+      "path": "config.yaml",
+      "sha256": "d5bd6147e446f66c3bc7fb9499d9c33d02083d17784792709eaea3f172f887dc"
+    },
+    "result": {
+      "path": "work\\Trading_Strategies_That_Work__full_training_-7a8ee35de0\\result.json",
+      "sha256": "b43815cd1225535914c240c258e98495ebc6a36f057e872985962b141a0934b1"
+    },
+    "segments_source": {
+      "path": "work\\Trading_Strategies_That_Work__full_training_-7a8ee35de0\\segments_source.json",
+      "sha256": "abbc452e166e598b0f7e2815dcaaf9ec7f660eb5d3ea0ca23af47cda73dd1bee"
+    },
+    "tts_stats": {
+      "path": "work\\Trading_Strategies_That_Work__full_training_-7a8ee35de0\\tts_stats.json",
+      "sha256": "abe0f864c60f77cbb7d8a631d599f9bc7b5b4b27cd192e538bc3f85963a73194"
+    }
+  },
+  "baseline": {
+    "by_source_duration_bucket": {
+      "1_to_lt_2s": {
+        "overflow_rate": 0.47586206896551725,
+        "overflow_segments": 69,
+        "rewrite_rate": 0.9241379310344827,
+        "rewritten_segments": 134,
+        "segments": 145,
+        "share": 0.19754768392370572,
+        "tempo_p95": 1.25
+      },
+      "2_to_lt_4s": {
+        "overflow_rate": 0.2157676348547718,
+        "overflow_segments": 52,
+        "rewrite_rate": 0.7883817427385892,
+        "rewritten_segments": 190,
+        "segments": 241,
+        "share": 0.32833787465940056,
+        "tempo_p95": 1.25
+      },
+      "4_to_lt_7s": {
+        "overflow_rate": 0.04060913705583756,
+        "overflow_segments": 8,
+        "rewrite_rate": 0.5076142131979695,
+        "rewritten_segments": 100,
+        "segments": 197,
+        "share": 0.2683923705722071,
+        "tempo_p95": 1.2444914688795556
+      },
+      "gte_7s": {
+        "overflow_rate": 0.0547945205479452,
+        "overflow_segments": 4,
+        "rewrite_rate": 0.4520547945205479,
+        "rewritten_segments": 33,
+        "segments": 73,
+        "share": 0.0994550408719346,
+        "tempo_p95": 1.2412531167055507
+      },
+      "lt_1s": {
+        "overflow_rate": 0.8461538461538461,
+        "overflow_segments": 66,
+        "rewrite_rate": 0.8461538461538461,
+        "rewritten_segments": 66,
+        "segments": 78,
+        "share": 0.10626702997275204,
+        "tempo_p95": 1.25
+      }
+    },
+    "consistency_issues": [],
+    "duration_seconds": 3238.672812,
+    "generated_to_target_ratio": {
+      "max": 5.027322404370661,
+      "p50": 1.1080019422678393,
+      "p90": 1.8795982783354415,
+      "p95": 2.2884446611408054,
+      "p99": 3.483338069527248,
+      "samples": 734
+    },
+    "overflow": {
+      "rate": 0.27111716621253407,
+      "segments": 199
+    },
+    "rewrite": {
+      "attempt_distribution": {
+        "0": 211,
+        "1": 523
+      },
+      "rate": 0.7125340599455041,
+      "segments": 523,
+      "total_attempts": 523
+    },
+    "segment_duration_seconds": {
+      "lt_1_2s": 113,
+      "lt_1s": 78,
+      "max": 25.664000000000215,
+      "p50": 3.071499999999787,
+      "p90": 6.96640000000016,
+      "p95": 9.211399999999935,
+      "p99": 20.490809999999957,
+      "samples": 734
+    },
+    "segments": 734,
+    "segments_with_word_timing": 0,
+    "tempo": {
+      "at_max_1_25": 215,
+      "gt_1_15": 310,
+      "gt_1_20": 258,
+      "max": 1.25,
+      "p50": 1.1080019422678393,
+      "p90": 1.25,
+      "p95": 1.25,
+      "p99": 1.25,
+      "samples": 734
+    },
+    "word_tokens": 0
+  },
+  "current_timing_counterfactual": {
+    "acceptance_evidence": false,
+    "actions": {
+      "preserve_pause": 279,
+      "rewrite": 76,
+      "slowdown": 104,
+      "speedup": 275
+    },
+    "basis": "legacy source windows plus retained post-rewrite generated_duration values",
+    "collisions": 0,
+    "config": {
+      "max_borrow_seconds": 0.35,
+      "max_slowdown": 0.92,
+      "max_speedup": 1.25,
+      "preferred_tempo": 1.2,
+      "rewrite_threshold": 1.25,
+      "segment_pad_seconds": 0.035
+    },
+    "generated_to_rebalanced_target_ratio": {
+      "max": 3.3954256071681326,
+      "p50": 0.9887215951389765,
+      "p90": 1.2587492679117975,
+      "p95": 1.4894041971200738,
+      "p99": 2.014748204662535,
+      "samples": 734
+    },
+    "initial_borrow_seconds": 270.45399999999546,
+    "policy_version": 3,
+    "rebalanced_borrow_seconds": 277.8583333333241
+  },
+  "schema_version": 1,
+  "smart_long_ab": {
+    "machine_verifiable": false,
+    "missing_artifacts": [
+      "smart_segments",
+      "smart_tts_stats",
+      "smart_result"
+    ],
+    "reason": "no complete retained long smart runtime artifact set",
+    "status": "blocked"
+  }
+}
