@@ -1,0 +1,2178 @@
+{
+  "schema": "vi-dubber-p13-separator-clean-skip-v1",
+  "fixture": {
+    "id": "golden-clean-single-speaker-talking-head",
+    "categories": [
+      "clean-single-speaker-talking-head"
+    ],
+    "source_path": "D:\\ANNAM\\TradingWorkspace\\projects\\vi-dubber\\work\\benchmarks\\p17-clean-talking-head\\source-60s.mp4",
+    "source_sha256": "4fce48270d1f328cfcabf2d0bcfc95bb6a1f89db82232ac2965dac25ee160c87"
+  },
+  "production_baseline": {
+    "package": "audio-separator",
+    "package_version": "0.47.0",
+    "model": "model_bs_roformer_ep_317_sdr_12.9755.ckpt",
+    "model_sha256": "5b84f37e8d444c8cb30c79d77f613a41c05868ff9c9ac6c7049c00aefae115aa",
+    "separator_wall_seconds": 33.743449,
+    "peak_cuda_allocated_mib": 1587.216,
+    "peak_cuda_reserved_mib": 2348.0,
+    "vocals": {
+      "sample_rate": 48000,
+      "channels": 2,
+      "frames": 2880512,
+      "duration_seconds": 60.010667,
+      "peak": 0.404544592,
+      "rms": 0.090835547,
+      "sha256": "b5757b1fc35e8fd7c1f1b558c1ae9b3faf18aa6a348861d0035b27f4bc3071c3"
+    },
+    "background": {
+      "sample_rate": 48000,
+      "channels": 2,
+      "frames": 2880512,
+      "duration_seconds": 60.010667,
+      "peak": 0.390574098,
+      "rms": 0.030481498,
+      "sha256": "850f97b0b37c2b25da8be25e9bf3189c1e6f30280c378f3410b68ce8f84d0ed5"
+    },
+    "asr_wall_seconds": 31.40398,
+    "asr": {
+      "segment_count": 7,
+      "word_count": 209,
+      "normalized_transcript": "to now find out now keep in mind in here we have a leverage one to two thousand so to keep this in mind you basically have the ten dollars times the two thousand on your leverage so you may imagine what's about to happen now something really really important to get in here is whenever you're trading doesn't matter the amount someone could be trading with ten dollars and the other person is trading with ten thousand well it comes back down to the risk management side of things and we shall find out you'll actually notice that once we try pressing in some lot sizes well the account will reject and we have nothing to do about that so let's get to trading view and try find some setups now, one thing that i want you to understand is honestly, for small accounts, now i'd give an example for like $10, do not trade volatile instruments, okay? so we are not going to trade gold. we are not going to trade nasdaq, btc, none of that. so with the leverage that we have, you can still open up 0.01 lots and make money, but i wouldn't recommend that, okay? so now let's just go over and find.",
+      "words": [
+        {
+          "text": "to",
+          "start": 0.151,
+          "end": 0.652
+        },
+        {
+          "text": "now",
+          "start": 0.752,
+          "end": 0.992
+        },
+        {
+          "text": "find",
+          "start": 1.132,
+          "end": 1.352
+        },
+        {
+          "text": "out",
+          "start": 1.432,
+          "end": 1.512
+        },
+        {
+          "text": "now",
+          "start": 1.752,
+          "end": 1.872
+        },
+        {
+          "text": "keep",
+          "start": 1.913,
+          "end": 2.053
+        },
+        {
+          "text": "in",
+          "start": 2.093,
+          "end": 2.173
+        },
+        {
+          "text": "mind",
+          "start": 2.213,
+          "end": 2.413
+        },
+        {
+          "text": "in",
+          "start": 2.453,
+          "end": 2.553
+        },
+        {
+          "text": "here",
+          "start": 2.593,
+          "end": 2.753
+        },
+        {
+          "text": "we",
+          "start": 2.793,
+          "end": 2.893
+        },
+        {
+          "text": "have",
+          "start": 2.933,
+          "end": 3.073
+        },
+        {
+          "text": "a",
+          "start": 3.134,
+          "end": 3.194
+        },
+        {
+          "text": "leverage",
+          "start": 3.234,
+          "end": 3.574
+        },
+        {
+          "text": "one",
+          "start": 3.974,
+          "end": 4.134
+        },
+        {
+          "text": "to",
+          "start": 4.154,
+          "end": 4.214
+        },
+        {
+          "text": "two",
+          "start": 4.294,
+          "end": 4.435
+        },
+        {
+          "text": "thousand",
+          "start": 4.455,
+          "end": 4.855
+        },
+        {
+          "text": "so",
+          "start": 5.155,
+          "end": 5.275
+        },
+        {
+          "text": "to",
+          "start": 5.495,
+          "end": 5.596
+        },
+        {
+          "text": "keep",
+          "start": 5.716,
+          "end": 5.916
+        },
+        {
+          "text": "this",
+          "start": 5.956,
+          "end": 6.116
+        },
+        {
+          "text": "in",
+          "start": 6.176,
+          "end": 6.256
+        },
+        {
+          "text": "mind",
+          "start": 6.296,
+          "end": 6.456
+        },
+        {
+          "text": "you",
+          "start": 6.496,
+          "end": 6.616
+        },
+        {
+          "text": "basically",
+          "start": 6.636,
+          "end": 7.017
+        },
+        {
+          "text": "have",
+          "start": 7.057,
+          "end": 7.237
+        },
+        {
+          "text": "the",
+          "start": 7.277,
+          "end": 7.397
+        },
+        {
+          "text": "ten",
+          "start": 7.517,
+          "end": 7.737
+        },
+        {
+          "text": "dollars",
+          "start": 7.797,
+          "end": 8.198
+        },
+        {
+          "text": "times",
+          "start": 8.618,
+          "end": 8.898
+        },
+        {
+          "text": "the",
+          "start": 8.958,
+          "end": 9.118
+        },
+        {
+          "text": "two",
+          "start": 9.218,
+          "end": 9.379
+        },
+        {
+          "text": "thousand",
+          "start": 9.419,
+          "end": 9.879
+        },
+        {
+          "text": "on",
+          "start": 9.999,
+          "end": 10.079
+        },
+        {
+          "text": "your",
+          "start": 10.099,
+          "end": 10.199
+        },
+        {
+          "text": "leverage",
+          "start": 10.239,
+          "end": 10.68
+        },
+        {
+          "text": "so",
+          "start": 10.8,
+          "end": 10.92
+        },
+        {
+          "text": "you",
+          "start": 10.98,
+          "end": 11.1
+        },
+        {
+          "text": "may",
+          "start": 11.14,
+          "end": 11.26
+        },
+        {
+          "text": "imagine",
+          "start": 11.3,
+          "end": 11.64
+        },
+        {
+          "text": "what's",
+          "start": 11.68,
+          "end": 11.901
+        },
+        {
+          "text": "about",
+          "start": 12.281,
+          "end": 12.581
+        },
+        {
+          "text": "to",
+          "start": 12.621,
+          "end": 12.701
+        },
+        {
+          "text": "happen",
+          "start": 12.741,
+          "end": 13.042
+        },
+        {
+          "text": "now",
+          "start": 13.062,
+          "end": 13.242
+        },
+        {
+          "text": "something",
+          "start": 13.282,
+          "end": 13.582
+        },
+        {
+          "text": "really",
+          "start": 13.782,
+          "end": 14.122
+        },
+        {
+          "text": "really",
+          "start": 14.162,
+          "end": 14.383
+        },
+        {
+          "text": "important",
+          "start": 14.403,
+          "end": 14.843
+        },
+        {
+          "text": "to",
+          "start": 14.863,
+          "end": 14.943
+        },
+        {
+          "text": "get",
+          "start": 14.983,
+          "end": 15.163
+        },
+        {
+          "text": "in",
+          "start": 15.223,
+          "end": 15.303
+        },
+        {
+          "text": "here",
+          "start": 15.343,
+          "end": 15.504
+        },
+        {
+          "text": "is",
+          "start": 15.624,
+          "end": 15.744
+        },
+        {
+          "text": "whenever",
+          "start": 15.884,
+          "end": 16.124
+        },
+        {
+          "text": "you're",
+          "start": 16.184,
+          "end": 16.344
+        },
+        {
+          "text": "trading",
+          "start": 16.404,
+          "end": 16.825
+        },
+        {
+          "text": "doesn't",
+          "start": 16.985,
+          "end": 17.305
+        },
+        {
+          "text": "matter",
+          "start": 17.385,
+          "end": 17.645
+        },
+        {
+          "text": "the",
+          "start": 17.665,
+          "end": 17.765
+        },
+        {
+          "text": "amount",
+          "start": 17.885,
+          "end": 18.206
+        },
+        {
+          "text": "someone",
+          "start": 18.686,
+          "end": 18.947
+        },
+        {
+          "text": "could",
+          "start": 18.987,
+          "end": 19.127
+        },
+        {
+          "text": "be",
+          "start": 19.147,
+          "end": 19.227
+        },
+        {
+          "text": "trading",
+          "start": 19.267,
+          "end": 19.507
+        },
+        {
+          "text": "with",
+          "start": 19.527,
+          "end": 19.647
+        },
+        {
+          "text": "ten",
+          "start": 19.707,
+          "end": 19.868
+        },
+        {
+          "text": "dollars",
+          "start": 19.908,
+          "end": 20.288
+        },
+        {
+          "text": "and",
+          "start": 20.408,
+          "end": 20.508
+        },
+        {
+          "text": "the",
+          "start": 20.528,
+          "end": 20.589
+        },
+        {
+          "text": "other",
+          "start": 20.789,
+          "end": 20.969
+        },
+        {
+          "text": "person",
+          "start": 21.029,
+          "end": 21.329
+        },
+        {
+          "text": "is",
+          "start": 21.349,
+          "end": 21.43
+        },
+        {
+          "text": "trading",
+          "start": 21.47,
+          "end": 21.69
+        },
+        {
+          "text": "with",
+          "start": 21.73,
+          "end": 21.83
+        },
+        {
+          "text": "ten",
+          "start": 21.91,
+          "end": 22.07
+        },
+        {
+          "text": "thousand",
+          "start": 22.13,
+          "end": 22.531
+        },
+        {
+          "text": "well",
+          "start": 22.831,
+          "end": 23.031
+        },
+        {
+          "text": "it",
+          "start": 23.112,
+          "end": 23.192
+        },
+        {
+          "text": "comes",
+          "start": 23.272,
+          "end": 23.512
+        },
+        {
+          "text": "back",
+          "start": 23.612,
+          "end": 23.832
+        },
+        {
+          "text": "down",
+          "start": 23.913,
+          "end": 24.133
+        },
+        {
+          "text": "to",
+          "start": 24.173,
+          "end": 24.273
+        },
+        {
+          "text": "the",
+          "start": 24.313,
+          "end": 24.433
+        },
+        {
+          "text": "risk",
+          "start": 24.553,
+          "end": 24.834
+        },
+        {
+          "text": "management",
+          "start": 24.934,
+          "end": 25.414
+        },
+        {
+          "text": "side",
+          "start": 25.434,
+          "end": 25.635
+        },
+        {
+          "text": "of",
+          "start": 25.675,
+          "end": 25.735
+        },
+        {
+          "text": "things",
+          "start": 25.775,
+          "end": 26.015
+        },
+        {
+          "text": "and",
+          "start": 26.356,
+          "end": 26.456
+        },
+        {
+          "text": "we",
+          "start": 26.516,
+          "end": 26.616
+        },
+        {
+          "text": "shall",
+          "start": 26.656,
+          "end": 26.856
+        },
+        {
+          "text": "find",
+          "start": 26.936,
+          "end": 27.177
+        },
+        {
+          "text": "out",
+          "start": 27.297,
+          "end": 27.417
+        },
+        {
+          "text": "you'll",
+          "start": 27.537,
+          "end": 27.697
+        },
+        {
+          "text": "actually",
+          "start": 27.737,
+          "end": 28.018
+        },
+        {
+          "text": "notice",
+          "start": 28.078,
+          "end": 28.358
+        },
+        {
+          "text": "that",
+          "start": 28.398,
+          "end": 28.538
+        },
+        {
+          "text": "once",
+          "start": 28.758,
+          "end": 28.879
+        },
+        {
+          "text": "we",
+          "start": 28.919,
+          "end": 29.059
+        },
+        {
+          "text": "try",
+          "start": 29.139,
+          "end": 29.379
+        },
+        {
+          "text": "pressing",
+          "start": 29.479,
+          "end": 29.82
+        },
+        {
+          "text": "in",
+          "start": 29.94,
+          "end": 30.02
+        },
+        {
+          "text": "some",
+          "start": 30.1,
+          "end": 30.28
+        },
+        {
+          "text": "lot",
+          "start": 30.32,
+          "end": 30.541
+        },
+        {
+          "text": "sizes",
+          "start": 30.581,
+          "end": 30.981
+        },
+        {
+          "text": "well",
+          "start": 31.041,
+          "end": 31.201
+        },
+        {
+          "text": "the",
+          "start": 31.221,
+          "end": 31.322
+        },
+        {
+          "text": "account",
+          "start": 31.382,
+          "end": 31.642
+        },
+        {
+          "text": "will",
+          "start": 31.682,
+          "end": 31.822
+        },
+        {
+          "text": "reject",
+          "start": 31.862,
+          "end": 32.223
+        },
+        {
+          "text": "and",
+          "start": 32.283,
+          "end": 32.363
+        },
+        {
+          "text": "we",
+          "start": 32.383,
+          "end": 32.443
+        },
+        {
+          "text": "have",
+          "start": 32.463,
+          "end": 32.563
+        },
+        {
+          "text": "nothing",
+          "start": 32.603,
+          "end": 32.843
+        },
+        {
+          "text": "to",
+          "start": 32.883,
+          "end": 32.944
+        },
+        {
+          "text": "do",
+          "start": 32.984,
+          "end": 33.084
+        },
+        {
+          "text": "about",
+          "start": 33.144,
+          "end": 33.404
+        },
+        {
+          "text": "that",
+          "start": 33.444,
+          "end": 33.624
+        },
+        {
+          "text": "so",
+          "start": 33.744,
+          "end": 33.905
+        },
+        {
+          "text": "let's",
+          "start": 34.285,
+          "end": 34.485
+        },
+        {
+          "text": "get",
+          "start": 34.525,
+          "end": 34.666
+        },
+        {
+          "text": "to",
+          "start": 34.726,
+          "end": 34.806
+        },
+        {
+          "text": "trading",
+          "start": 34.846,
+          "end": 35.186
+        },
+        {
+          "text": "view",
+          "start": 35.226,
+          "end": 35.427
+        },
+        {
+          "text": "and",
+          "start": 35.727,
+          "end": 35.827
+        },
+        {
+          "text": "try",
+          "start": 35.967,
+          "end": 36.288
+        },
+        {
+          "text": "find",
+          "start": 36.428,
+          "end": 36.788
+        },
+        {
+          "text": "some",
+          "start": 37.028,
+          "end": 37.329
+        },
+        {
+          "text": "setups",
+          "start": 37.569,
+          "end": 38.07
+        },
+        {
+          "text": "now,",
+          "start": 38.35,
+          "end": 38.551
+        },
+        {
+          "text": "one",
+          "start": 38.831,
+          "end": 38.911
+        },
+        {
+          "text": "thing",
+          "start": 38.931,
+          "end": 39.072
+        },
+        {
+          "text": "that",
+          "start": 39.092,
+          "end": 39.172
+        },
+        {
+          "text": "i",
+          "start": 39.192,
+          "end": 39.212
+        },
+        {
+          "text": "want",
+          "start": 39.232,
+          "end": 39.332
+        },
+        {
+          "text": "you",
+          "start": 39.372,
+          "end": 39.473
+        },
+        {
+          "text": "to",
+          "start": 39.493,
+          "end": 39.593
+        },
+        {
+          "text": "understand",
+          "start": 39.613,
+          "end": 40.074
+        },
+        {
+          "text": "is",
+          "start": 40.315,
+          "end": 40.455
+        },
+        {
+          "text": "honestly,",
+          "start": 40.675,
+          "end": 41.176
+        },
+        {
+          "text": "for",
+          "start": 41.237,
+          "end": 41.397
+        },
+        {
+          "text": "small",
+          "start": 41.437,
+          "end": 41.758
+        },
+        {
+          "text": "accounts,",
+          "start": 41.818,
+          "end": 42.279
+        },
+        {
+          "text": "now",
+          "start": 42.519,
+          "end": 42.62
+        },
+        {
+          "text": "i'd",
+          "start": 42.66,
+          "end": 42.76
+        },
+        {
+          "text": "give",
+          "start": 42.78,
+          "end": 42.9
+        },
+        {
+          "text": "an",
+          "start": 42.94,
+          "end": 43.0
+        },
+        {
+          "text": "example",
+          "start": 43.041,
+          "end": 43.381
+        },
+        {
+          "text": "for",
+          "start": 43.421,
+          "end": 43.522
+        },
+        {
+          "text": "like",
+          "start": 43.562,
+          "end": 43.943
+        },
+        {
+          "text": "$10,",
+          "start": 43.963,
+          "end": 44.343
+        },
+        {
+          "text": "do",
+          "start": 44.684,
+          "end": 44.844
+        },
+        {
+          "text": "not",
+          "start": 45.025,
+          "end": 45.326
+        },
+        {
+          "text": "trade",
+          "start": 45.666,
+          "end": 45.967
+        },
+        {
+          "text": "volatile",
+          "start": 46.107,
+          "end": 46.869
+        },
+        {
+          "text": "instruments,",
+          "start": 47.049,
+          "end": 47.45
+        },
+        {
+          "text": "okay?",
+          "start": 47.53,
+          "end": 47.811
+        },
+        {
+          "text": "so",
+          "start": 47.851,
+          "end": 47.951
+        },
+        {
+          "text": "we",
+          "start": 47.971,
+          "end": 48.032
+        },
+        {
+          "text": "are",
+          "start": 48.052,
+          "end": 48.112
+        },
+        {
+          "text": "not",
+          "start": 48.132,
+          "end": 48.232
+        },
+        {
+          "text": "going",
+          "start": 48.252,
+          "end": 48.372
+        },
+        {
+          "text": "to",
+          "start": 48.412,
+          "end": 48.493
+        },
+        {
+          "text": "trade",
+          "start": 48.573,
+          "end": 48.833
+        },
+        {
+          "text": "gold.",
+          "start": 48.934,
+          "end": 49.234
+        },
+        {
+          "text": "we",
+          "start": 49.254,
+          "end": 49.314
+        },
+        {
+          "text": "are",
+          "start": 49.334,
+          "end": 49.395
+        },
+        {
+          "text": "not",
+          "start": 49.415,
+          "end": 49.495
+        },
+        {
+          "text": "going",
+          "start": 49.515,
+          "end": 49.655
+        },
+        {
+          "text": "to",
+          "start": 49.695,
+          "end": 49.775
+        },
+        {
+          "text": "trade",
+          "start": 49.795,
+          "end": 50.016
+        },
+        {
+          "text": "nasdaq,",
+          "start": 50.076,
+          "end": 50.597
+        },
+        {
+          "text": "btc,",
+          "start": 50.657,
+          "end": 51.138
+        },
+        {
+          "text": "none",
+          "start": 51.239,
+          "end": 51.439
+        },
+        {
+          "text": "of",
+          "start": 51.479,
+          "end": 51.539
+        },
+        {
+          "text": "that.",
+          "start": 51.579,
+          "end": 51.8
+        },
+        {
+          "text": "so",
+          "start": 52.04,
+          "end": 52.381
+        },
+        {
+          "text": "with",
+          "start": 52.762,
+          "end": 52.902
+        },
+        {
+          "text": "the",
+          "start": 52.922,
+          "end": 53.023
+        },
+        {
+          "text": "leverage",
+          "start": 53.063,
+          "end": 53.363
+        },
+        {
+          "text": "that",
+          "start": 53.383,
+          "end": 53.544
+        },
+        {
+          "text": "we",
+          "start": 53.564,
+          "end": 53.684
+        },
+        {
+          "text": "have,",
+          "start": 53.724,
+          "end": 53.884
+        },
+        {
+          "text": "you",
+          "start": 53.904,
+          "end": 53.985
+        },
+        {
+          "text": "can",
+          "start": 54.025,
+          "end": 54.145
+        },
+        {
+          "text": "still",
+          "start": 54.165,
+          "end": 54.386
+        },
+        {
+          "text": "open",
+          "start": 54.446,
+          "end": 54.646
+        },
+        {
+          "text": "up",
+          "start": 54.706,
+          "end": 54.827
+        },
+        {
+          "text": "0.01",
+          "start": 54.867,
+          "end": 55.628
+        },
+        {
+          "text": "lots",
+          "start": 55.668,
+          "end": 55.889
+        },
+        {
+          "text": "and",
+          "start": 56.029,
+          "end": 56.129
+        },
+        {
+          "text": "make",
+          "start": 56.149,
+          "end": 56.33
+        },
+        {
+          "text": "money,",
+          "start": 56.39,
+          "end": 56.63
+        },
+        {
+          "text": "but",
+          "start": 56.811,
+          "end": 56.931
+        },
+        {
+          "text": "i",
+          "start": 56.951,
+          "end": 56.971
+        },
+        {
+          "text": "wouldn't",
+          "start": 56.991,
+          "end": 57.232
+        },
+        {
+          "text": "recommend",
+          "start": 57.272,
+          "end": 57.633
+        },
+        {
+          "text": "that,",
+          "start": 57.673,
+          "end": 57.813
+        },
+        {
+          "text": "okay?",
+          "start": 57.893,
+          "end": 58.134
+        },
+        {
+          "text": "so",
+          "start": 58.414,
+          "end": 58.495
+        },
+        {
+          "text": "now",
+          "start": 58.515,
+          "end": 58.635
+        },
+        {
+          "text": "let's",
+          "start": 58.655,
+          "end": 58.775
+        },
+        {
+          "text": "just",
+          "start": 58.795,
+          "end": 58.916
+        },
+        {
+          "text": "go",
+          "start": 58.976,
+          "end": 59.116
+        },
+        {
+          "text": "over",
+          "start": 59.296,
+          "end": 59.537
+        },
+        {
+          "text": "and",
+          "start": 59.657,
+          "end": 59.777
+        },
+        {
+          "text": "find.",
+          "start": 59.898,
+          "end": 60.038
+        }
+      ]
+    }
+  },
+  "candidate_oracle_clean_skip": {
+    "implementation": "reuse extracted original.wav as vocals and synthesize silent background",
+    "prep_wall_seconds": 0.874949,
+    "vocals": {
+      "sample_rate": 48000,
+      "channels": 2,
+      "frames": 2880512,
+      "duration_seconds": 60.010667,
+      "peak": 0.56037271,
+      "rms": 0.096433691,
+      "sha256": "6b0934d5e67c40811cf604e43f8fd2b460e4fa19da41e6d0b5c1c5bfa1f7a545"
+    },
+    "background": {
+      "sample_rate": 48000,
+      "channels": 2,
+      "frames": 2880512,
+      "duration_seconds": 60.010667,
+      "peak": 0.0,
+      "rms": 0.0,
+      "sha256": "1eb0001b55e4a3bcaddfffc05c8a768c3551583b266a0755f162a0f88fdb0e0c"
+    },
+    "asr_wall_seconds": 120.92923,
+    "asr": {
+      "segment_count": 11,
+      "word_count": 206,
+      "normalized_transcript": "to now find out. now keep in mind in here, we have a leverage one to 2000. so to keep this in mind, you basically have the $10 times the 2000 on your leverage. so you may imagine what's about to happen. now something really, really important to get in here is whenever you're trading, doesn't matter the amount, someone could be trading with ten dollars and the other person is trading with ten thousand well it comes back down to the risk management side of things and we shall find out you'll actually notice that once we try pressing in some lot sizes well the account will reject and we have nothing to do about that so let's get to trading view and try find some setups now, one thing that i want you to understand is honestly, for small accounts, now i'd give an example for like $10, do not trade volatile instruments, okay? so we are not going to trade gold. we are not going to trade nasdaq, btc, none of that. so with the leverage that we have, you can still open up 0.01 lots and make money, but i wouldn't recommend that, okay? so now let's just go over and find",
+      "words": [
+        {
+          "text": "to",
+          "start": 0.151,
+          "end": 0.672
+        },
+        {
+          "text": "now",
+          "start": 0.752,
+          "end": 0.992
+        },
+        {
+          "text": "find",
+          "start": 1.132,
+          "end": 1.352
+        },
+        {
+          "text": "out.",
+          "start": 1.432,
+          "end": 1.532
+        },
+        {
+          "text": "now",
+          "start": 1.752,
+          "end": 1.852
+        },
+        {
+          "text": "keep",
+          "start": 1.913,
+          "end": 2.053
+        },
+        {
+          "text": "in",
+          "start": 2.093,
+          "end": 2.173
+        },
+        {
+          "text": "mind",
+          "start": 2.213,
+          "end": 2.413
+        },
+        {
+          "text": "in",
+          "start": 2.453,
+          "end": 2.553
+        },
+        {
+          "text": "here,",
+          "start": 2.613,
+          "end": 2.753
+        },
+        {
+          "text": "we",
+          "start": 2.793,
+          "end": 2.893
+        },
+        {
+          "text": "have",
+          "start": 2.933,
+          "end": 3.073
+        },
+        {
+          "text": "a",
+          "start": 3.134,
+          "end": 3.194
+        },
+        {
+          "text": "leverage",
+          "start": 3.234,
+          "end": 3.574
+        },
+        {
+          "text": "one",
+          "start": 3.974,
+          "end": 4.234
+        },
+        {
+          "text": "to",
+          "start": 4.274,
+          "end": 4.435
+        },
+        {
+          "text": "2000.",
+          "start": 4.575,
+          "end": 4.855
+        },
+        {
+          "text": "so",
+          "start": 5.155,
+          "end": 5.275
+        },
+        {
+          "text": "to",
+          "start": 5.495,
+          "end": 5.596
+        },
+        {
+          "text": "keep",
+          "start": 5.716,
+          "end": 5.916
+        },
+        {
+          "text": "this",
+          "start": 5.956,
+          "end": 6.116
+        },
+        {
+          "text": "in",
+          "start": 6.176,
+          "end": 6.256
+        },
+        {
+          "text": "mind,",
+          "start": 6.296,
+          "end": 6.456
+        },
+        {
+          "text": "you",
+          "start": 6.496,
+          "end": 6.596
+        },
+        {
+          "text": "basically",
+          "start": 6.636,
+          "end": 6.997
+        },
+        {
+          "text": "have",
+          "start": 7.057,
+          "end": 7.237
+        },
+        {
+          "text": "the",
+          "start": 7.277,
+          "end": 7.737
+        },
+        {
+          "text": "$10",
+          "start": 7.797,
+          "end": 8.198
+        },
+        {
+          "text": "times",
+          "start": 8.618,
+          "end": 8.898
+        },
+        {
+          "text": "the",
+          "start": 8.958,
+          "end": 9.359
+        },
+        {
+          "text": "2000",
+          "start": 9.579,
+          "end": 9.879
+        },
+        {
+          "text": "on",
+          "start": 9.999,
+          "end": 10.079
+        },
+        {
+          "text": "your",
+          "start": 10.099,
+          "end": 10.199
+        },
+        {
+          "text": "leverage.",
+          "start": 10.259,
+          "end": 10.7
+        },
+        {
+          "text": "so",
+          "start": 10.82,
+          "end": 10.92
+        },
+        {
+          "text": "you",
+          "start": 10.98,
+          "end": 11.1
+        },
+        {
+          "text": "may",
+          "start": 11.14,
+          "end": 11.26
+        },
+        {
+          "text": "imagine",
+          "start": 11.3,
+          "end": 11.64
+        },
+        {
+          "text": "what's",
+          "start": 11.68,
+          "end": 11.901
+        },
+        {
+          "text": "about",
+          "start": 12.281,
+          "end": 12.581
+        },
+        {
+          "text": "to",
+          "start": 12.621,
+          "end": 12.701
+        },
+        {
+          "text": "happen.",
+          "start": 12.761,
+          "end": 13.042
+        },
+        {
+          "text": "now",
+          "start": 13.062,
+          "end": 13.242
+        },
+        {
+          "text": "something",
+          "start": 13.282,
+          "end": 13.582
+        },
+        {
+          "text": "really,",
+          "start": 13.782,
+          "end": 14.122
+        },
+        {
+          "text": "really",
+          "start": 14.162,
+          "end": 14.383
+        },
+        {
+          "text": "important",
+          "start": 14.403,
+          "end": 14.843
+        },
+        {
+          "text": "to",
+          "start": 14.863,
+          "end": 14.943
+        },
+        {
+          "text": "get",
+          "start": 14.983,
+          "end": 15.163
+        },
+        {
+          "text": "in",
+          "start": 15.243,
+          "end": 15.303
+        },
+        {
+          "text": "here",
+          "start": 15.343,
+          "end": 15.504
+        },
+        {
+          "text": "is",
+          "start": 15.624,
+          "end": 15.744
+        },
+        {
+          "text": "whenever",
+          "start": 15.884,
+          "end": 16.124
+        },
+        {
+          "text": "you're",
+          "start": 16.164,
+          "end": 16.344
+        },
+        {
+          "text": "trading,",
+          "start": 16.404,
+          "end": 16.825
+        },
+        {
+          "text": "doesn't",
+          "start": 16.985,
+          "end": 17.305
+        },
+        {
+          "text": "matter",
+          "start": 17.405,
+          "end": 17.645
+        },
+        {
+          "text": "the",
+          "start": 17.665,
+          "end": 17.745
+        },
+        {
+          "text": "amount,",
+          "start": 17.885,
+          "end": 18.246
+        },
+        {
+          "text": "someone",
+          "start": 18.686,
+          "end": 18.946
+        },
+        {
+          "text": "could",
+          "start": 18.986,
+          "end": 19.126
+        },
+        {
+          "text": "be",
+          "start": 19.146,
+          "end": 19.226
+        },
+        {
+          "text": "trading",
+          "start": 19.266,
+          "end": 19.506
+        },
+        {
+          "text": "with",
+          "start": 19.526,
+          "end": 19.646
+        },
+        {
+          "text": "ten",
+          "start": 19.706,
+          "end": 19.866
+        },
+        {
+          "text": "dollars",
+          "start": 19.906,
+          "end": 20.287
+        },
+        {
+          "text": "and",
+          "start": 20.387,
+          "end": 20.507
+        },
+        {
+          "text": "the",
+          "start": 20.527,
+          "end": 20.587
+        },
+        {
+          "text": "other",
+          "start": 20.767,
+          "end": 20.967
+        },
+        {
+          "text": "person",
+          "start": 21.027,
+          "end": 21.307
+        },
+        {
+          "text": "is",
+          "start": 21.347,
+          "end": 21.427
+        },
+        {
+          "text": "trading",
+          "start": 21.467,
+          "end": 21.687
+        },
+        {
+          "text": "with",
+          "start": 21.727,
+          "end": 21.827
+        },
+        {
+          "text": "ten",
+          "start": 21.907,
+          "end": 22.087
+        },
+        {
+          "text": "thousand",
+          "start": 22.127,
+          "end": 22.527
+        },
+        {
+          "text": "well",
+          "start": 22.828,
+          "end": 23.028
+        },
+        {
+          "text": "it",
+          "start": 23.108,
+          "end": 23.188
+        },
+        {
+          "text": "comes",
+          "start": 23.268,
+          "end": 23.508
+        },
+        {
+          "text": "back",
+          "start": 23.608,
+          "end": 23.808
+        },
+        {
+          "text": "down",
+          "start": 23.908,
+          "end": 24.128
+        },
+        {
+          "text": "to",
+          "start": 24.168,
+          "end": 24.268
+        },
+        {
+          "text": "the",
+          "start": 24.308,
+          "end": 24.448
+        },
+        {
+          "text": "risk",
+          "start": 24.568,
+          "end": 24.828
+        },
+        {
+          "text": "management",
+          "start": 24.928,
+          "end": 25.408
+        },
+        {
+          "text": "side",
+          "start": 25.428,
+          "end": 25.629
+        },
+        {
+          "text": "of",
+          "start": 25.669,
+          "end": 25.729
+        },
+        {
+          "text": "things",
+          "start": 25.769,
+          "end": 26.009
+        },
+        {
+          "text": "and",
+          "start": 26.349,
+          "end": 26.449
+        },
+        {
+          "text": "we",
+          "start": 26.509,
+          "end": 26.609
+        },
+        {
+          "text": "shall",
+          "start": 26.649,
+          "end": 26.849
+        },
+        {
+          "text": "find",
+          "start": 26.929,
+          "end": 27.169
+        },
+        {
+          "text": "out",
+          "start": 27.289,
+          "end": 27.409
+        },
+        {
+          "text": "you'll",
+          "start": 27.529,
+          "end": 27.689
+        },
+        {
+          "text": "actually",
+          "start": 27.729,
+          "end": 28.009
+        },
+        {
+          "text": "notice",
+          "start": 28.069,
+          "end": 28.349
+        },
+        {
+          "text": "that",
+          "start": 28.389,
+          "end": 28.53
+        },
+        {
+          "text": "once",
+          "start": 28.75,
+          "end": 28.87
+        },
+        {
+          "text": "we",
+          "start": 28.91,
+          "end": 29.05
+        },
+        {
+          "text": "try",
+          "start": 29.13,
+          "end": 29.37
+        },
+        {
+          "text": "pressing",
+          "start": 29.47,
+          "end": 29.81
+        },
+        {
+          "text": "in",
+          "start": 29.91,
+          "end": 30.03
+        },
+        {
+          "text": "some",
+          "start": 30.09,
+          "end": 30.27
+        },
+        {
+          "text": "lot",
+          "start": 30.31,
+          "end": 30.53
+        },
+        {
+          "text": "sizes",
+          "start": 30.57,
+          "end": 30.97
+        },
+        {
+          "text": "well",
+          "start": 31.03,
+          "end": 31.19
+        },
+        {
+          "text": "the",
+          "start": 31.211,
+          "end": 31.331
+        },
+        {
+          "text": "account",
+          "start": 31.371,
+          "end": 31.631
+        },
+        {
+          "text": "will",
+          "start": 31.671,
+          "end": 31.811
+        },
+        {
+          "text": "reject",
+          "start": 31.851,
+          "end": 32.191
+        },
+        {
+          "text": "and",
+          "start": 32.271,
+          "end": 32.351
+        },
+        {
+          "text": "we",
+          "start": 32.371,
+          "end": 32.431
+        },
+        {
+          "text": "have",
+          "start": 32.451,
+          "end": 32.551
+        },
+        {
+          "text": "nothing",
+          "start": 32.591,
+          "end": 32.831
+        },
+        {
+          "text": "to",
+          "start": 32.871,
+          "end": 32.931
+        },
+        {
+          "text": "do",
+          "start": 32.971,
+          "end": 33.071
+        },
+        {
+          "text": "about",
+          "start": 33.131,
+          "end": 33.391
+        },
+        {
+          "text": "that",
+          "start": 33.431,
+          "end": 33.611
+        },
+        {
+          "text": "so",
+          "start": 33.731,
+          "end": 33.891
+        },
+        {
+          "text": "let's",
+          "start": 34.272,
+          "end": 34.472
+        },
+        {
+          "text": "get",
+          "start": 34.512,
+          "end": 34.652
+        },
+        {
+          "text": "to",
+          "start": 34.712,
+          "end": 34.792
+        },
+        {
+          "text": "trading",
+          "start": 34.832,
+          "end": 35.172
+        },
+        {
+          "text": "view",
+          "start": 35.212,
+          "end": 35.392
+        },
+        {
+          "text": "and",
+          "start": 35.692,
+          "end": 35.812
+        },
+        {
+          "text": "try",
+          "start": 35.932,
+          "end": 36.272
+        },
+        {
+          "text": "find",
+          "start": 36.412,
+          "end": 36.772
+        },
+        {
+          "text": "some",
+          "start": 37.013,
+          "end": 37.333
+        },
+        {
+          "text": "setups",
+          "start": 37.553,
+          "end": 38.053
+        },
+        {
+          "text": "now,",
+          "start": 38.353,
+          "end": 38.554
+        },
+        {
+          "text": "one",
+          "start": 38.834,
+          "end": 38.894
+        },
+        {
+          "text": "thing",
+          "start": 38.914,
+          "end": 39.075
+        },
+        {
+          "text": "that",
+          "start": 39.095,
+          "end": 39.175
+        },
+        {
+          "text": "i",
+          "start": 39.195,
+          "end": 39.215
+        },
+        {
+          "text": "want",
+          "start": 39.235,
+          "end": 39.335
+        },
+        {
+          "text": "you",
+          "start": 39.355,
+          "end": 39.476
+        },
+        {
+          "text": "to",
+          "start": 39.496,
+          "end": 39.576
+        },
+        {
+          "text": "understand",
+          "start": 39.616,
+          "end": 40.057
+        },
+        {
+          "text": "is",
+          "start": 40.077,
+          "end": 40.458
+        },
+        {
+          "text": "honestly,",
+          "start": 40.698,
+          "end": 41.199
+        },
+        {
+          "text": "for",
+          "start": 41.239,
+          "end": 41.399
+        },
+        {
+          "text": "small",
+          "start": 41.44,
+          "end": 41.76
+        },
+        {
+          "text": "accounts,",
+          "start": 41.8,
+          "end": 42.281
+        },
+        {
+          "text": "now",
+          "start": 42.522,
+          "end": 42.622
+        },
+        {
+          "text": "i'd",
+          "start": 42.662,
+          "end": 42.762
+        },
+        {
+          "text": "give",
+          "start": 42.782,
+          "end": 42.903
+        },
+        {
+          "text": "an",
+          "start": 42.923,
+          "end": 43.003
+        },
+        {
+          "text": "example",
+          "start": 43.043,
+          "end": 43.384
+        },
+        {
+          "text": "for",
+          "start": 43.424,
+          "end": 43.524
+        },
+        {
+          "text": "like",
+          "start": 43.564,
+          "end": 43.945
+        },
+        {
+          "text": "$10,",
+          "start": 43.965,
+          "end": 44.326
+        },
+        {
+          "text": "do",
+          "start": 44.686,
+          "end": 44.847
+        },
+        {
+          "text": "not",
+          "start": 45.027,
+          "end": 45.328
+        },
+        {
+          "text": "trade",
+          "start": 45.668,
+          "end": 45.969
+        },
+        {
+          "text": "volatile",
+          "start": 46.109,
+          "end": 46.871
+        },
+        {
+          "text": "instruments,",
+          "start": 47.031,
+          "end": 47.452
+        },
+        {
+          "text": "okay?",
+          "start": 47.512,
+          "end": 47.813
+        },
+        {
+          "text": "so",
+          "start": 47.853,
+          "end": 47.953
+        },
+        {
+          "text": "we",
+          "start": 47.973,
+          "end": 48.033
+        },
+        {
+          "text": "are",
+          "start": 48.053,
+          "end": 48.113
+        },
+        {
+          "text": "not",
+          "start": 48.133,
+          "end": 48.214
+        },
+        {
+          "text": "going",
+          "start": 48.234,
+          "end": 48.374
+        },
+        {
+          "text": "to",
+          "start": 48.414,
+          "end": 48.494
+        },
+        {
+          "text": "trade",
+          "start": 48.574,
+          "end": 48.815
+        },
+        {
+          "text": "gold.",
+          "start": 48.935,
+          "end": 49.236
+        },
+        {
+          "text": "we",
+          "start": 49.256,
+          "end": 49.316
+        },
+        {
+          "text": "are",
+          "start": 49.336,
+          "end": 49.396
+        },
+        {
+          "text": "not",
+          "start": 49.416,
+          "end": 49.496
+        },
+        {
+          "text": "going",
+          "start": 49.516,
+          "end": 49.657
+        },
+        {
+          "text": "to",
+          "start": 49.697,
+          "end": 49.757
+        },
+        {
+          "text": "trade",
+          "start": 49.797,
+          "end": 50.017
+        },
+        {
+          "text": "nasdaq,",
+          "start": 50.077,
+          "end": 50.599
+        },
+        {
+          "text": "btc,",
+          "start": 50.639,
+          "end": 51.14
+        },
+        {
+          "text": "none",
+          "start": 51.24,
+          "end": 51.42
+        },
+        {
+          "text": "of",
+          "start": 51.46,
+          "end": 51.54
+        },
+        {
+          "text": "that.",
+          "start": 51.581,
+          "end": 51.841
+        },
+        {
+          "text": "so",
+          "start": 52.041,
+          "end": 52.362
+        },
+        {
+          "text": "with",
+          "start": 52.763,
+          "end": 52.903
+        },
+        {
+          "text": "the",
+          "start": 52.923,
+          "end": 53.003
+        },
+        {
+          "text": "leverage",
+          "start": 53.064,
+          "end": 53.364
+        },
+        {
+          "text": "that",
+          "start": 53.404,
+          "end": 53.545
+        },
+        {
+          "text": "we",
+          "start": 53.565,
+          "end": 53.665
+        },
+        {
+          "text": "have,",
+          "start": 53.725,
+          "end": 53.885
+        },
+        {
+          "text": "you",
+          "start": 53.905,
+          "end": 53.985
+        },
+        {
+          "text": "can",
+          "start": 54.006,
+          "end": 54.146
+        },
+        {
+          "text": "still",
+          "start": 54.166,
+          "end": 54.366
+        },
+        {
+          "text": "open",
+          "start": 54.446,
+          "end": 54.647
+        },
+        {
+          "text": "up",
+          "start": 54.707,
+          "end": 54.827
+        },
+        {
+          "text": "0.01",
+          "start": 54.867,
+          "end": 55.629
+        },
+        {
+          "text": "lots",
+          "start": 55.669,
+          "end": 55.889
+        },
+        {
+          "text": "and",
+          "start": 56.01,
+          "end": 56.11
+        },
+        {
+          "text": "make",
+          "start": 56.15,
+          "end": 56.31
+        },
+        {
+          "text": "money,",
+          "start": 56.39,
+          "end": 56.631
+        },
+        {
+          "text": "but",
+          "start": 56.811,
+          "end": 56.932
+        },
+        {
+          "text": "i",
+          "start": 56.952,
+          "end": 56.972
+        },
+        {
+          "text": "wouldn't",
+          "start": 56.992,
+          "end": 57.232
+        },
+        {
+          "text": "recommend",
+          "start": 57.252,
+          "end": 57.633
+        },
+        {
+          "text": "that,",
+          "start": 57.653,
+          "end": 57.813
+        },
+        {
+          "text": "okay?",
+          "start": 57.874,
+          "end": 58.154
+        },
+        {
+          "text": "so",
+          "start": 58.415,
+          "end": 58.495
+        },
+        {
+          "text": "now",
+          "start": 58.515,
+          "end": 58.635
+        },
+        {
+          "text": "let's",
+          "start": 58.655,
+          "end": 58.775
+        },
+        {
+          "text": "just",
+          "start": 58.795,
+          "end": 58.916
+        },
+        {
+          "text": "go",
+          "start": 58.976,
+          "end": 59.116
+        },
+        {
+          "text": "over",
+          "start": 59.276,
+          "end": 59.517
+        },
+        {
+          "text": "and",
+          "start": 59.657,
+          "end": 59.777
+        },
+        {
+          "text": "find",
+          "start": 59.898,
+          "end": 60.038
+        }
+      ]
+    }
+  },
+  "gates": {
+    "text_similarity_min": 0.995,
+    "timing_tolerance_seconds": 0.03,
+    "speed_gain_min_fraction": 0.1,
+    "asr_comparison": {
+      "transcript_similarity": 0.903881701,
+      "word_text_similarity": 0.903881701,
+      "exact_word_sequence": false,
+      "max_aligned_word_timing_delta_seconds": null,
+      "timing_tolerance_seconds": 0.03,
+      "timing_gate_pass": false,
+      "quality_gate_pass": false
+    },
+    "speed_gain_fraction": 0.974070558,
+    "speed_gate_pass": true,
+    "candidate_vocals_identity_gate_pass": true,
+    "candidate_background_silence_gate_pass": true,
+    "benchmark_gate_pass": false,
+    "detector_false_positive_gate_pass": false,
+    "production_default_change_allowed": false
+  },
+  "decision": "REJECT_ORACLE_SKIP_ON_CURRENT_GATE",
+  "limitations": [
+    "This is an oracle-label clean-speech benchmark; it does not implement or validate an automatic detector.",
+    "The clean fixture is one real P17 source. It is not representative evidence for music, SFX, reverb, male/female voice diversity, or dialogue overlap.",
+    "No production config or separator default is changed by this benchmark."
+  ]
+}
