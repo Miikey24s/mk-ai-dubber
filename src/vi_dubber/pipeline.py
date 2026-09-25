@@ -19,7 +19,7 @@ from .artifacts import (
     stage_fingerprint,
     write_stage_manifest,
 )
-from .asr import transcribe_and_align, transcribe_text, transcribe_text_files
+from .asr import transcribe_and_align, transcribe_and_align_chunks, transcribe_text, transcribe_text_files
 from .audio import evaluate_reference_clarity, resolve_loudness_profile
 from .jobs import (
     PipelineControl,
@@ -35,9 +35,16 @@ from .media import (
     extract_audio,
     measure_mix_metrics,
     media_duration,
+    detect_speech_intervals,
     mux_dubbed_video,
     voice_track_metrics,
     write_srt,
+)
+from .longform import MacroChunkPolicy, SpeechInterval, plan_macro_chunks
+from .longform_state import (
+    chunk_stage_fingerprint,
+    commit_chunk_stage,
+    load_chunk_stage,
 )
 from .metrics import MetricsRecorder
 from .pronunciation import normalize_pronunciation
@@ -776,52 +783,210 @@ def _run_pipeline_impl(
         for key in ("num_speakers", "min_speakers", "max_speakers")
         if diarization_config.get(key) is not None
     }
+    vocals_identity = fingerprint_file(vocals)
+    longform_config = dict(config.get("longform", {}) or {})
+    longform_policy = MacroChunkPolicy(
+        target_seconds=float(longform_config.get("target_seconds", 25 * 60)),
+        min_seconds=float(longform_config.get("min_seconds", 15 * 60)),
+        max_seconds=float(longform_config.get("max_seconds", 40 * 60)),
+        boundary_search_seconds=float(longform_config.get("boundary_search_seconds", 60.0)),
+        context_seconds=float(longform_config.get("context_seconds", 2.0)),
+        single_chunk_threshold_seconds=float(
+            longform_config.get("single_chunk_threshold_seconds", 15 * 60)
+        ),
+    )
+    windowed_asr = (
+        bool(longform_config.get("enabled", True))
+        and not diarize
+        and total_duration > longform_policy.single_chunk_threshold_seconds
+    )
+    silence_policy = {
+        "noise_db": float(longform_config.get("silence_noise_db", -40.0)),
+        "min_silence_seconds": float(longform_config.get("min_silence_seconds", 0.35)),
+    }
+    longform_identity = {
+        "enabled": windowed_asr,
+        "policy": {
+            "target_seconds": longform_policy.target_seconds,
+            "min_seconds": longform_policy.min_seconds,
+            "max_seconds": longform_policy.max_seconds,
+            "boundary_search_seconds": longform_policy.boundary_search_seconds,
+            "context_seconds": longform_policy.context_seconds,
+            "single_chunk_threshold_seconds": longform_policy.single_chunk_threshold_seconds,
+        },
+        "silence": silence_policy,
+        "diarization_windowing": False,
+    }
     asr_inputs = {
-        "vocals": fingerprint_file(vocals),
+        "vocals": vocals_identity,
         "diarization": diarize,
         "diarization_hints": diarization_hints if diarize else {},
+        "longform": longform_identity,
+    }
+    asr_versions = {
+        "segment_schema": SEGMENT_SCHEMA_VERSION,
+        "policy": 2,
+        "longform_policy": 1,
+        **runtime_versions("whisperx", "torch"),
     }
     asr_fingerprint = stage_fingerprint(
         "asr",
         inputs=asr_inputs,
         config=asr_config,
         model={"name": asr_config.get("model")},
-        versions={
-            "segment_schema": SEGMENT_SCHEMA_VERSION,
-            "policy": 1,
-            **runtime_versions("whisperx", "torch"),
-        },
+        versions=asr_versions,
     )
+    source_srt = job_dir / "source_en.srt"
+    chunk_plan_path = job_dir / "chunks" / "plan.json"
     with metrics.stage("asr"):
         if _stage_cache_hit(job_dir, "asr", asr_fingerprint, resume=resume):
             metrics.increment("cache_hits")
             segments = _load_segments(source_json)
         else:
             metrics.increment("cache_misses")
-            segments = transcribe_and_align(
-                vocals,
-                config["asr"],
-                hf_token=hf_token,
-                diarize=diarize,
-                diarization_config=diarization_config,
-            )
+            stage_artifacts: list[Path] = [source_json, source_srt]
+            if windowed_asr:
+                speech_ranges = detect_speech_intervals(
+                    vocals,
+                    duration_seconds=total_duration,
+                    noise_db=silence_policy["noise_db"],
+                    min_silence_seconds=silence_policy["min_silence_seconds"],
+                )
+                chunks = plan_macro_chunks(
+                    total_duration,
+                    [SpeechInterval(start, end) for start, end in speech_ranges],
+                    policy=longform_policy,
+                )
+                atomic_write_json(
+                    chunk_plan_path,
+                    {
+                        "version": 1,
+                        "source": vocals_identity,
+                        "policy": longform_identity,
+                        "chunks": [chunk.to_dict() for chunk in chunks],
+                    },
+                )
+                stage_artifacts.append(chunk_plan_path)
+
+                chunk_payload = {
+                    "vocals": vocals_identity,
+                    "diarization": False,
+                }
+                chunk_results: dict[str, list[Segment]] = {}
+                missing_chunks = []
+                for chunk in chunks:
+                    chunk_fingerprint = chunk_stage_fingerprint(
+                        chunk,
+                        "asr",
+                        inputs=chunk_payload,
+                        config=asr_config,
+                        model={"name": asr_config.get("model")},
+                        versions=asr_versions,
+                    )
+                    chunk_json = job_dir / "chunks" / chunk.chunk_id / "segments_source.json"
+                    manifest = load_chunk_stage(
+                        job_dir,
+                        chunk,
+                        "asr",
+                        chunk_fingerprint,
+                    ) if resume else None
+                    if manifest is not None and chunk_json.is_file():
+                        metrics.increment("cache_hits")
+                        chunk_results[chunk.chunk_id] = _load_segments(chunk_json)
+                    else:
+                        metrics.increment("cache_misses")
+                        missing_chunks.append(chunk)
+
+                missing_duration = sum(chunk.duration for chunk in missing_chunks)
+                completed_duration = 0.0
+                asr_chunk_started_at = time.perf_counter()
+
+                def update_longform_progress(current_chunk: str) -> None:
+                    elapsed = max(0.001, time.perf_counter() - asr_chunk_started_at)
+                    throughput = completed_duration / elapsed
+                    remaining = max(0.0, missing_duration - completed_duration)
+                    eta_seconds = remaining / throughput if throughput > 0 else None
+                    completed_chunks = len(chunk_results)
+                    update_job_state(
+                        job_dir,
+                        status="running",
+                        stage="asr",
+                        progress=0.20 + 0.14 * (completed_chunks / max(1, len(chunks))),
+                        message=f"ASR macro chunk {completed_chunks}/{len(chunks)}",
+                        metadata={
+                            "longform": {
+                                "enabled": True,
+                                "current_chunk": current_chunk,
+                                "completed_chunks": completed_chunks,
+                                "total_chunks": len(chunks),
+                                "missing_chunks_at_start": len(missing_chunks),
+                                "throughput_media_seconds_per_wall_second": throughput,
+                                "eta_seconds": eta_seconds,
+                                "queue": {
+                                    "asr_prefetch_max_pending": 1,
+                                    "gpu_asr_concurrency": 1,
+                                },
+                            }
+                        },
+                    )
+
+                def commit_asr_chunk(chunk, chunk_segments: list[Segment]) -> None:
+                    nonlocal completed_duration
+                    chunk_json = job_dir / "chunks" / chunk.chunk_id / "segments_source.json"
+                    _save_segments(chunk_json, chunk_segments)
+                    commit_chunk_stage(
+                        job_dir,
+                        chunk,
+                        "asr",
+                        inputs=chunk_payload,
+                        artifacts=[chunk_json],
+                        config=asr_config,
+                        model={"name": asr_config.get("model")},
+                        versions=asr_versions,
+                    )
+                    chunk_results[chunk.chunk_id] = chunk_segments
+                    completed_duration += chunk.duration
+                    update_longform_progress(chunk.chunk_id)
+
+                if chunk_results:
+                    update_longform_progress(max(chunk_results))
+
+                if missing_chunks:
+                    transcribe_and_align_chunks(
+                        vocals,
+                        missing_chunks,
+                        job_dir / "chunks",
+                        asr_config,
+                        on_chunk=commit_asr_chunk,
+                    )
+
+                segments = []
+                for chunk in chunks:
+                    segments.extend(chunk_results[chunk.chunk_id])
+                segments.sort(key=lambda item: (item.start, item.end, item.id))
+                for segment_id, segment in enumerate(segments):
+                    segment.id = segment_id
+                metrics.set_counter("macro_chunks", len(chunks))
+            else:
+                segments = transcribe_and_align(
+                    vocals,
+                    config["asr"],
+                    hf_token=hf_token,
+                    diarize=diarize,
+                    diarization_config=diarization_config,
+                )
             if not segments:
                 raise RuntimeError("WhisperX không nhận diện được đoạn thoại nào.")
             _save_segments(source_json, segments)
-            source_srt = job_dir / "source_en.srt"
             write_srt(segments, source_srt, translated=False)
             _commit_stage(
                 job_dir,
                 "asr",
                 inputs=asr_inputs,
-                artifacts=[source_json, source_srt],
+                artifacts=stage_artifacts,
                 config=asr_config,
                 model={"name": asr_config.get("model")},
-                versions={
-                    "segment_schema": SEGMENT_SCHEMA_VERSION,
-                    "policy": 1,
-                    **runtime_versions("whisperx", "torch"),
-                },
+                versions=asr_versions,
             )
     metrics.set_counter("source_segments", len(segments))
 

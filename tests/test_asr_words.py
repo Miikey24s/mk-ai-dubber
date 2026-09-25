@@ -10,9 +10,11 @@ from vi_dubber.asr import (
     _diarization_speaker_hints,
     _mark_diarization_overlaps,
     _segment_from_aligned,
+    transcribe_and_align_chunks,
     transcribe_text,
     transcribe_text_files,
 )
+from vi_dubber.longform import MacroChunk
 from vi_dubber.types import SEGMENT_SCHEMA_VERSION, Segment, WordToken
 
 
@@ -319,6 +321,81 @@ def test_transcribe_text_files_loads_model_once_and_preserves_input_order(
     assert loaded_audio == [str(path) for path in paths]
     assert model_loads == 1
     assert released == [model]
+
+
+def test_transcribe_and_align_chunks_reuses_model_and_restores_global_timestamps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import vi_dubber.asr as asr_module
+
+    model_loads = 0
+    align_loads = 0
+    callbacks: list[tuple[str, list[str]]] = []
+
+    class FakeModel:
+        def transcribe(self, audio, batch_size):
+            if "chunk_0001" in str(audio):
+                return {
+                    "language": "en",
+                    "segments": [
+                        {"start": 1.0, "end": 2.0, "text": "first"},
+                        {"start": 10.5, "end": 11.5, "text": "belongs-next"},
+                    ],
+                }
+            return {
+                "language": "en",
+                "segments": [{"start": 2.5, "end": 3.5, "text": "second"}],
+            }
+
+    def load_model(*args, **kwargs):
+        nonlocal model_loads
+        model_loads += 1
+        return FakeModel()
+
+    def load_align_model(**kwargs):
+        nonlocal align_loads
+        align_loads += 1
+        return object(), {}
+
+    fake_whisperx = types.ModuleType("whisperx")
+    fake_whisperx.load_model = load_model
+    fake_whisperx.load_audio = lambda path: path
+    fake_whisperx.load_align_model = load_align_model
+    fake_whisperx.align = lambda segments, *args, **kwargs: {"segments": segments}
+    monkeypatch.setitem(sys.modules, "whisperx", fake_whisperx)
+    monkeypatch.setattr(asr_module, "configure_runtime", lambda: None)
+    monkeypatch.setattr(asr_module, "MODELS_DIR", tmp_path / "models")
+    monkeypatch.setattr(asr_module, "_release_cuda", lambda *objects: None)
+
+    def fake_clip(_source, output, _start, _duration):
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"audio")
+        return output
+
+    monkeypatch.setattr(asr_module, "clip_audio", fake_clip)
+    chunks = [
+        MacroChunk("chunk_0001", 0, 0.0, 10.0, 0.0, 12.0, "safe_cut"),
+        MacroChunk("chunk_0002", 1, 10.0, 20.0, 8.0, 20.0, "end"),
+    ]
+
+    result = transcribe_and_align_chunks(
+        tmp_path / "vocals.wav",
+        chunks,
+        tmp_path / "chunks",
+        {"device": "cpu", "compute_type": "int8", "model": "tiny", "batch_size": 1},
+        on_chunk=lambda chunk, segments: callbacks.append(
+            (chunk.chunk_id, [segment.text for segment in segments])
+        ),
+    )
+
+    assert model_loads == 1
+    assert align_loads == 1
+    assert [segment.text for segment in result["chunk_0001"]] == ["first"]
+    assert [segment.text for segment in result["chunk_0002"]] == ["second"]
+    assert result["chunk_0001"][0].start == pytest.approx(1.0)
+    assert result["chunk_0002"][0].start == pytest.approx(10.5)
+    assert callbacks == [("chunk_0001", ["first"]), ("chunk_0002", ["second"])]
+    assert not (tmp_path / "chunks" / "chunk_0001" / "asr-window.wav").exists()
 
 
 def test_transcribe_text_files_releases_model_when_a_file_fails(

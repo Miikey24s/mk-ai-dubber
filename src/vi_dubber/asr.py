@@ -3,9 +3,12 @@ from __future__ import annotations
 import gc
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+from .longform import MacroChunk
+from .media import clip_audio
 from .runtime import MODELS_DIR, configure_runtime
+from .scheduler import BoundedExecutor
 from .types import Segment, WordToken
 
 
@@ -293,6 +296,143 @@ def transcribe_and_align(
         return segments
     finally:
         _release_cuda(model, align_model, diarize_model)
+
+
+def _shift_segment_to_global(segment: Segment, offset: float, segment_id: int) -> Segment:
+    return Segment(
+        id=segment_id,
+        start=segment.start + offset,
+        end=segment.end + offset,
+        text=segment.text,
+        speaker=segment.speaker,
+        vi=segment.vi,
+        words=[
+            WordToken(
+                text=word.text,
+                start=(word.start + offset) if word.start is not None else None,
+                end=(word.end + offset) if word.end is not None else None,
+                confidence=word.confidence,
+                speaker=word.speaker,
+                overlap=word.overlap,
+            )
+            for word in segment.words
+        ],
+        avg_logprob=segment.avg_logprob,
+        source_segment_ids=list(segment.source_segment_ids),
+        overlap=segment.overlap,
+        scene_id=segment.scene_id,
+        scene_boundary=segment.scene_boundary,
+    )
+
+
+def transcribe_and_align_chunks(
+    audio_path: Path,
+    chunks: list[MacroChunk],
+    output_dir: Path,
+    config: dict[str, Any],
+    *,
+    on_chunk: Callable[[MacroChunk, list[Segment]], None] | None = None,
+) -> dict[str, list[Segment]]:
+    """Transcribe macro chunks while loading WhisperX/align models only once.
+
+    This path intentionally excludes diarization until cross-chunk speaker identity
+    reconciliation exists. Context windows overlap for ASR continuity, while midpoint
+    ownership ensures each aligned segment is emitted by only one source chunk.
+    """
+    if not chunks:
+        return {}
+
+    configure_runtime()
+    import whisperx
+
+    device = str(config.get("device", "cuda"))
+    compute_type = str(config.get("compute_type", "float16"))
+    language = config.get("language") or None
+    batch_size = int(config.get("batch_size", 4))
+    model_name = str(config.get("model", "large-v3"))
+    cache_dir = MODELS_DIR / "whisperx"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    model = None
+    align_models: dict[str, tuple[Any, Any]] = {}
+    results: dict[str, list[Segment]] = {}
+    try:
+        model = whisperx.load_model(
+            model_name,
+            device,
+            compute_type=compute_type,
+            language=language,
+            download_root=str(cache_dir),
+        )
+        def extract_window(chunk: MacroChunk) -> Path:
+            window_path = output_dir / chunk.chunk_id / "asr-window.wav"
+            return clip_audio(
+                audio_path,
+                window_path,
+                chunk.context_start,
+                chunk.context_end - chunk.context_start,
+            )
+
+        prefetch_enabled = bool(config.get("prefetch_windows", True)) and len(chunks) > 1
+        with BoundedExecutor("asr-prefetch", max_workers=1, max_pending=1) as prefetch:
+            current_future = prefetch.submit(extract_window, chunks[0])
+            for index, chunk in enumerate(chunks):
+                window_path = current_future.result()
+                next_future = (
+                    prefetch.submit(extract_window, chunks[index + 1])
+                    if prefetch_enabled and index + 1 < len(chunks)
+                    else None
+                )
+                try:
+                    audio = whisperx.load_audio(str(window_path))
+                    result = _transcribe_with_batch_fallback(
+                        model,
+                        audio,
+                        batch_size=batch_size,
+                        device=device,
+                    )
+                    result_language = str(result.get("language") or language or "en")
+                    align_pair = align_models.get(result_language)
+                    if align_pair is None:
+                        align_pair = whisperx.load_align_model(
+                            language_code=result_language,
+                            device=device,
+                        )
+                        align_models[result_language] = align_pair
+                    align_model, metadata = align_pair
+                    aligned = whisperx.align(
+                        result["segments"],
+                        align_model,
+                        metadata,
+                        audio,
+                        device,
+                        return_char_alignments=False,
+                    )
+
+                    owned: list[Segment] = []
+                    for item in aligned.get("segments", []):
+                        if not isinstance(item, dict) or not str(item.get("text", "")).strip():
+                            continue
+                        local = _segment_from_aligned(item, len(owned))
+                        global_segment = _shift_segment_to_global(local, chunk.context_start, len(owned))
+                        midpoint = (global_segment.start + global_segment.end) / 2.0
+                        owns_midpoint = chunk.source_start <= midpoint < chunk.source_end
+                        if owns_midpoint:
+                            global_segment.id = len(owned)
+                            owned.append(global_segment)
+                    results[chunk.chunk_id] = owned
+                    if on_chunk is not None:
+                        on_chunk(chunk, owned)
+                finally:
+                    window_path.unlink(missing_ok=True)
+                if next_future is not None:
+                    current_future = next_future
+                elif index + 1 < len(chunks):
+                    current_future = prefetch.submit(extract_window, chunks[index + 1])
+        return results
+    finally:
+        _release_cuda(model, *(pair[0] for pair in align_models.values()))
 
 
 def transcribe_text(

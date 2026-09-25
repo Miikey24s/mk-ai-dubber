@@ -94,6 +94,74 @@ def clip_audio(source: Path, output: Path, start: float, duration: float) -> Pat
     return output
 
 
+def detect_speech_intervals(
+    source: Path,
+    *,
+    duration_seconds: float,
+    noise_db: float = -40.0,
+    min_silence_seconds: float = 0.35,
+) -> list[tuple[float, float]]:
+    """Return speech ranges using FFmpeg's streaming silencedetect filter.
+
+    The detector never loads the whole waveform into Python memory. Returned ranges
+    are only used to choose macro-chunk boundaries; WhisperX still owns ASR/VAD.
+    """
+    if duration_seconds <= 0:
+        raise ValueError("duration_seconds must be positive")
+    if min_silence_seconds <= 0:
+        raise ValueError("min_silence_seconds must be positive")
+
+    result = subprocess.run(
+        [
+            str(ffmpeg_exe()),
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(source),
+            "-af",
+            f"silencedetect=noise={float(noise_db):.1f}dB:d={float(min_silence_seconds):.3f}",
+            "-f",
+            "null",
+            "-",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg silencedetect failed:\n{result.stderr.strip()}")
+
+    silence_ranges: list[tuple[float, float]] = []
+    pending_start: float | None = None
+    for line in result.stderr.splitlines():
+        start_match = re.search(r"silence_start:\s*([0-9.eE+-]+)", line)
+        if start_match:
+            pending_start = max(0.0, float(start_match.group(1)))
+            continue
+        end_match = re.search(r"silence_end:\s*([0-9.eE+-]+)", line)
+        if end_match:
+            silence_end = min(duration_seconds, float(end_match.group(1)))
+            silence_start = 0.0 if pending_start is None else pending_start
+            if silence_end > silence_start:
+                silence_ranges.append((silence_start, silence_end))
+            pending_start = None
+    if pending_start is not None and pending_start < duration_seconds:
+        silence_ranges.append((pending_start, duration_seconds))
+
+    speech: list[tuple[float, float]] = []
+    cursor = 0.0
+    for silence_start, silence_end in sorted(silence_ranges):
+        silence_start = max(cursor, min(duration_seconds, silence_start))
+        silence_end = max(silence_start, min(duration_seconds, silence_end))
+        if silence_start > cursor:
+            speech.append((cursor, silence_start))
+        cursor = max(cursor, silence_end)
+    if cursor < duration_seconds:
+        speech.append((cursor, duration_seconds))
+    return speech
+
+
 def _atempo_chain(tempo: float) -> str:
     factors: list[float] = []
     remaining = tempo

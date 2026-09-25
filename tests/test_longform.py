@@ -1,6 +1,7 @@
 import pytest
 
 from vi_dubber.longform import MacroChunkPolicy, SpeechInterval, plan_macro_chunks
+from vi_dubber.media import detect_speech_intervals
 
 
 def _policy(**overrides: float) -> MacroChunkPolicy:
@@ -91,3 +92,29 @@ def test_invalid_policy_and_duration_fail_closed() -> None:
         MacroChunkPolicy(min_seconds=100.0, target_seconds=50.0, max_seconds=120.0)
     with pytest.raises(ValueError):
         plan_macro_chunks(0.0)
+
+
+def test_detect_speech_intervals_builds_complement_of_ffmpeg_silence(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import vi_dubber.media as media_module
+
+    class Result:
+        returncode = 0
+        stderr = "\n".join(
+            [
+                "[silencedetect] silence_start: 0",
+                "[silencedetect] silence_end: 2.5 | silence_duration: 2.5",
+                "[silencedetect] silence_start: 7.0",
+                "[silencedetect] silence_end: 8.0 | silence_duration: 1.0",
+                "[silencedetect] silence_start: 12.0",
+            ]
+        )
+
+    monkeypatch.setattr(media_module.subprocess, "run", lambda *args, **kwargs: Result())
+    source = tmp_path / "vocals.wav"
+
+    assert detect_speech_intervals(source, duration_seconds=15.0) == [
+        (2.5, 7.0),
+        (8.0, 12.0),
+    ]
