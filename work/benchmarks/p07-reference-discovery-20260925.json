@@ -1,0 +1,57 @@
+{
+  "rows": [
+    {
+      "candidate_count": 16,
+      "job_id": "job-912ef48c16d4d0f3",
+      "legacy_score": 0.4514981900256074,
+      "legacy_segment_id": 0,
+      "score_gain": 0.3234109700707062,
+      "selection_differs": true,
+      "smart_score": 0.7749091600963136,
+      "smart_segment_id": 5,
+      "source_name": "source-83s.mp4",
+      "source_sha256": "912ef48c16d4d0f39841df20fcee6e52ac52d9d4dfc6bad6ca37ecac87c9ced2",
+      "speaker": "SPEAKER_00"
+    },
+    {
+      "candidate_count": 13,
+      "job_id": "job-f8ee1a991ac4c443",
+      "legacy_score": 0.627886851578473,
+      "legacy_segment_id": 0,
+      "score_gain": 0.3043086998923741,
+      "selection_differs": true,
+      "smart_score": 0.9321955514708471,
+      "smart_segment_id": 19,
+      "source_name": "source-90s.mp4",
+      "source_sha256": "f8ee1a991ac4c443e20320105fbc411609a29c404cde5a793c9be1b1359c7a35",
+      "speaker": "SPEAKER_00"
+    },
+    {
+      "candidate_count": 13,
+      "job_id": "job-4fce48270d1f328c",
+      "legacy_score": 0.5818956887126803,
+      "legacy_segment_id": 0,
+      "score_gain": 0.18301473217974384,
+      "selection_differs": true,
+      "smart_score": 0.7649104208924241,
+      "smart_segment_id": 7,
+      "source_name": "source-60s.mp4",
+      "source_sha256": "4fce48270d1f328cfcabf2d0bcfc95bb6a1f89db82232ac2965dac25ee160c87",
+      "speaker": "SPEAKER_00"
+    },
+    {
+      "candidate_count": 28,
+      "job_id": "job-4c8236a32c685a11",
+      "legacy_score": 0.83283935016558,
+      "legacy_segment_id": 1,
+      "score_gain": 0.054499239641688124,
+      "selection_differs": true,
+      "smart_score": 0.8873385898072681,
+      "smart_segment_id": 6,
+      "source_name": "CP2-short-smart-source.mp4",
+      "source_sha256": "4c8236a32c685a11214c3d275956a2b03744e8b28b6e4d8ecb3cf1927a52a2c5",
+      "speaker": "SPEAKER_00"
+    }
+  ],
+  "schema_version": 1
+}
