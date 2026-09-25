@@ -1,0 +1,355 @@
+{
+  "schema_version": 1,
+  "manifest": "work/benchmarks/fixtures.json",
+  "integrity": {
+    "missing_artifacts": [],
+    "hash_mismatches": []
+  },
+  "totals": {
+    "p17_fixture_runs": 8,
+    "p17_segments_checked": 68,
+    "p17_final_failed": 2,
+    "p17_passed_segments": 66,
+    "p17_variant_passes": 23,
+    "p17_zero_flag_runs": 6,
+    "supplemental_runs": 2,
+    "supplemental_segments_checked": 103,
+    "supplemental_final_failed": 4
+  },
+  "known_detected_defects": [
+    {
+      "fixture_id": "golden-names-numbers-technical-terms",
+      "segment_id": 9,
+      "expected": "Thắng sáu mươi sáu phần trăm, thua ba mươi ba phần trăm.",
+      "actual": "thẳng 66%, thua 53%.",
+      "missing_critical": "ba mươi ba phần trăm",
+      "caught_by_final_segment_qa": true,
+      "observed_flag": {
+        "segment_id": 9,
+        "action": "text_repair",
+        "reasons": [
+          "missing_critical"
+        ],
+        "missing_critical": [
+          "ba mươi ba phần trăm"
+        ],
+        "similarity": 0.9357798165137613,
+        "timing_ratio": 0.6748109365910407,
+        "expected": "Thắng sáu mươi sáu phần trăm, thua ba mươi ba phần trăm.",
+        "actual": "thẳng 66%, thua 53%."
+      }
+    }
+  ],
+  "p17_runs": [
+    {
+      "fixture_id": "golden-clean-single-speaker-talking-head",
+      "role": "clean-talking-head-real-regression",
+      "categories": [
+        "clean-single-speaker-talking-head"
+      ],
+      "source_kind": "real",
+      "path": "work/benchmarks/p17-clean-talking-head/after-segment_qa.json",
+      "sha256": "9fff499d6ff1d8da311512b303fd16555895a67c7ceffcd2f8eaf1d44f1425e6",
+      "segments_checked": 13,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 13,
+      "variant_passes": 5,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": []
+    },
+    {
+      "fixture_id": "golden-fast-english-speech",
+      "role": "fast-english-real-regression",
+      "categories": [
+        "fast-english-speech"
+      ],
+      "source_kind": "real",
+      "path": "work/benchmarks/p17-fast-english/current-segment_qa.json",
+      "sha256": "6680f333f7fd9adcee36185c3c9a815d447ea6c904a20e0d9be63dfa00a76017",
+      "segments_checked": 20,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 20,
+      "variant_passes": 6,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": [],
+      "declared_segment_qa_failed": 0,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-music-under-dialogue",
+      "role": "synthetic-source-regression",
+      "categories": [
+        "music-under-dialogue"
+      ],
+      "source_kind": "synthetic",
+      "path": "work/job-057696a792e2d01d/segment_qa.json",
+      "sha256": "ab2cdfbf276b320b50169592fce2e180a8588cf9a79355ac2e7da2cac47db5e1",
+      "segments_checked": 2,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 2,
+      "variant_passes": 0,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": [],
+      "declared_segment_qa_failed": 0,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-noisy-speech",
+      "role": "synthetic-source-regression",
+      "categories": [
+        "noisy-speech"
+      ],
+      "source_kind": "synthetic",
+      "path": "work/job-69e16c5a33cf91ff/segment_qa.json",
+      "sha256": "a09d21e78e14ecc1eb71d2ddc604ddf46b4de82a7ff87ad8be22b6039daa4b19",
+      "segments_checked": 2,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 2,
+      "variant_passes": 0,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": [],
+      "declared_segment_qa_failed": 0,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-two-speakers",
+      "role": "synthetic-source-regression",
+      "categories": [
+        "two-speakers"
+      ],
+      "source_kind": "synthetic",
+      "path": "work/job-245fef386fd06143/segment_qa.json",
+      "sha256": "4a045a0f577718f649adfa7f7b77f5083c45266c24d84e18a53327716b3e7963",
+      "segments_checked": 5,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 5,
+      "variant_passes": 0,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": [],
+      "declared_segment_qa_failed": 0,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-overlapping-speech",
+      "role": "synthetic-source-regression",
+      "categories": [
+        "overlapping-speech"
+      ],
+      "source_kind": "synthetic",
+      "path": "work/job-818d0c0945f59098/segment_qa.json",
+      "sha256": "7ce65b40e611aa42d64845724c4924aa7b02bdd7df4521bdb8069354e4cea01a",
+      "segments_checked": 2,
+      "initial_failed": 0,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 0,
+      "passed_segments": 2,
+      "variant_passes": 2,
+      "reason_counts": {},
+      "action_counts": {},
+      "flags": [],
+      "declared_segment_qa_failed": 0,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-names-numbers-technical-terms",
+      "role": "technical-terms-real-regression",
+      "categories": [
+        "names-numbers-technical-terms"
+      ],
+      "source_kind": "real",
+      "path": "work/benchmarks/p17-technical-terms/current-segment_qa.json",
+      "sha256": "c6b4ace990412735400d2d5ccd6be0641d1496fe7dfb130a67171d56f5debc40",
+      "segments_checked": 20,
+      "initial_failed": 1,
+      "repairs_attempted": 0,
+      "repairs_completed": 0,
+      "final_failed": 1,
+      "passed_segments": 19,
+      "variant_passes": 10,
+      "reason_counts": {
+        "missing_critical": 1
+      },
+      "action_counts": {
+        "text_repair": 1
+      },
+      "flags": [
+        {
+          "segment_id": 9,
+          "action": "text_repair",
+          "reasons": [
+            "missing_critical"
+          ],
+          "missing_critical": [
+            "ba mươi ba phần trăm"
+          ],
+          "similarity": 0.9357798165137613,
+          "timing_ratio": 0.6748109365910407,
+          "expected": "Thắng sáu mươi sáu phần trăm, thua ba mươi ba phần trăm.",
+          "actual": "thẳng 66%, thua 53%."
+        }
+      ],
+      "declared_segment_qa_failed": 1,
+      "declared_failure_count_matches": true
+    },
+    {
+      "fixture_id": "golden-emotional-prosody-stress",
+      "role": "synthetic-source-regression",
+      "categories": [
+        "emotional-prosody-stress"
+      ],
+      "source_kind": "synthetic",
+      "path": "work/job-29ec8d1b6baacab3/segment_qa.json",
+      "sha256": "c1c2cc6524b1b7b96959423a35c00d86af11e2161e7858c1ef9d6e39528cf2f5",
+      "segments_checked": 4,
+      "initial_failed": 1,
+      "repairs_attempted": 1,
+      "repairs_completed": 1,
+      "final_failed": 1,
+      "passed_segments": 3,
+      "variant_passes": 0,
+      "reason_counts": {
+        "timing_overflow": 1
+      },
+      "action_counts": {
+        "timing_rewrite": 1
+      },
+      "flags": [
+        {
+          "segment_id": 3,
+          "action": "timing_rewrite",
+          "reasons": [
+            "timing_overflow"
+          ],
+          "missing_critical": [],
+          "similarity": 0.984375,
+          "timing_ratio": 1.1703269079850893,
+          "expected": "Hành động ngay, bảo vệ phần giảm, đừng do dự khi tín hiệu biến mất.",
+          "actual": "Hành động ngay, bảo vệ phân giảm, đừng do dự khi tín hiệu biến mất."
+        }
+      ],
+      "declared_segment_qa_failed": 1,
+      "declared_failure_count_matches": true
+    }
+  ],
+  "supplemental_runs": [
+    {
+      "label": "canonical-short-50",
+      "path": "work/job-4c8236a32c685a11/segment_qa.json",
+      "sha256": "52eba3e9031be87755a58caca3a882989ba3467803cef3614eb37ba0b0818175",
+      "segments_checked": 50,
+      "initial_failed": 3,
+      "repairs_attempted": 1,
+      "repairs_completed": 1,
+      "final_failed": 3,
+      "passed_segments": 47,
+      "variant_passes": 16,
+      "reason_counts": {
+        "missing_critical": 2,
+        "timing_overflow": 1
+      },
+      "action_counts": {
+        "text_repair": 2,
+        "timing_rewrite": 1
+      },
+      "flags": [
+        {
+          "segment_id": 8,
+          "action": "timing_rewrite",
+          "reasons": [
+            "timing_overflow"
+          ],
+          "missing_critical": [],
+          "similarity": 1.0,
+          "timing_ratio": 1.323421168850286,
+          "expected": "mỗi ngày: 1.440 phút, mỗi tuần một trăm sáu mươi tám giờ.",
+          "actual": "Mỗi ngày 1.440 phút, mỗi tuần 168 giờ."
+        },
+        {
+          "segment_id": 21,
+          "action": "text_repair",
+          "reasons": [
+            "missing_critical"
+          ],
+          "missing_critical": [
+            "cần"
+          ],
+          "similarity": 0.9019607843137255,
+          "timing_ratio": 0.9964451814577647,
+          "expected": "sách cần đọc, hãy đọc ngay.",
+          "actual": "Sách kênh đọc, hãy đọc ngay!"
+        },
+        {
+          "segment_id": 25,
+          "action": "text_repair",
+          "reasons": [
+            "missing_critical"
+          ],
+          "missing_critical": [
+            "cần"
+          ],
+          "similarity": 0.9285714285714286,
+          "timing_ratio": 0.9960675694159554,
+          "expected": "Ai cần bạn làm chứng, làm ngay.",
+          "actual": "Icon, bạn làm chứng, làm ngay."
+        }
+      ]
+    },
+    {
+      "label": "p12-routing-isolated-53",
+      "path": "work/p12-routing-e2e-20260923-0945/job-4c8236a32c685a11/segment_qa.json",
+      "sha256": "82c9ca8d0e38eee9ef02c0a6d8d7b74492987c97da9e3f8ea5c5a55efa69fa76",
+      "segments_checked": 53,
+      "initial_failed": 1,
+      "repairs_attempted": 1,
+      "repairs_completed": 1,
+      "final_failed": 1,
+      "passed_segments": 52,
+      "variant_passes": 8,
+      "reason_counts": {
+        "timing_overflow": 1
+      },
+      "action_counts": {
+        "timing_rewrite": 1
+      },
+      "flags": [
+        {
+          "segment_id": 9,
+          "action": "timing_rewrite",
+          "reasons": [
+            "timing_overflow"
+          ],
+          "missing_critical": [],
+          "similarity": 0.9315068493150684,
+          "timing_ratio": 1.5250456664147136,
+          "expected": "1.440 phút/ngày, một trăm sáu mươi tám giờ/tuần.",
+          "actual": "1440 phút trên ngày, 168 giờ trên tuần."
+        }
+      ]
+    }
+  ],
+  "interpretation": {
+    "variant_passes_definition": "Final segment passed while transcript similarity was below 1.0; this is evidence that benign ASR variation is not automatically flagged.",
+    "false_positive_limit": "Machine artifacts cannot establish an audible false-positive rate. Flagged segments without independent listening labels remain unresolved."
+  }
+}
