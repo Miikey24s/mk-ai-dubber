@@ -123,6 +123,36 @@ def test_completed_chunk_survives_failure_scope_of_sibling_chunk(tmp_path: Path)
     assert load_chunk_stage(job, second, "asr", second_fp) is None
 
 
+def test_crash_after_artifact_write_does_not_reuse_uncommitted_chunk_stage(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    chunk = _chunk(0, 0.0, 100.0)
+    upstream = "translation-fingerprint"
+    inputs = {"text": "xin chao", "voice": "speaker-00"}
+    fingerprint = chunk_stage_fingerprint(
+        chunk,
+        "tts",
+        inputs=inputs,
+        upstream=upstream,
+    )
+    output = _artifact(job, chunk, "tts", "orphaned-audio-after-crash")
+
+    # Simulate a process dying after the artifact was written but before the
+    # manifest commit. Resume must ignore the orphaned file.
+    assert load_chunk_stage(job, chunk, "tts", fingerprint) is None
+
+    manifest = commit_chunk_stage(
+        job,
+        chunk,
+        "tts",
+        inputs=inputs,
+        artifacts=[output],
+        upstream=upstream,
+    )
+
+    assert manifest["fingerprint"] == fingerprint
+    assert load_chunk_stage(job, chunk, "tts", fingerprint) == manifest
+
+
 def test_downstream_stage_contract_is_explicit() -> None:
     assert downstream_chunk_stages("translation") == ("translation", "tts", "qa", "preview")
     assert downstream_chunk_stages("translation", include_self=False) == ("tts", "qa", "preview")
