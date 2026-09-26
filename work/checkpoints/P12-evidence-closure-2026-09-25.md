@@ -1,5 +1,7 @@
 # P12 segment-QA evidence checkpoint - 2026-09-25
 
+Status update 27/09/2026: **ACCEPTED / OWNER HUMAN LISTENING PASS**.
+
 Scope: evidence-only closure pass for P12. No changes to pipeline/config/PLAN policy.
 
 ## Existing evidence consolidated
@@ -29,15 +31,28 @@ The canonical 50-segment and technical-term artifacts were produced before the c
 
 ## Closure decision
 
-P12 should remain open for human-listening closure only. Machine evidence now shows:
+Machine evidence shows:
 
 - known serious numeric/critical-token defects are caught;
 - benign ASR wording variation can pass without being flagged;
 - selective repair remains segment-scoped and action routing is correct under the current policy.
 
-What is still missing is independent listening labels for the remaining flagged segments and a small representative sample of unflagged segments. Without those labels, an audible false-positive rate cannot be claimed. Do not relax thresholds or alter routing just to make the remaining flags disappear.
+The missing human evidence was completed by the owner on 27/09/2026 using `work/benchmarks/P12-human-listening-2026-09-27/`. The packet included all six retained final machine flags plus three unflagged controls from separate retained runs. The owner labeled all nine clips audibly acceptable.
+
+After unblinding:
+
+- flagged clips judged audibly OK: `6/6`;
+- unflagged controls judged audibly OK: `3/3`;
+- retained checked segments represented by the consolidated evidence: `171`;
+- retained final machine flags: `6`;
+- observed audible false-positive rate across the retained checked set: `6/171 = 3.51%`;
+- sampled unflagged audible issue rate: `0/3`.
+
+This closes the P12 human TP/FP evidence gate under the owner's one-reviewer acceptance scope. The six machine flags remain useful diagnostics and are not deleted or reclassified in the stored machine artifacts; the human result means they were not audibly defective to the owner on playback. No threshold was relaxed and selective repair remains segment-scoped/fail-closed.
+
+Human receipt: `work/checkpoints/P12-owner-human-listening-2026-09-27.json`.
 
 ## Validation
 
-- `uv run pytest -q tests/test_p12_evidence_tool.py tests/test_audio_qa.py` -> 27 passed.
+- `uv run pytest -q tests/test_p12_evidence_tool.py tests/test_audio_qa.py` -> `34 passed` on the 27/09 human-reconcile check.
 - `python tools/p12_evidence.py --output work/benchmarks/p12-evidence-20260925.json` -> success; artifact integrity checks passed.

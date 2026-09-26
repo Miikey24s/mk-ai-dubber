@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-27",
+  "reviewer_id": "owner",
+  "packet": "work/benchmarks/P12-human-listening-2026-09-27",
+  "labels": [
+    {
+      "clip": "001",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "002",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "003",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "004",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "005",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "006",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "007",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "008",
+      "owner_label": "ok"
+    },
+    {
+      "clip": "009",
+      "owner_label": "ok"
+    }
+  ],
+  "unblinded_summary": {
+    "machine_flagged_clips": 6,
+    "machine_flagged_labeled_audibly_ok": 6,
+    "unflagged_sample_clips": 3,
+    "unflagged_sample_labeled_audibly_ok": 3,
+    "retained_segments_checked": 171,
+    "retained_final_machine_flags": 6,
+    "observed_audible_false_positive_rate_across_retained_checked_segments": 0.03508771929824561,
+    "sampled_unflagged_audible_issue_rate": 0.0
+  },
+  "interpretation": [
+    "All six retained final machine flags were judged audibly acceptable by the owner, so these are human-labeled audible false positives for this retained evidence set.",
+    "Three sampled unflagged clips were also judged audibly acceptable; no audible false negative was observed in this small sample.",
+    "This human result does not erase machine diagnostics; it closes the perceptual TP/FP evidence requested by P12."
+  ],
+  "media": [
+    {
+      "file": "clip-001.mp4",
+      "sha256": "97b5728cf9ade71d5a127e598c7ae990d043583714a691d111736674fa0b3f9c",
+      "bytes": 2523958
+    },
+    {
+      "file": "clip-002.mp4",
+      "sha256": "ec5f778e4f80b4e60a506a477ecf9160ce073ece08119b0d1f7fcc8d5fd54710",
+      "bytes": 74202
+    },
+    {
+      "file": "clip-003.mp4",
+      "sha256": "399e152b283721756d079db0c215c55e6dac3c39cc1955d3f7c3cd324a7136cc",
+      "bytes": 1247988
+    },
+    {
+      "file": "clip-004.mp4",
+      "sha256": "0102ca264b02706bff1f7dda8f8d29a9dd3a559e0e67668cc709f1ab5c3eea5b",
+      "bytes": 3041733
+    },
+    {
+      "file": "clip-005.mp4",
+      "sha256": "509ee2962c0fb9256c0a269cf9b6c752f95e737fec0ed2b391df8947f8c2df15",
+      "bytes": 4867797
+    },
+    {
+      "file": "clip-006.mp4",
+      "sha256": "034493d9216db70439b8e2c08eed61b8b6a95fa3d16e0461f487b88cf3559c32",
+      "bytes": 1687485
+    },
+    {
+      "file": "clip-007.mp4",
+      "sha256": "cf39e49c4f692eb496de9de0eb40fe767aece7ae53145514145c5a0cd1d70127",
+      "bytes": 5189452
+    },
+    {
+      "file": "clip-008.mp4",
+      "sha256": "01b682a125494ec5dcdcecbec2613599f522e226741ef53a2254ffbf00a4a416",
+      "bytes": 102907
+    },
+    {
+      "file": "clip-009.mp4",
+      "sha256": "36b008758773bceab04419e0713c788b1c520ea6f0d80df64354cc23938e1436",
+      "bytes": 1742129
+    }
+  ]
+}
