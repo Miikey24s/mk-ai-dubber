@@ -11,11 +11,14 @@ from rapidfuzz.fuzz import ratio
 from .pronunciation import normalize_pronunciation
 
 
-SEGMENT_QA_POLICY_VERSION = 4
+SEGMENT_QA_POLICY_VERSION = 6
 
 
 _GROUPED_INTEGER_RE = re.compile(r"(?<!\w)\d{1,3}(?:[.,]\d{3})+(?!\w)")
 _GROUPED_INTEGER_SPACES_RE = re.compile(r"(?<!\w)\d{1,3}(?:\s\d{3})+(?!\w)")
+_ASR_ZERO_PREFIX_DECIMAL_RE = re.compile(r"(?<!\w)0[.,](\d+)(?!\w)")
+_ASR_ZERO_PREFIX_INTEGER_RE = re.compile(r"(?<!\w)0+(\d+)(?!\w)")
+_LATIN_TECHNICAL_TERM_RE = re.compile(r"[a-z]+(?:\s+[a-z]+)*")
 
 
 def normalize_spoken_text(text: str) -> str:
@@ -34,6 +37,18 @@ def normalize_spoken_equivalent(text: str) -> str:
     return normalize_spoken_text(normalize_pronunciation(value, normalize_numbers=True).tts_text)
 
 
+def _normalize_asr_critical_equivalent(text: str) -> str:
+    """Normalize narrow Whisper number-format artifacts for critical-token presence checks."""
+    value = unicodedata.normalize("NFKC", str(text or ""))
+    # Whisper can render a spoken frame such as "khung mười lăm" as "0.15"
+    # and a leading-zero integer such as "04". This alias is intentionally
+    # limited to acoustic critical-token matching; semantic number checks keep
+    # the stricter normalization above.
+    value = _ASR_ZERO_PREFIX_DECIMAL_RE.sub(lambda match: match.group(1), value)
+    value = _ASR_ZERO_PREFIX_INTEGER_RE.sub(lambda match: match.group(1), value)
+    return normalize_spoken_equivalent(value)
+
+
 def _critical_token_variants(token: str) -> set[str]:
     raw = normalize_spoken_text(token)
     variants = {raw, normalize_spoken_equivalent(token)}
@@ -41,6 +56,39 @@ def _critical_token_variants(token: str) -> set[str]:
         collapsed = re.sub(r"\s+", "", raw)
         variants.add(normalize_spoken_equivalent(collapsed))
     return {item for item in variants if item}
+
+
+def _latin_technical_asr_match(token: str, actual: str) -> bool:
+    """Accept narrow Whisper spelling splits for long English technical terms."""
+    normalized = normalize_spoken_text(token)
+    if not _LATIN_TECHNICAL_TERM_RE.fullmatch(normalized):
+        return False
+    target = normalized.replace(" ", "")
+    if len(target) < 6:
+        return False
+
+    target_skeleton = re.sub(r"[aeiou]", "", target)
+    words = [
+        word
+        for word in normalize_spoken_text(actual).split()
+        if re.fullmatch(r"[a-z]+", word)
+    ]
+    for start in range(len(words)):
+        candidate = ""
+        for end in range(start, min(len(words), start + 3)):
+            candidate += words[end]
+            if len(candidate) < len(target) - 3:
+                continue
+            if len(candidate) > len(target) + 3:
+                break
+            candidate_skeleton = re.sub(r"[aeiou]", "", candidate)
+            if not candidate_skeleton or not target_skeleton:
+                continue
+            raw_score = float(ratio(target, candidate)) / 100.0
+            skeleton_score = float(ratio(target_skeleton, candidate_skeleton)) / 100.0
+            if raw_score >= 0.75 and skeleton_score >= 0.88:
+                return True
+    return False
 
 
 def transcript_similarity(expected: str, actual: str) -> float:
@@ -124,13 +172,18 @@ def evaluate_segment_qa(
     actual_padded = f" {actual_normalized} "
     actual_spoken = normalize_spoken_equivalent(actual)
     actual_spoken_padded = f" {actual_spoken} "
+    actual_asr_critical = _normalize_asr_critical_equivalent(actual)
+    actual_asr_critical_padded = f" {actual_asr_critical} "
     missing = sorted(
         token
         for token in expected_critical
         if not any(
-            f" {variant} " in actual_padded or f" {variant} " in actual_spoken_padded
+            f" {variant} " in actual_padded
+            or f" {variant} " in actual_spoken_padded
+            or f" {variant} " in actual_asr_critical_padded
             for variant in _critical_token_variants(token)
         )
+        and not _latin_technical_asr_match(token, actual_normalized)
     )
     timing_ratio = actual_duration / max(0.001, target_duration)
     reasons: list[str] = []
@@ -174,6 +227,65 @@ def selective_repair_ids(results: Iterable[SegmentQAResult]) -> dict[str, list[i
             continue
         routed.setdefault(result.action, []).append(result.segment_id)
     return routed
+
+
+def select_acoustic_qa_segment_ids(
+    segment_ids: Iterable[int],
+    *,
+    risk_ids: Iterable[int] = (),
+    scope: str = "all",
+    sample_ratio: float = 0.08,
+    sample_min: int = 2,
+    sample_max: int = 6,
+) -> dict[str, Any]:
+    """Select expensive re-ASR checks while keeping deterministic QA on every segment."""
+    ordered = list(dict.fromkeys(int(segment_id) for segment_id in segment_ids))
+    normalized_scope = str(scope or "all").strip().casefold()
+    if normalized_scope not in {"all", "risk"}:
+        raise ValueError("segment QA scope must be 'all' or 'risk'")
+
+    requested_risk = {int(item) for item in risk_ids}
+    risk = [segment_id for segment_id in ordered if segment_id in requested_risk]
+    if normalized_scope == "all":
+        return {
+            "scope": "all",
+            "risk_segment_ids": risk,
+            "sampled_segment_ids": [],
+            "selected_segment_ids": ordered,
+        }
+
+    ratio = max(0.0, min(1.0, float(sample_ratio)))
+    lower = max(0, int(sample_min))
+    upper = max(lower, int(sample_max))
+    risk_set = set(risk)
+    remaining = [segment_id for segment_id in ordered if segment_id not in risk_set]
+    target = min(upper, max(lower, int(round(len(ordered) * ratio)))) if remaining else 0
+    target = min(target, len(remaining))
+
+    sampled: list[int] = []
+    if target == 1:
+        sampled = [remaining[len(remaining) // 2]]
+    elif target > 1:
+        positions = [round(index * (len(remaining) - 1) / (target - 1)) for index in range(target)]
+        sampled = list(dict.fromkeys(remaining[position] for position in positions))
+        if len(sampled) < target:
+            sampled_set = set(sampled)
+            for segment_id in remaining:
+                if segment_id in sampled_set:
+                    continue
+                sampled.append(segment_id)
+                sampled_set.add(segment_id)
+                if len(sampled) >= target:
+                    break
+
+    selected_set = risk_set | set(sampled)
+    selected = [segment_id for segment_id in ordered if segment_id in selected_set]
+    return {
+        "scope": "risk",
+        "risk_segment_ids": risk,
+        "sampled_segment_ids": sampled,
+        "selected_segment_ids": selected,
+    }
 
 
 _REPAIR_PRIORITY = {

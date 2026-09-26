@@ -18,6 +18,7 @@ from vi_dubber.qa import (
     SegmentQAObservation,
     evaluate_segment_qa,
     run_segment_qa_cycle,
+    select_acoustic_qa_segment_ids,
     selective_repair_plan,
 )
 from vi_dubber.types import Segment
@@ -385,6 +386,69 @@ def test_segment_qa_treats_digit_and_spoken_number_as_asr_equivalents(
 
 
 @pytest.mark.parametrize(
+    ("expected", "actual", "critical_terms"),
+    [
+        (
+            "Chuyển sang khung mười lăm phút cho nhanh, giá tiến rất sát take profit.",
+            "Chuyển sang 0.15 phút cho nhanh, giá tiến rất sát take profit.",
+            ("mười lăm",),
+        ),
+        (
+            "Nếu chuyển sang khung bốn giờ, đôi khi bạn sẽ thấy trường hợp thế này.",
+            "Nếu chuyển sang 04 giờ, đôi khi bạn sẽ thấy trường hợp thế này.",
+            ("bốn",),
+        ),
+    ],
+)
+def test_segment_qa_treats_whisper_zero_prefix_as_critical_number_alias(
+    expected: str,
+    actual: str,
+    critical_terms: tuple[str, ...],
+) -> None:
+    result = evaluate_segment_qa(
+        1,
+        expected,
+        actual,
+        target_duration=2.0,
+        actual_duration=2.0,
+        glossary_terms=critical_terms,
+    )
+
+    assert result.missing_critical == []
+    assert result.similarity >= 0.78
+    assert result.passed is True
+
+
+@pytest.mark.parametrize("actual", ["thoát ở break event", "thoát ở break a van"])
+def test_segment_qa_treats_narrow_whisper_english_split_as_critical_alias(actual: str) -> None:
+    result = evaluate_segment_qa(
+        1,
+        "thoát ở breakeven",
+        actual,
+        target_duration=2.0,
+        actual_duration=2.0,
+        glossary_terms=["breakeven"],
+    )
+
+    assert result.missing_critical == []
+    assert result.passed is True
+
+
+def test_segment_qa_does_not_confuse_different_english_technical_term() -> None:
+    result = evaluate_segment_qa(
+        1,
+        "thoát ở breakeven",
+        "thoát ở breakout",
+        target_duration=2.0,
+        actual_duration=2.0,
+        glossary_terms=["breakeven"],
+    )
+
+    assert result.missing_critical == ["breakeven"]
+    assert result.passed is False
+
+
+@pytest.mark.parametrize(
     ("expected", "actual", "glossary_terms"),
     [
         ("BẠN không nên bán.", "bạn không nên bán", []),
@@ -530,3 +594,30 @@ def test_fit_audio_to_window_slows_only_when_near_target(
     assert final_duration == pytest.approx(0.80)
     assert tempo == pytest.approx(1.0)
     assert all("atempo=" not in value for value in calls[0])
+
+def test_risk_acoustic_qa_selection_keeps_risk_and_small_deterministic_sample() -> None:
+    selection = select_acoustic_qa_segment_ids(
+        range(20),
+        risk_ids={3, 7, 12},
+        scope="risk",
+        sample_ratio=0.10,
+        sample_min=2,
+        sample_max=4,
+    )
+
+    assert selection["scope"] == "risk"
+    assert selection["risk_segment_ids"] == [3, 7, 12]
+    assert len(selection["sampled_segment_ids"]) == 2
+    assert set(selection["risk_segment_ids"]).issubset(selection["selected_segment_ids"])
+    assert len(selection["selected_segment_ids"]) == 5
+
+
+def test_full_acoustic_qa_selection_preserves_all_segments() -> None:
+    selection = select_acoustic_qa_segment_ids(
+        [9, 2, 5],
+        risk_ids={2},
+        scope="all",
+    )
+
+    assert selection["selected_segment_ids"] == [9, 2, 5]
+    assert selection["sampled_segment_ids"] == []
