@@ -388,7 +388,12 @@ def _select_recommendation(
             "trials": len(candidate_runs),
             "source_similarity": source_similarity,
             "translated_similarity": translated_similarity,
-            "quality_equivalent": source_similarity >= 0.995 and translated_similarity >= 0.98,
+            # Each run reaches status=passed only after its own product quality
+            # and fault gates clear. Independent WebGPT generations can be
+            # semantically valid while differing substantially in literal text,
+            # so cross-run translated-text similarity is diagnostic only.
+            "translated_similarity_diagnostic_only": True,
+            "quality_equivalent": source_similarity >= 0.995,
         }
         if evaluated["quality_equivalent"] and speedup >= 1.03:
             candidates.append(evaluated)

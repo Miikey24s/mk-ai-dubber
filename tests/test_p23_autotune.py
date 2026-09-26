@@ -92,6 +92,19 @@ def test_autotune_recommends_only_quality_equivalent_speedup() -> None:
     assert recommendation["auto_applied"] is False
 
 
+def test_autotune_does_not_require_literal_match_between_independent_translations() -> None:
+    recommendation = _select_recommendation(
+        [
+            _run("baseline", 100.0, vi="ban dich mot"),
+            _run("winner", 80.0, vi="cach dien dat hoan toan khac"),
+        ]
+    )
+
+    assert recommendation["eligible_for_manual_promotion"] is True
+    assert recommendation["candidate"]["translated_similarity"] < 0.98
+    assert recommendation["candidate"]["translated_similarity_diagnostic_only"] is True
+
+
 def test_autotune_fails_closed_when_baseline_or_candidate_gate_fails() -> None:
     assert _select_recommendation([_run("baseline", 100.0, status="gate_failed")]) == {
         "eligible_for_manual_promotion": False,

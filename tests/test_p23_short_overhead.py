@@ -15,13 +15,14 @@ sys.modules[SPEC.name] = bench
 SPEC.loader.exec_module(bench)
 
 
-def _run(label: str, *, wall: float, enabled: bool) -> dict:
+def _run(label: str, *, wall: float, enabled: bool, vi: str = "cung ban dich", qa_passed: bool = True) -> dict:
     return {
         "label": label,
         "status": "passed",
         "wall_seconds": wall,
         "output_exists": True,
-        "qa_passed": True,
+        "qa_passed": qa_passed,
+        "terminology_qa": {"passed": True},
         "resolved_axes": {
             "profile": "balanced_fast",
             "asr": {"model": "large-v3", "device": "cuda", "compute_type": "float16", "batch_size": 4},
@@ -42,7 +43,7 @@ def _run(label: str, *, wall: float, enabled: bool) -> dict:
         "chunk_plan_exists": False,
         "macro_chunks": 0,
         "source_script": "same source script",
-        "translated_script": "cung ban dich",
+        "translated_script": vi,
     }
 
 
@@ -95,6 +96,36 @@ def test_summary_passes_when_short_path_is_equivalent_and_under_overhead_gate() 
     assert result["baseline_longform_enabled"] is False
     assert result["candidate_longform_enabled"] is True
     assert result["candidate_short_path_bypassed_chunking"] is True
+
+
+def test_summary_does_not_require_literal_match_between_independent_translations() -> None:
+    result = bench._summarize(
+        [
+            _run("baseline", wall=100.0, enabled=False, vi="ban dich mot"),
+            _run("candidate", wall=101.0, enabled=True, vi="cach dien dat hoan toan khac"),
+        ],
+        1.05,
+    )
+
+    assert result["gate"] == "PASS"
+    assert result["correctness_passed"] is True
+    assert result["translated_similarity_min"] < 0.98
+    assert result["translated_similarity_diagnostic_only"] is True
+
+
+def test_summary_blocks_when_baseline_product_quality_fails() -> None:
+    result = bench._summarize(
+        [
+            _run("baseline", wall=100.0, enabled=False, qa_passed=False),
+            _run("candidate", wall=100.0, enabled=True),
+        ],
+        1.05,
+    )
+
+    assert result["gate"] == "BLOCKED"
+    assert result["correctness_passed"] is False
+    assert result["baseline_quality_passed"] is False
+    assert "baseline_quality_gate_failed" in result["correctness_failures"]
 
 
 def test_summary_fails_if_enabled_short_path_creates_macro_chunks() -> None:

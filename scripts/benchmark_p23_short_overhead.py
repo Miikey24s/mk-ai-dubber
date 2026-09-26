@@ -19,7 +19,13 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT = PROJECT_ROOT / "work" / "benchmarks" / "CP2-short-smart-source.mp4"
+DEFAULT_INPUT = (
+    PROJECT_ROOT
+    / "work"
+    / "benchmarks"
+    / "p17-clean-talking-head"
+    / "source-60s.mp4"
+)
 
 
 def _sha256(path: Path) -> str:
@@ -256,19 +262,60 @@ def _summarize(runs: list[dict[str, Any]], max_slowdown_ratio: float) -> dict[st
         _similarity(str(left.get("translated_script") or ""), str(right.get("translated_script") or ""))
         for left, right in zip(baseline, candidate)
     )
+    baseline_quality = all(
+        item.get("output_exists")
+        and item.get("qa_passed")
+        and (
+            item.get("terminology_qa") is None
+            or bool((item.get("terminology_qa") or {}).get("passed"))
+        )
+        for item in baseline
+    )
+    candidate_quality = all(
+        item.get("output_exists")
+        and item.get("qa_passed")
+        and (
+            item.get("terminology_qa") is None
+            or bool((item.get("terminology_qa") or {}).get("passed"))
+        )
+        for item in candidate
+    )
+    candidate_short_path_bypassed_chunking = all(
+        not item.get("chunk_plan_exists") and int(item.get("macro_chunks") or 0) == 0
+        for item in candidate
+    )
     correctness = bool(
         axes_equal
         and baseline_longform.get("enabled") is False
         and candidate_longform.get("enabled") is True
-        and all(item.get("output_exists") and item.get("qa_passed") for item in baseline + candidate)
+        and baseline_quality
+        and candidate_quality
         and source_similarity >= 0.995
-        and translated_similarity >= 0.98
-        and all(not item.get("chunk_plan_exists") and int(item.get("macro_chunks") or 0) == 0 for item in candidate)
+        and candidate_short_path_bypassed_chunking
     )
     overhead = slowdown_ratio <= max_slowdown_ratio
+    correctness_failures: list[str] = []
+    if not axes_equal:
+        correctness_failures.append("resolved_axes_differ")
+    if baseline_longform.get("enabled") is not False:
+        correctness_failures.append("baseline_longform_not_disabled")
+    if candidate_longform.get("enabled") is not True:
+        correctness_failures.append("candidate_longform_not_enabled")
+    if not baseline_quality:
+        correctness_failures.append("baseline_quality_gate_failed")
+    if not candidate_quality:
+        correctness_failures.append("candidate_quality_gate_failed")
+    if source_similarity < 0.995:
+        correctness_failures.append("source_script_parity_failed")
+    if not candidate_short_path_bypassed_chunking:
+        correctness_failures.append("candidate_short_path_created_chunk_plan")
+    gate = "PASS" if correctness and overhead else "FAIL"
+    if not baseline_quality:
+        gate = "BLOCKED"
     return {
-        "gate": "PASS" if correctness and overhead else "FAIL",
+        "gate": gate,
         "correctness_passed": correctness,
+        "correctness_failures": correctness_failures,
         "overhead_passed": overhead,
         "max_slowdown_ratio": max_slowdown_ratio,
         "baseline_median_wall_seconds": base_wall,
@@ -278,12 +325,12 @@ def _summarize(runs: list[dict[str, Any]], max_slowdown_ratio: float) -> dict[st
         "resolved_axes_equal": axes_equal,
         "baseline_longform_enabled": baseline_longform.get("enabled"),
         "candidate_longform_enabled": candidate_longform.get("enabled"),
+        "baseline_quality_passed": baseline_quality,
+        "candidate_quality_passed": candidate_quality,
         "source_similarity_min": source_similarity,
         "translated_similarity_min": translated_similarity,
-        "candidate_short_path_bypassed_chunking": all(
-            not item.get("chunk_plan_exists") and int(item.get("macro_chunks") or 0) == 0
-            for item in candidate
-        ),
+        "translated_similarity_diagnostic_only": True,
+        "candidate_short_path_bypassed_chunking": candidate_short_path_bypassed_chunking,
     }
 
 
@@ -381,6 +428,7 @@ def main() -> int:
         "notes": [
             "The 5% slowdown threshold is a harness-local operationalization of PLAN wording 'không làm short fixture chậm đáng kể'; PLAN itself does not specify a numeric percentage.",
             "Both sides use the same current code, profile, models and Dedicated WebGPT runtime. The only intentional config difference is longform.enabled.",
+            "Independent WebGPT generations are not required to be literal-text matches. Cross-arm translated-text similarity is diagnostic only; each arm must clear its own product QA and terminology gates.",
             "The fixture is shorter than single_chunk_threshold_seconds, so the enabled side must bypass macro-chunk planning and stay on the ordinary short path.",
             "This receipt is a P23 short-path benchmark gate only and is not whole-product acceptance.",
         ],
