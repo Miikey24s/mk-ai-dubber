@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,6 +90,73 @@ def clip_audio(source: Path, output: Path, start: float, duration: float) -> Pat
             "48000",
             "-c:a",
             "pcm_s16le",
+            str(output),
+        ]
+    )
+    return output
+
+
+def clip_audio_window(
+    source: Path,
+    output: Path,
+    *,
+    start: float,
+    duration: float,
+    sample_rate: int = 48000,
+) -> Path:
+    """Clip an audio timeline window while preserving the source channel layout."""
+    if duration <= 0:
+        raise ValueError("duration must be positive")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _run_ffmpeg(
+        [
+            "-ss",
+            f"{max(0.0, start):.3f}",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(source),
+            "-vn",
+            "-ar",
+            str(sample_rate),
+            "-c:a",
+            "pcm_s16le",
+            str(output),
+        ]
+    )
+    return output
+
+
+def clip_video_exact(
+    source: Path,
+    output: Path,
+    *,
+    start: float,
+    duration: float,
+) -> Path:
+    """Create an exact-timeline preview clip; re-encode avoids keyframe seek drift."""
+    if duration <= 0:
+        raise ValueError("duration must be positive")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _run_ffmpeg(
+        [
+            "-ss",
+            f"{max(0.0, start):.3f}",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(source),
+            "-map",
+            "0:v:0",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-movflags",
+            "+faststart",
             str(output),
         ]
     )
@@ -626,6 +695,64 @@ def mux_dubbed_video(
         ]
     )
     return output
+
+
+def build_chunk_preview(
+    video: Path,
+    background: Path,
+    voice_track: Path,
+    output: Path,
+    *,
+    start: float,
+    duration: float,
+    background_gain_db: float,
+    voice_gain_db: float,
+    final_lufs: float,
+    true_peak_db: float,
+    duck_background: bool = False,
+) -> Path:
+    """Atomically publish one accurate macro-chunk preview MP4."""
+    if duration <= 0:
+        raise ValueError("duration must be positive")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    work_dir = output.parent / f".{output.stem}.preview-work"
+    shutil.rmtree(work_dir, ignore_errors=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    video_clip = work_dir / "video.mp4"
+    background_clip = work_dir / "background.wav"
+    voice_clip = work_dir / "voice.wav"
+    partial = output.with_name(f".{output.stem}.partial{output.suffix}")
+    partial.unlink(missing_ok=True)
+    try:
+        clip_video_exact(video, video_clip, start=start, duration=duration)
+        clip_audio_window(
+            background,
+            background_clip,
+            start=start,
+            duration=duration,
+        )
+        clip_audio_window(
+            voice_track,
+            voice_clip,
+            start=start,
+            duration=duration,
+        )
+        mux_dubbed_video(
+            video_clip,
+            background_clip,
+            voice_clip,
+            partial,
+            background_gain_db=background_gain_db,
+            voice_gain_db=voice_gain_db,
+            final_lufs=final_lufs,
+            true_peak_db=true_peak_db,
+            duck_background=duck_background,
+        )
+        os.replace(partial, output)
+        return output
+    finally:
+        partial.unlink(missing_ok=True)
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 def _srt_time(seconds: float) -> str:

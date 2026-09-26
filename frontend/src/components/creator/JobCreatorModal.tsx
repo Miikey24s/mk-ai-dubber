@@ -18,14 +18,14 @@ import {
 
 export const JobCreatorModal: React.FC = () => {
   const { isCreatorOpen, setIsCreatorOpen, droppedFile, setDroppedFile, createNewJob } = useJob();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const [sourceMode, setSourceMode] = useState<'youtube' | 'file'>('youtube');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [model, setModel] = useState('chatgpt-web/gpt-5.6-sol');
   const [effort, setEffort] = useState<'low' | 'medium' | 'high' | 'extra_high'>('high');
-  const [profile, setProfile] = useState<ProfileType>('balanced_best');
+  const [profile, setProfile] = useState<ProfileType>('balanced_fast');
   const [voiceCloneEnabled, setVoiceCloneEnabled] = useState(false);
   const [voicePreset, setVoicePreset] = useState('natural_male');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,11 +67,11 @@ export const JobCreatorModal: React.FC = () => {
     setErrorMessage(null);
 
     if (sourceMode === 'youtube' && !youtubeUrl.trim()) {
-      setErrorMessage('Vui lòng nhập đường dẫn video YouTube hợp lệ.');
+      setErrorMessage(language === 'vi' ? 'Vui lòng nhập đường dẫn video YouTube hợp lệ.' : 'Please enter a valid YouTube video URL.');
       return;
     }
     if (sourceMode === 'file' && !localFile) {
-      setErrorMessage('Vui lòng chọn hoặc kéo thả tệp video từ máy.');
+      setErrorMessage(language === 'vi' ? 'Vui lòng chọn hoặc kéo thả tệp video từ máy.' : 'Please select or drag-and-drop a video file.');
       return;
     }
 
@@ -91,10 +91,10 @@ export const JobCreatorModal: React.FC = () => {
         setIsCreatorOpen(false);
         setDroppedFile(null);
       } else {
-        setErrorMessage('Không thể khởi chạy tác vụ. Vui lòng kiểm tra lại cấu hình.');
+        setErrorMessage(language === 'vi' ? 'Không thể khởi chạy tác vụ. Vui lòng kiểm tra lại cấu hình.' : 'Failed to launch job. Please verify your settings.');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Lỗi khi khởi chạy tác vụ.');
+      setErrorMessage(err.message || (language === 'vi' ? 'Lỗi khi khởi chạy tác vụ.' : 'Error launching job.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -113,14 +113,15 @@ export const JobCreatorModal: React.FC = () => {
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
                 {t('creator.new_job')}
               </h2>
-              <span className="text-2xs text-slate-500">
+              <span className="text-2xs text-slate-500 dark:text-slate-400">
                 End-to-End Demucs + WhisperX + GPT-5.6 Sol + Kokoro Pipeline
               </span>
             </div>
           </div>
           <button
             onClick={() => setIsCreatorOpen(false)}
-            className="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition"
+            aria-label={t('common.close')}
+            className="p-1.5 min-w-[32px] min-h-[32px] h-8 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -130,33 +131,33 @@ export const JobCreatorModal: React.FC = () => {
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
           {/* Source Tabs */}
           <div className="space-y-2">
-            <label className="text-2xs uppercase tracking-wider text-slate-500 font-bold block">
+            <label className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
               {t('creator.source_type')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setSourceMode('youtube')}
-                className={`flex items-center justify-center gap-2 py-2 px-3 rounded border transition font-semibold ${
+                className={`flex items-center justify-center gap-2 h-9 py-2 px-3 rounded border transition font-semibold cursor-pointer ${
                   sourceMode === 'youtube'
                     ? 'bg-orange-500/10 border-orange-500 text-orange-600 dark:text-orange-400'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
                 }`}
               >
                 <Youtube className="w-4 h-4 text-red-500" />
-                <span>YouTube Link</span>
+                <span>{t('import.youtube_tab')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSourceMode('file')}
-                className={`flex items-center justify-center gap-2 py-2 px-3 rounded border transition font-semibold ${
+                className={`flex items-center justify-center gap-2 h-9 py-2 px-3 rounded border transition font-semibold cursor-pointer ${
                   sourceMode === 'file'
                     ? 'bg-orange-500/10 border-orange-500 text-orange-600 dark:text-orange-400'
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
                 }`}
               >
                 <Upload className="w-4 h-4 text-sky-500" />
-                <span>Local File Upload</span>
+                <span>{t('import.file_tab')}</span>
               </button>
             </div>
           </div>
@@ -169,19 +170,19 @@ export const JobCreatorModal: React.FC = () => {
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 placeholder={t('creator.youtube_placeholder')}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md focus:outline-none focus:border-orange-500 text-slate-900 dark:text-slate-100"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-slate-900 dark:text-slate-100"
               />
-              <span className="text-3xs text-slate-500">
-                Supports standard video URLs, playlists, and shorts. Audio will be demuxed automatically.
+              <span className="text-3xs text-slate-500 dark:text-slate-400">
+                {language === 'vi' ? 'Hỗ trợ link video chuẩn, danh sách phát và shorts. Tự động trích xuất âm thanh.' : 'Supports standard video URLs, playlists, and shorts. Audio will be demuxed automatically.'}
               </span>
             </div>
           ) : (
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-orange-500/60 rounded-lg p-6 text-center bg-slate-50/50 dark:bg-slate-950/50 cursor-pointer transition">
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-orange-500/60 rounded-lg p-6 text-center bg-slate-50/50 dark:bg-slate-950/50 cursor-pointer transition">
               <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <div className="font-semibold text-slate-700 dark:text-slate-300">
+              <div className="font-semibold text-slate-700 dark:text-slate-200">
                 {localFile ? localFile.name : t('creator.drag_drop')}
               </div>
-              <span className="text-2xs text-slate-500 mt-1 block">
+              <span className="text-2xs text-slate-500 dark:text-slate-400 mt-1 block">
                 MP4, MKV, MOV, WAV, FLAC (Max 2.0 GB)
               </span>
               <input
@@ -193,9 +194,9 @@ export const JobCreatorModal: React.FC = () => {
               />
               <label
                 htmlFor="file-upload"
-                className="inline-block mt-3 px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded text-2xs cursor-pointer transition"
+                className="inline-flex items-center justify-center mt-3 px-3 h-7 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded text-2xs font-semibold text-slate-800 dark:text-slate-200 cursor-pointer transition"
               >
-                Select File
+                {t('import.browse_files')}
               </label>
             </div>
           )}
@@ -203,42 +204,42 @@ export const JobCreatorModal: React.FC = () => {
           {/* Model & Effort */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div className="space-y-1">
-              <label className="text-2xs uppercase tracking-wider text-slate-500 font-bold block">
+              <label className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
                 {t('creator.translation_model')}
               </label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
+                className="w-full p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
               >
-                <option value="chatgpt-web/gpt-5.6-sol">GPT-5.6 Sol (Codex WebGPT :17842 - Khuyên dùng)</option>
-                <option value="local/qwen3-14b">Qwen3-14B GGUF (Local GPU Offload - Plan Fallback)</option>
+                <option value="chatgpt-web/gpt-5.6-sol">GPT-5.6 Sol (Dedicated Dubber-WebGPT :17850 - {language === 'vi' ? 'Khuyên dùng' : 'Recommended'})</option>
+                <option value="local/qwen3-14b">Qwen3-14B GGUF ({language === 'vi' ? 'GPU cục bộ - Dự phòng' : 'Local GPU Offload - Plan Fallback'})</option>
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-2xs uppercase tracking-wider text-slate-500 font-bold block">
+              <label className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
                 {t('creator.effort')}
               </label>
               <select
                 value={effort}
                 onChange={(e) => setEffort(e.target.value as any)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 cursor-pointer"
+                className="w-full p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
               >
-                <option value="low">Low (Fast Translation)</option>
-                <option value="medium">Medium (Standard)</option>
-                <option value="high">High (Recommended - Financial Glossary Fit)</option>
-                <option value="extra_high">Extra High (Deep Reasoning & Syllable Matching)</option>
+                <option value="low">{language === 'vi' ? 'Thấp (Dịch nhanh)' : 'Low (Fast Translation)'}</option>
+                <option value="medium">{language === 'vi' ? 'Trung bình (Tiêu chuẩn)' : 'Medium (Standard)'}</option>
+                <option value="high">{language === 'vi' ? 'Cao (Khuyên dùng - Khớp thuật ngữ)' : 'High (Recommended - Financial Glossary Fit)'}</option>
+                <option value="extra_high">{language === 'vi' ? 'Rất cao (Suy luận sâu & Khớp âm tiết)' : 'Extra High (Deep Reasoning & Syllable Matching)'}</option>
               </select>
             </div>
           </div>
 
-          {/* Quality Profiles (3 cards) */}
+          {/* Quality Profiles */}
           <div className="space-y-2 pt-1">
-            <label className="text-2xs uppercase tracking-wider text-slate-500 font-bold block">
+            <label className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
               {t('creator.quality_profile')}
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
               {/* Fast */}
               <div
                 onClick={() => setProfile('fast')}
@@ -252,8 +253,26 @@ export const JobCreatorModal: React.FC = () => {
                   <Zap className="w-3.5 h-3.5 text-amber-500" />
                   <span>{t('profile.fast')}</span>
                 </div>
-                <p className="text-3xs text-slate-500 leading-normal">
+                <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.fast_desc')}
+                </p>
+              </div>
+
+              {/* Balanced Fast */}
+              <div
+                onClick={() => setProfile('balanced_fast')}
+                className={`p-3 rounded-md border cursor-pointer transition ${
+                  profile === 'balanced_fast'
+                    ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
+                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                  <span>{t('profile.balanced_fast')}</span>
+                </div>
+                <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
+                  {t('profile.balanced_fast_desc')}
                 </p>
               </div>
 
@@ -270,7 +289,7 @@ export const JobCreatorModal: React.FC = () => {
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                   <span>{t('profile.balanced_best')}</span>
                 </div>
-                <p className="text-3xs text-slate-500 leading-normal">
+                <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.balanced_best_desc')}
                 </p>
               </div>
@@ -288,7 +307,7 @@ export const JobCreatorModal: React.FC = () => {
                   <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
                   <span>{t('profile.max_quality')}</span>
                 </div>
-                <p className="text-3xs text-slate-500 leading-normal">
+                <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.max_quality_desc')}
                 </p>
               </div>
@@ -304,7 +323,7 @@ export const JobCreatorModal: React.FC = () => {
                   <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                     {t('creator.voice_clone')}
                   </span>
-                  <span className="text-3xs text-slate-500">
+                  <span className="text-3xs text-slate-500 dark:text-slate-400">
                     {t('creator.voice_clone_desc')}
                   </span>
                 </div>
@@ -325,16 +344,16 @@ export const JobCreatorModal: React.FC = () => {
                 <select
                   value={voicePreset}
                   onChange={(e) => setVoicePreset(e.target.value)}
-                  className="p-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-2xs focus:outline-none"
+                  className="p-1.5 h-8 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-2xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                 >
-                  <option value="natural_male">Timbre: Warm Natural Male (Hà Nội)</option>
-                  <option value="studio_female">Timbre: Clear Studio Female (Sài Gòn)</option>
-                  <option value="deep_narrator">Timbre: Deep Technical Narrator</option>
+                  <option value="natural_male">{language === 'vi' ? 'Âm sắc: Nam ấm tự nhiên (Hà Nội)' : 'Timbre: Warm Natural Male (Hà Nội)'}</option>
+                  <option value="studio_female">{language === 'vi' ? 'Âm sắc: Nữ phòng thu trong trẻo (Sài Gòn)' : 'Timbre: Clear Studio Female (Sài Gòn)'}</option>
+                  <option value="deep_narrator">{language === 'vi' ? 'Âm sắc: Giọng đọc kỹ thuật trầm' : 'Timbre: Deep Technical Narrator'}</option>
                 </select>
                 <input
                   type="file"
                   accept="audio/*"
-                  className="text-2xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-2xs file:bg-slate-200 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300"
+                  className="text-2xs file:mr-2 file:py-1 file:px-2.5 file:h-7 file:rounded file:border-0 file:text-2xs file:bg-slate-200 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 cursor-pointer"
                 />
               </div>
             )}
@@ -348,7 +367,7 @@ export const JobCreatorModal: React.FC = () => {
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="flex items-center gap-2 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-md text-xs text-rose-500 dark:text-rose-400">
+            <div className="flex items-center gap-2 p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-md text-xs text-rose-600 dark:text-rose-400">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -359,19 +378,19 @@ export const JobCreatorModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCreatorOpen(false)}
-              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded font-semibold transition"
+              className="px-4 h-8 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-semibold transition cursor-pointer"
             >
               {t('creator.cancel')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded font-bold shadow-md shadow-orange-600/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-5 h-8 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded font-bold shadow-md shadow-orange-600/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Starting Pipeline...</span>
+                  <span>{language === 'vi' ? 'Đang khởi chạy tiến trình...' : 'Starting Pipeline...'}</span>
                 </>
               ) : (
                 <>

@@ -10,6 +10,32 @@ from vi_dubber.translate import HybridTranslator, WebGptTranslator, build_transl
 from vi_dubber.types import Segment
 
 
+class _DirectResponse:
+    def __init__(self, status_code: int, payload=None, text: str | None = None):
+        self.status_code = status_code
+        self.ok = 200 <= status_code < 300
+        self._payload = payload
+        self.text = text if text is not None else json.dumps(payload or {})
+
+    def json(self):
+        if isinstance(self._payload, Exception):
+            raise self._payload
+        return self._payload
+
+
+def _direct_completed(output_text: str) -> dict:
+    return {
+        "status": "completed",
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": output_text}],
+            }
+        ],
+    }
+
+
 def test_build_translator_wires_retry_budget(tmp_path: Path) -> None:
     webgpt = build_translator(
         {},
@@ -135,7 +161,7 @@ def test_webgpt_running_validates_the_override_model(
 
 
 def test_webgpt_rejects_wrong_instance_base_url(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="instance 2"):
+    with pytest.raises(ValueError, match="Dedicated Dubber-WebGPT"):
         WebGptTranslator(
             {"webgpt_base_url": "http://127.0.0.1:17841/v1"},
             tmp_path,
@@ -180,7 +206,7 @@ def test_webgpt_retries_transient_execution_failure_then_succeeds(
         del kwargs
         calls += 1
         assert 'model_provider="codex_local_access"' in cmd
-        assert 'model_providers.codex_local_access.base_url="http://127.0.0.1:17842/v1"' in cmd
+        assert 'model_providers.codex_local_access.base_url="http://127.0.0.1:17850/v1"' in cmd
         assert 'model_reasoning_effort="high"' in cmd
         assert cmd[cmd.index("--model") + 1] == "chatgpt-web/gpt-5.6-sol"
         if calls == 1:
@@ -338,6 +364,269 @@ def test_webgpt_malformed_result_retry_exhaustion_is_bounded(
     assert stats["webgpt_retry_attempts"] == 1
     assert stats["webgpt_failures"] == 2
     assert stats["webgpt_retries_exhausted"] == 1
+
+
+def test_webgpt_direct_responses_is_opt_in_and_posts_tool_free_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default = WebGptTranslator({}, tmp_path / "default")
+    direct = WebGptTranslator(
+        {"webgpt_transport": "direct-responses"},
+        tmp_path / "direct",
+        model_override="chatgpt-web/gpt-5.6-sol",
+        effort_override="high",
+    )
+    calls: list[tuple[str, dict]] = []
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return _DirectResponse(200, _direct_completed('{"ok": true}'))
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    result = direct._run_json("translate this", {"type": "object"}, "translate")
+
+    assert default.transport == "codex-exec"
+    assert direct.transport == "direct-responses"
+    assert result == {"ok": True}
+    assert len(calls) == 1
+    url, kwargs = calls[0]
+    assert url == "http://127.0.0.1:17850/v1/responses"
+    assert kwargs["timeout"] == direct.timeout
+    payload = kwargs["json"]
+    assert payload["model"] == "chatgpt-web/gpt-5.6-sol"
+    assert payload["tools"] == []
+    assert payload["tool_choice"] == "none"
+    assert payload["parallel_tool_calls"] is False
+    assert payload["stream"] is False
+    assert payload["store"] is False
+    assert payload["reasoning"] == {"effort": "high", "summary": "none"}
+    turn_metadata = json.loads(payload["client_metadata"]["x-codex-turn-metadata"])
+    assert kwargs["headers"] == {"Accept": "application/json"}
+    assert turn_metadata["thread_id"].startswith("thread_vi_dubber_")
+    assert turn_metadata["turn_id"].startswith("turn_vi_dubber_")
+    assert payload["prompt_cache_key"] == turn_metadata["thread_id"]
+    assert payload["input"][0]["internal_chat_message_metadata_passthrough"] == {
+        "turn_id": turn_metadata["turn_id"]
+    }
+    prompt_text = payload["input"][0]["content"][0]["text"]
+    assert "translate this" in prompt_text
+    assert "Output JSON schema" in prompt_text
+
+
+def test_webgpt_direct_responses_retries_transient_http_then_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=1,
+    )
+    responses = [
+        _DirectResponse(503, text="temporary upstream failure"),
+        _DirectResponse(200, _direct_completed('{"ok": true}')),
+    ]
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        response = responses[calls]
+        calls += 1
+        return response
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    assert translator._run_json("test", {"type": "object"}, "translate") == {"ok": True}
+    stats = translator.stats()
+    assert calls == 2
+    assert stats["webgpt_attempts"] == 2
+    assert stats["webgpt_retry_attempts"] == 1
+    assert stats["webgpt_failures"] == 1
+
+
+def test_webgpt_direct_disconnect_does_not_commit_partial_translation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {
+            "webgpt_transport": "direct-responses",
+            "webgpt_retry_backoff_seconds": 0.0,
+            "codex_segments_per_batch": 1,
+        },
+        tmp_path,
+        retry_budget=0,
+    )
+    segment = Segment(id=0, start=0.0, end=1.0, text="Hello")
+
+    monkeypatch.setattr(
+        translate_module.requests,
+        "post",
+        lambda *args, **kwargs: _DirectResponse(503, text="runtime disconnected"),
+    )
+
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        translator.translate_segments([segment], {})
+
+    assert segment.vi == ""
+    assert not (tmp_path / "translations_cache.json").exists()
+
+
+def test_webgpt_concurrent_failure_does_not_commit_successful_sibling_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {
+            "webgpt_transport": "direct-responses",
+            "webgpt_concurrency": 2,
+            "codex_segments_per_batch": 1,
+        },
+        tmp_path,
+        retry_budget=0,
+    )
+    segments = [
+        Segment(id=0, start=0.0, end=1.0, text="First"),
+        Segment(id=1, start=1.0, end=2.0, text="Second"),
+    ]
+    first_finished = translate_module.threading.Event()
+
+    def fake_run_translation_request(prompt, schema, request_identity):
+        del schema, request_identity
+        input_payload = json.loads(prompt.rsplit("INPUT=", 1)[1])
+        current_id = int(input_payload[0]["id"])
+        if current_id == 0:
+            first_finished.set()
+            return {"translations": [{"id": 0, "vi": "Một"}]}
+        assert first_finished.wait(timeout=1.0)
+        translate_module.time.sleep(0.05)
+        raise RuntimeError("simulated concurrent batch failure")
+
+    monkeypatch.setattr(translator, "_run_translation_request", fake_run_translation_request)
+
+    with pytest.raises(RuntimeError, match="simulated concurrent batch failure"):
+        translator.translate_segments(segments, {})
+
+    assert [segment.vi for segment in segments] == ["", ""]
+    assert not (tmp_path / "translations_cache.json").exists()
+
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        (_DirectResponse(429, text="rate limit exceeded; cooldown active"), "HTTP 429"),
+        (
+            _DirectResponse(
+                200,
+                {
+                    "status": "failed",
+                    "error": {
+                        "type": "rate_limit_error",
+                        "code": "rate_limit_exceeded",
+                        "message": "Selected model is at capacity",
+                    },
+                    "output": [],
+                },
+            ),
+            "at capacity",
+        ),
+    ],
+)
+def test_webgpt_direct_responses_pressure_failure_is_not_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: _DirectResponse,
+    message: str,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=3,
+    )
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        calls += 1
+        return response
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    with pytest.raises(RuntimeError, match=message):
+        translator._run_json("test", {"type": "object"}, "translate")
+
+    stats = translator.stats()
+    assert calls == 1
+    assert stats["webgpt_attempts"] == 1
+    assert stats["webgpt_retry_attempts"] == 0
+    assert stats["webgpt_failures"] == 1
+    assert stats["webgpt_pressure_failures"] == 1
+
+
+def test_webgpt_direct_responses_invalid_request_fails_closed_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=3,
+    )
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        calls += 1
+        return _DirectResponse(400, text="model not found")
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    with pytest.raises(RuntimeError, match="HTTP 400"):
+        translator._run_json("test", {"type": "object"}, "translate")
+
+    stats = translator.stats()
+    assert calls == 1
+    assert stats["webgpt_attempts"] == 1
+    assert stats["webgpt_retry_attempts"] == 0
+    assert stats["webgpt_failures"] == 1
+    assert stats["webgpt_pressure_failures"] == 0
+
+
+def test_webgpt_direct_responses_malformed_output_is_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=1,
+    )
+    responses = [
+        _DirectResponse(200, _direct_completed("not json")),
+        _DirectResponse(200, _direct_completed('{"ok": true}')),
+    ]
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        del args, kwargs
+        response = responses[calls]
+        calls += 1
+        return response
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    assert translator._run_json("test", {"type": "object"}, "translate") == {"ok": True}
+    stats = translator.stats()
+    assert calls == 2
+    assert stats["webgpt_retry_attempts"] == 1
+    assert stats["webgpt_failures"] == 1
 
 
 def test_hybrid_retries_webgpt_before_local_fallback(

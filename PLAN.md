@@ -1,10 +1,10 @@
 # VI Dubber - Full Optimization Plan
 
-Phiên bản: **v2.1 - 24/09/2026**  
-Trạng thái: **v2.1 PROGRESS / P00, P01, P02, P04, P05, P06, P08, P10, P15, P16, P17, P20, P21 ACCEPTED/DONE; P03/P09 long timing baseline & collision-free counterfactual verified; Playwright UI QA integrated**  
-Mục tiêu AI dịch target: **Codex ChatGPT Web dedicated instance 2 tại `127.0.0.1:17842`, live model catalog và model do người dùng chọn trên UI**  
+Phiên bản: **v2.18 - 26/09/2026**
+Trạng thái: **v2.18 PROGRESS / P00, P01, P02, P04, P05, P06, P08, P10, P13, P15, P16, P17, P20, P22 ACCEPTED/DONE; P21 giữ làm historical acceptance; P23 IN PROGRESS: reuse-first gate + macro-chunk planner + per-chunk manifest/resume/invalidation + production windowed ASR non-diarization + bounded scheduler/prefetch + chunked TTS + risk QA + progressive preview/API/UI + persisted chunk throughput/ETA đã implement và có local regression coverage; 6.25h synthetic control-plane gate đã pass bounded queue/RSS/disk + crash/resume + deterministic ordering, nhưng real-media 6h+/VRAM/live-provider/final-media gate vẫn mở. Short overhead harness đã sửa thành same-current-tree A/B chỉ bật/tắt long-form core; fresh live batch 32 và translation-only batch 16 đều fail-closed vì direct Responses trả malformed JSON, strict-schema bridge probe cũng xác nhận `structured_output_validation_failed`, nên short repeated A/B và whole-job 33 phút chưa được promote/claim speedup; Dedicated Dubber-WebGPT :17850 production c2 giữ nguyên; P03/P09 benchmarked; P07/P11/P12 đã có machine-side closure evidence và blind/listening packets nhưng vẫn chờ human listening gate theo acceptance contract**
+Mục tiêu AI dịch target: **Dedicated Dubber-WebGPT tại `127.0.0.1:17850`, browser/session riêng, direct `/v1/responses`, live model catalog và model do người dùng chọn trên UI**
 Project: `D:\ANNAM\TradingWorkspace\projects\vi-dubber`  
-Translation runtime hiện khóa vào managed Codex ChatGPT Web **instance 2 / port 17842**. Global Codex/Cockpit route của máy được giữ nguyên; VI Dubber override provider URL theo từng invocation và không được tự failover sang instance 1 hoặc Aurora.
+Translation runtime target hiện khóa vào **Dedicated Dubber-WebGPT / port 17850**. Global Codex/Cockpit route của máy được giữ nguyên; production translation đi thẳng qua provider-only Responses và không được tự failover sang Codex daily runtime, Aurora hoặc local model.
 
 > Đây là plan nguồn cho đợt tối ưu sâu `vi-dubber`. README tiếp tục là tài liệu vận hành ngắn gọn; file này giữ mục tiêu, thứ tự triển khai, contract giữa worker/subagent, benchmark, acceptance, rollback và trạng thái từng phase.
 
@@ -18,8 +18,8 @@ Stack hiện tại đã có nền tốt:
 
 - BS-RoFormer cho source separation.
 - WhisperX `large-v3` CUDA FP16 cho ASR + alignment.
-- Codex Web GPT instance 2 là translator/rewrite backend hiện tại; live catalog ngày 23/09/2026 có `chatgpt-web/gpt-5.6-sol` và `chatgpt-web/gpt-5.6-sol-instant`.
-- VI Dubber khóa transport vào `http://127.0.0.1:17842/v1` theo từng Codex invocation; không sửa global `~/.codex/config.toml` và không dùng Aurora trong đường chạy hiện tại.
+- Historical P21 đã chứng minh ChatGPT Web quality/contract trên instance 2; instance đó đã bị người dùng xóa ngày 25/09/2026 và không còn là runtime target.
+- P22 dùng Dedicated Dubber-WebGPT tại `http://127.0.0.1:17850/v1`, home/browser login/process riêng và direct Responses tool-free; không sửa global `~/.codex/config.toml` và không dùng Aurora trong đường chạy hiện tại.
 - Model translation không hardcode lâu dài. UI lấy model catalog từ backend/account và cho người dùng chọn; default policy ưu tiên model Plus chất lượng cao nhất đã được project verify tại thời điểm chạy.
 - Qwen local còn trong source cho rollback/test nhưng không là fallback tự động của product path hiện tại.
 - VieNeu v3 Turbo là TTS/voice clone.
@@ -55,7 +55,7 @@ QA theo segment + selective repair
 mix/master hoàn chỉnh
 ```
 
-Mục tiêu không phải "chạy nhanh bằng mọi giá" hoặc "quality tối đa bằng mọi giá". Mục tiêu mặc định là **Balanced Best**: tăng chất lượng và throughput đồng thời ở những nơi hiện đang lãng phí compute; chỉ chấp nhận trade-off khi tính năng đó thực sự đòi hỏi, ví dụ lip-sync hoặc Max Quality multi-candidate.
+Mục tiêu không phải "chạy nhanh bằng mọi giá" hoặc "quality tối đa bằng mọi giá". Mục tiêu mặc định là **Balanced Best**: tăng chất lượng và throughput đồng thời ở những nơi hiện đang lãng phí compute; chỉ chấp nhận trade-off khi tính năng đó thực sự đòi hỏi, ví dụ Max Quality multi-candidate.
 
 ---
 
@@ -75,7 +75,7 @@ Mục tiêu không phải "chạy nhanh bằng mọi giá" hoặc "quality tối
 - torchcodec OK.
 - Gradio OK.
 - yt-dlp OK.
-- Baseline cũ: Codex WebGPT OK qua Codex WebGPT Local Access. Từ v1.8, route product được khóa riêng vào instance 2 `:17842`.
+- Baseline cũ: Codex WebGPT OK qua Codex WebGPT Local Access. Từ v1.8, route product từng được khóa riêng vào instance 2 `:17842`; baseline này đã được P22 supersede bằng Dedicated Dubber-WebGPT `:17850`.
 - Qwen3-14B-Q4_K_M local OK.
 - `TYPESAFE_API_KEY` có trong environment, semantic QA đang shadow.
 - Diarization token hiện optional/chưa có trong doctor snapshot.
@@ -117,7 +117,7 @@ Kết luận: **segmentation/timing là bottleneck chất lượng và hiệu n�
 
 ### 1.4. Codex development/translation environment
 
-Snapshot local được re-check ngày 23/09/2026:
+Historical P21 snapshot được re-check ngày 23/09/2026:
 
 - global Codex vẫn dùng provider `codex_local_access` qua Cockpit `http://localhost:54005/v1`;
 - managed WebGPT instance 1 nghe ở `127.0.0.1:17841`;
@@ -130,9 +130,9 @@ Snapshot local được re-check ngày 23/09/2026:
 - `[agents].max_threads = 10`;
 - source `codex-chatgpt-web` có `MAX_CHATGPT_BROWSER_TABS = 5` cho một browser worker/instance.
 
-Các con số này là **runtime snapshot**, không phải hằng số vĩnh viễn. Main worker phải kiểm tra lại capability/slots trước mỗi execution wave lớn.
+Các con số này là **runtime snapshot lịch sử**, không phải hằng số vĩnh viễn. Main worker phải kiểm tra lại capability/slots trước mỗi execution wave lớn. Trạng thái production hiện tại đã chuyển sang P22: Dedicated Dubber-WebGPT `127.0.0.1:17850`, direct Responses, `webgpt_concurrency: 2`, global context tắt; `:17842` đã retired.
 
-Product translation không kế thừa global provider URL: mỗi `codex exec` do VI Dubber tạo phải override `model_provider=codex_local_access` và `model_providers.codex_local_access.base_url=http://127.0.0.1:17842/v1`. Nếu health port, catalog hoặc selected model không khớp thì fail closed.
+Product translation không kế thừa global provider URL: VI Dubber gọi trực tiếp `http://127.0.0.1:17850/v1/responses` qua Dedicated Dubber-WebGPT và không spawn `codex exec` trên normal translation path. Nếu health port, catalog hoặc selected model không khớp thì fail closed.
 
 CLI `codex-chatgpt-web` hiện không được resolve trực tiếp từ PowerShell PATH trong lượt lập plan. Vì vậy execution không được giả định command đó luôn sẵn. Ưu tiên collaboration tools đã expose trong task hoặc resolve đúng local runtime khi thực sự cần diagnostic.
 
@@ -181,7 +181,6 @@ Không claim:
 - studio acting tuyệt đối;
 - emotion cực mạnh giống bản gốc ở mọi tình huống;
 - overlapping speakers được giải quyết hoàn hảo;
-- lip-sync hoàn hảo ở mọi góc mặt;
 - RTF `<1` trước khi benchmark thật trên RTX 2070 SUPER.
 
 ### 2.3. Ba profile sản phẩm
@@ -195,7 +194,6 @@ Mục tiêu: batch processing, tốc độ ưu tiên nhưng không phá semantic
 - TypeSafe chỉ critical gate;
 - VieNeu GPU batch lớn nhất đã benchmark an toàn;
 - QA chọn lọc;
-- lip-sync tắt.
 
 #### Balanced Best - mặc định
 
@@ -210,7 +208,6 @@ Mục tiêu: sweet spot.
 - segment QA;
 - professional mix;
 - selective repair;
-- lip-sync tắt mặc định.
 
 #### Max Quality
 
@@ -221,7 +218,6 @@ Mục tiêu: video quan trọng, chấp nhận chậm hơn.
 - stronger acoustic QA;
 - prosody/style analysis sâu hơn;
 - có thể bật full-video final ASR;
-- optional lip-sync;
 - optional cloud/proprietary TTS A/B nếu người dùng cho phép cost/privacy/network dependency.
 
 ---
@@ -229,7 +225,7 @@ Mục tiêu: video quan trọng, chấp nhận chậm hơn.
 ## 3. Nguyên tắc kiến trúc
 
 1. **Code deterministic giữ control flow.** Duration, hashes, exact numbers, cache keys, routing state, path ownership và retry policy nằm trong code.
-2. **Selected ChatGPT Web model sinh ngôn ngữ.** Dịch, rewrite, contextual phrasing và candidate generation thuộc generative translation provider; target transport hiện tại là Codex WebGPT instance 2 `:17842`.
+2. **Selected ChatGPT Web model sinh ngôn ngữ.** Dịch, rewrite, contextual phrasing và candidate generation thuộc generative translation provider; target transport hiện tại là Dedicated Dubber-WebGPT `:17850` qua direct Responses.
 3. **TypeSafe phán semantic hẹp.** Verify, classify, score, route/escalate; không dùng Jev để làm toán duration hoặc thay parser deterministic.
 4. **AI uncertainty không được coi là truth.** Lưu raw probabilities/confidence, calibrate threshold trên fixture thật.
 5. **Word timing là dữ liệu core.** Không bỏ sau WhisperX alignment.
@@ -240,6 +236,9 @@ Mục tiêu: video quan trọng, chấp nhận chậm hơn.
 10. **Output quality cần human listening gate.** Automated metric chỉ hỗ trợ, không thay blind A/B.
 11. **Không tối ưu vô hạn.** Dừng khi đạt acceptance của profile và không còn bottleneck đáng kể.
 12. **Một source of truth.** PLAN này giữ trạng thái roadmap; benchmark artifacts giữ evidence; chat không phải nơi lưu state duy nhất.
+13. **Long-form là orchestration problem trước khi là model problem.** Video dài phải được chia thành work unit nhỏ, checkpoint được, retry độc lập và có global timestamp/context.
+14. **Pipeline overlap có giới hạn.** Chỉ overlap các stage dùng tài nguyên khác nhau hoặc đã benchmark không tranh GPU/VRAM; không nhân worker GPU mù quáng.
+15. **Profile là policy trên một core chung.** Fast/Balanced/Max cùng hưởng chunking, streaming, cache, scheduler và partial recompute; profile chỉ thay độ sâu QA/rewrite/retry/escalation.
 
 ---
 
@@ -490,11 +489,10 @@ Seed repos cần audit khi phase tương ứng bắt đầu, không coi danh sá
 |---|---|---|
 | subtitle/segmentation/translation pipeline | VideoLingo | word/subtitle segmentation, alignment, batching, translation workflow |
 | subtitle cleanup/smart segmentation | ZastTranslate | WhisperX word cleanup, sentence/segment construction |
-| local dubbing + lip-sync adapter | video-dubbing-translator | local pipeline boundaries, voice/lip-sync integration |
-| dubbing + digital human | Linly-Dubbing | lip-sync/digital-human stage isolation, web workflow |
+| local dubbing pipeline | video-dubbing-translator | local pipeline boundaries, voice integration |
+| dubbing workflow | Linly-Dubbing | pipeline isolation, web workflow |
 | job progress/runtime architecture | videoTranslator | FastAPI/WebSocket progress, config/runtime telemetry, time-stretch patterns |
 | mature desktop/web dubbing UX | pyVideoTrans | UI/workflow/reference only unless license review explicitly permits desired reuse model |
-| lip-sync engine | MuseTalk / LatentSync | optional P18 adapter, VRAM/perf/quality A/B |
 
 Phần mặc định **BUILD/OWN** trong project:
 
@@ -703,6 +701,8 @@ Các schema cuối cùng phải bám style codebase và chỉ thêm abstraction 
 
 ## 8. Target pipeline
 
+P23 mở rộng pipeline này thành **adaptive long-form core**: video ngắn có thể vẫn là một work unit; video dài được chia theo silence/VAD thành macro-chunk, mỗi chunk có global timestamp, manifest và checkpoint riêng. Scheduler cho phép pipeline overlap có giới hạn giữa ASR/translation/TTS nhưng final assembly luôn deterministic theo timeline.
+
 ```text
 VIDEO INPUT
     |
@@ -771,9 +771,6 @@ voice assembly + overlap policy
     |
     v
 dialogue mix/master
-    |
-    v
-optional lip-sync post-process
     |
     v
 final mux + final QA
@@ -894,10 +891,11 @@ Stretch target sau khi P03/P04/P08/P09/P12 đã ổn: **long clean fixture hư�
 | P15 | Fast/Balanced/Max profiles | product | product | P04-P14 | behavior deterministic |
 | P16 | Human review/editor UI | cao | workflow | P12,P15 | targeted correction |
 | P17 | Regression benchmark suite | rất cao | gián tiếp | all core | automated guard |
-| P18 | Optional lip-sync | visual cao | chậm | core complete | optional only |
 | P19 | Optional premium/cloud A/B | có thể cao | variable | P17 | explicit permission |
 | P20 | Release/ops hardening | reliability | repeatability | all selected | ready-to-use |
-| P21 | Dedicated ChatGPT Web backend + model catalog | rất cao | cao | P04,P16,P20 | instance 2 direct route verified + no cross-instance fallback |
+| P21 | Historical dedicated ChatGPT Web instance + model catalog | rất cao | cao | P04,P16,P20 | ACCEPTED trên :17842, sau đó superseded khi instance bị xóa |
+| P22 | Dedicated Dubber-WebGPT runtime migration | rất cao | cao | P04,P16,P20,P21 | :17850 isolated runtime + direct Responses + live re-acceptance |
+| P23 | Adaptive long-form core + scheduler | giữ quality | rất cao long-form | P00,P01,P15,P17,P20,P22 | chunk/resume/stream/overlap/autotune pass trên short→super-long |
 
 ---
 
@@ -1161,9 +1159,9 @@ Dịch một lần đã gần đúng độ dài và nghe như spoken Vietnamese.
 
 ### Main generator
 
-Target P21 hiện tại:
+Target P22 hiện tại:
 
-- provider chính: Codex WebGPT instance 2 `127.0.0.1:17842`;
+- provider chính: Dedicated Dubber-WebGPT `127.0.0.1:17850`, direct `/v1/responses`;
 - model lấy từ live model catalog của account/backend;
 - UI cho phép người dùng chọn model thay vì hardcode một slug lâu dài;
 - default selection policy ưu tiên model Plus chất lượng cao nhất đã được project verify, hiện tại người dùng mong muốn lớp tương đương `5.6 Sol High`;
@@ -1747,7 +1745,6 @@ Profile override phải explicit cho:
 - TTS batch;
 - QA depth;
 - retry budget;
-- optional lip-sync;
 - final full QA.
 
 ### Safety
@@ -1867,43 +1864,6 @@ Một command/harness tạo comparison report before/after cho fixture set.
 
 ---
 
-## P18 - Optional lip-sync
-
-### Goal
-
-Finishing pass, không core dependency.
-
-### Candidate evaluation
-
-RTX 2070 SUPER 8 GB ưu tiên tool phù hợp VRAM thật.
-
-Không mặc định dùng version/model vượt VRAM.
-
-### Trade-off
-
-- render chậm;
-- artifact vùng miệng/mặt;
-- extra model/dependency;
-- có thể giảm visual quality dù sync tăng.
-
-### Gate
-
-Chỉ làm sau audio dubbing core đạt P17 acceptance.
-
-### Acceptance
-
-A/B trên talking head:
-
-- lip alignment;
-- face identity;
-- jitter;
-- artifact;
-- render time.
-
-Nếu visual regress đáng kể, feature giữ optional/off.
-
----
-
 ## P19 - Optional premium/cloud model A/B
 
 ### Goal
@@ -1914,7 +1874,6 @@ Potential categories:
 
 - proprietary/cloud TTS;
 - stronger translation provider;
-- external lip-sync.
 
 ### Gate bắt buộc
 
@@ -1927,7 +1886,7 @@ Hỏi trước khi:
 
 Không đưa cloud dependency vào Balanced Best mặc định.
 
-ChatGPT Web qua dedicated instance 2 ở P21 **không được xếp vào P19 chỉ vì là network AI**: đây là target translation backend người dùng đã chọn cho VI Dubber. P19 dành cho provider/API trả phí bổ sung, TTS/lip-sync cloud hoặc privacy boundary mới ngoài account ChatGPT Web hiện tại.
+ChatGPT Web qua dedicated instance 2 ở P21 **không được xếp vào P19 chỉ vì là network AI**: đây là target translation backend người dùng đã chọn cho VI Dubber. P19 dành cho provider/API trả phí bổ sung, TTS cloud hoặc privacy boundary mới ngoài account ChatGPT Web hiện tại.
 
 ---
 
@@ -1999,9 +1958,11 @@ Fresh install/setup path + warm existing-work path đều có smoke test. Produc
 
 ---
 
-## P21 - Dedicated ChatGPT Web backend + dynamic model catalog
+## P21 - Dedicated ChatGPT Web backend + dynamic model catalog (historical phase spec)
 
 ### Goal
+
+Phần P21 này mô tả contract khi managed instance 2 `:17842` còn là active route. Trạng thái production hiện hành nằm ở P22 bên dưới; không dùng các bước P21 để tái tạo `:17842`.
 
 Tách translation traffic của VI Dubber khỏi route Codex/Cockpit daily bằng cách khóa toàn bộ WebGPT inference vào **managed instance 2, port 17842**. Aurora tạm dừng và instance 1 không được dùng làm fallback.
 
@@ -2018,7 +1979,7 @@ VI Dubber
   -> ChatGPT Web
 ```
 
-Global Codex/Cockpit config không bị mutate. Instance 2 là transport duy nhất của product path hiện tại; mất instance 2 phải báo lỗi rõ thay vì tự chuyển sang `17841`, Aurora hoặc model khác.
+Khi P21 còn active, global Codex/Cockpit config không bị mutate và instance 2 là transport duy nhất của product path; mất instance 2 phải báo lỗi rõ thay vì tự chuyển sang `17841`, Aurora hoặc model khác.
 
 ### Source/runtime ownership
 
@@ -2080,8 +2041,292 @@ Global Codex/Cockpit config không bị mutate. Instance 2 là transport duy nh�
 - concurrent VI Dubber translation không gây lifecycle/queue conflict với Codex daily runtime;
 - model quality A/B không thua baseline trước khi chốt P21 COMPLETE.
 
+### P21 status after 25/09/2026
+
+P21 giữ nguyên làm **historical acceptance evidence** cho contract ChatGPT Web, dynamic catalog, model/effort fail-closed và fault handling. Người dùng đã xóa managed instance 2 `:17842`, nên P21 không còn là runtime vận hành hiện tại và không được tự tạo lại như một dependency ẩn.
+
 ---
 
+## P22 - Dedicated Dubber-WebGPT runtime migration
+
+### Goal
+
+Thay instance 2 đã xóa bằng một runtime WebGPT thực sự dành riêng cho VI Dubber, không chia browser profile/process/config với Codex/Cockpit daily runtime và không đưa coding harness vào production translation.
+
+Target architecture:
+
+```text
+VI Dubber
+  -> WebGptTranslator
+  -> direct POST http://127.0.0.1:17850/v1/responses
+       tools=[]
+       stream=false
+       store=false
+       selected model + effort
+  -> Dedicated Dubber-WebGPT
+       home: TradingWorkspace/.runtime/dubber-webgpt
+       browser login/session riêng
+       provider-only browser worker
+  -> ChatGPT Web
+```
+
+### Runtime ownership
+
+- fixed loopback port `17850`; `17841` của Codex/Cockpit không bị đụng và `17842` giữ trống để tránh nhầm historical P21;
+- runtime home mặc định `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`, nằm ngoài repo Git;
+- core engine reuse checkout `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; không fork business logic dịch sang WebGPT;
+- browser login/storage state riêng; không copy cookie/profile từ Codex daily runtime;
+- browser-only/provider-only: không MCP, không tool registry, không cwd/filesystem envelope, không subagents, không compaction cho translation batch;
+- global `~/.codex/config.toml`, Cockpit provider pool và instance `17841` không bị mutate;
+- VI Dubber sở hữu translation retry/idempotency/receipt; WebGPT core sở hữu browser submission/recovery và model/session behavior.
+
+### Migration sequence
+
+1. Thêm runtime manager `vi-dubber webgpt-runtime` để init/login/start/status/stop home riêng.
+2. Chuyển product config sang `webgpt_base_url=http://127.0.0.1:17850/v1` và `webgpt_transport=direct-responses`.
+3. Giữ production concurrency `1` và global context `false` trong migration; không trộn transport migration với throughput tuning.
+4. Người dùng đăng nhập ChatGPT một lần trong Chrome profile riêng bằng `webgpt-runtime login`.
+5. Start runtime và verify `/healthz` + `/v1/models` + selected model/effort.
+6. Chạy focused P04 translation fixture bằng direct Responses; structured JSON, glossary, critical tokens và terminology gate phải pass.
+7. Fault-test wrong port, missing login, runtime restart, model missing, 429/capacity và malformed response; không fallback sang `17841`/Aurora/Qwen.
+8. Re-run repeated warm c1/c2 benchmark sau khi route mới pass correctness; c2 chỉ promote khi gain/reliability đủ rõ.
+9. Re-accept P04/P16/P20 trên `:17850`; khi đó P22 mới chuyển ACCEPTED.
+
+### Acceptance
+
+- runtime home/browser/session/process tách khỏi Codex/Cockpit daily runtime;
+- `:17850` health/catalog live và selected model có trong catalog;
+- VI Dubber dùng direct `/v1/responses`; normal product path không spawn `codex exec`;
+- global Codex/Cockpit route không đổi;
+- missing login/runtime down/model unavailable fail actionable và fail closed;
+- request receipt/idempotency/retry vẫn pass focused regression;
+- P04 quality receipt và terminology/critical-token gates không thua historical P21 baseline;
+- P16 UI hiển thị catalog/status của Dedicated Dubber-WebGPT thay vì `instance 2`;
+- P20 restart/disconnect/cancel/cache integrity pass trên runtime mới.
+
+### P22 live status - 25/09/2026
+
+- **P22-A runtime isolation: ACCEPTED.** Dedicated login đã capture thành `storage-state.json`; runtime `:17850` online, health/catalog live, `:17841` không bị mutate và `:17842` không được tái tạo.
+- **P22-B direct Responses correctness: ACCEPTED.** Direct tool-free smoke trả `{ok: true, route: dedicated-17850}`; P04 representative fixture pass terminology + critical-token gate; P16 live catalog/status UI pass; direct 503/disconnect không commit partial translation/cache.
+- ChatGPT Web UI compatibility trong shared core được fix riêng ở commit `62ca664` để nhận composer `textarea` mới và model-family verification khi `aria-describedby` chỉ còn effort text. Core regression: `158 passed` + TypeScript typecheck.
+- VI Dubber regression mới nhất sau migration, c2 atomicity và async TTS preload lifecycle hardening: `399 passed, 2 warnings`; fault-focused direct/runtime/cancel subset pass, direct disconnect regression pass và concurrent sibling-batch failure không còn partial-commit translation/cache.
+- Receipt P04 mới: `work/p22-live-acceptance/p22_p04_live_results.json` (`direct-responses`, Sol High, c1, global context off, terminology=true, critical=true).
+- **P22-C throughput benchmark: ACCEPTED.** Repeated-warm 6-segment/batch-2 Sol High trên `:17850`: c1 median `41.1390s`, c2 median `30.8903s` (`1.3318x` speedup); cả hai lượt c2 pass terminology + critical-token gates, `0` pressure failure, `0` retry/failure. Per-request p95 tăng lên khoảng `22s`, nhưng total wall-time giảm đủ rõ nên production promote `webgpt_concurrency: 2`. Global context vẫn `false`; c3 tiếp tục benchmark-only vì historical capacity rejection.
+- **P22 COMPLETE / ACCEPTED.** Runtime isolation, direct Responses correctness, P04/P16/P20 re-acceptance và c1/c2 throughput gate đều đã pass trên Dedicated Dubber-WebGPT `:17850`.
+
+---
+
+## P23 - Adaptive long-form core, scheduler và performance architecture
+
+### Goal
+
+Nâng core pipeline để **mọi profile** (`fast`, `balanced_fast`, `balanced_best`, `max_quality`) cùng hưởng tối ưu performance/reliability, đặc biệt với video 1.5 giờ đến 12+ giờ, mà không hạ model chính chỉ để chạy nhanh.
+
+P23 không tạo pipeline riêng kiểu `long_fast.py`. Một core duy nhất tự thích nghi theo workload; profile chỉ quyết định quality policy.
+
+### Quyết định best practice theo từng khía cạnh
+
+| Khía cạnh | Best practice chọn | Thay cho cách cũ | Vì sao chọn |
+|---|---|---|---|
+| Video dài | Adaptive silence/VAD-aware macro chunking | stage xử lý gần như toàn video | giới hạn RAM, retry nhỏ, giữ câu không bị cắt cứng |
+| Luồng xử lý | Bounded pipeline overlap | ASR xong hết rồi mới dịch/TTS | che thời gian chờ giữa CPU/GPU/network mà không tranh tài nguyên vô hạn |
+| GPU | Dynamic batching theo benchmark | nhiều infer nhỏ hoặc tăng worker mù quáng | tận dụng GPU tốt hơn, giảm launch/overhead và tránh OOM/latency tăng |
+| Concurrency | Resource-aware bounded scheduler | một concurrency cố định cho mọi stage | GPU, WebGPT, CPU và disk có giới hạn khác nhau |
+| ASR | VAD/speech-aware chunk input | đọc/xử lý cả audio dài kể cả silence | giảm dữ liệu vô ích và tránh giữ waveform khổng lồ trong RAM |
+| Translation | Batch + bounded WebGPT concurrency | request nhỏ/serial hoặc fan-out quá mức | giữ context tốt và throughput cao; production c2 hiện là baseline đã accepted |
+| TTS | Persistent engine + real batching | load/init hoặc infer quá vụn | giảm init overhead; giữ batch ở sweet spot đã benchmark |
+| QA | Risk-based / early-exit QA | full QA mọi đoạn hoặc Fast bỏ gần hết | giữ quality ở đoạn khó, không trả compute cho đoạn sạch |
+| Rewrite | Selective rewrite | rewrite rộng theo stage | chỉ trả tiền/latency cho segment thật sự overflow hoặc semantic fail |
+| Crash/resume | Checkpoint per chunk + per stage | checkpoint stage lớn | lỗi chunk N chỉ làm lại chunk N/phần downstream cần thiết |
+| Retry | Idempotent work unit | retry phạm vi lớn | retry an toàn, không duplicate/commit artifact nửa chừng |
+| Cache | Content-addressed per chunk/artifact | file-exists/stage-only reuse | config/model/text/ref đổi thì invalidate đúng phạm vi |
+| Manual edit | Dependency-aware partial recompute | sửa một câu làm lại nhiều downstream | chỉ rerender segment/neighbor bị ảnh hưởng |
+| RAM | Streaming/windowed I/O | load audio rất dài vào memory | 6-12h không làm RAM tăng tuyến tính theo toàn video |
+| Disk | Artifact minimization + bounded temp files | ghi/đọc WAV/stem trung gian quá nhiều | giảm I/O, dung lượng và thời gian chờ SSD |
+| Backpressure | Bounded queues | upstream tạo việc nhanh hơn downstream | queue không phình RAM; stage chậm tự giới hạn stage trước |
+| Prefetch | Decode/read next chunk while current compute runs | chờ stage mới chuẩn bị input | che I/O bằng compute khi không tranh tài nguyên |
+| CPU/GPU overlap | FFmpeg/decode/validation chạy cạnh GPU infer khi an toàn | một tài nguyên chờ tài nguyên khác | tăng utilization toàn máy thay vì chỉ tăng GPU worker |
+| Progress UI | Chunk + stage progress | một % lớn khó biết đang treo hay chạy | thấy `chunk 8/20 · translate 63%`, pause/resume rõ |
+| ETA | Throughput-based rolling ETA | % tuyến tính | phản ánh tốc độ thật của video/model/máy sau vài chunk |
+| Profile | Policy layer trên shared core | mỗi mode dễ trôi thành pipeline riêng | mọi mode hưởng optimization, ít code clone, dễ bảo trì |
+| Tuning | Fixture-based auto-tune có guardrail | batch/concurrency hardcode hoặc đoán | máy khác nhau có sweet spot khác; chỉ promote cấu hình có benchmark |
+| Progressive output | Publish preview theo macro-chunk đã commit; optional HLS/fMP4 | phải chờ full job mới xem/tải | user kiểm tra chất lượng sớm, tải phần đã xong ngay, phát hiện lỗi trước khi job chạy nhiều giờ |
+| Engine sourcing | REUSE/ADAPT trước, BUILD chỉ khi thiếu | tự viết lại engine/scheduler helper dù ecosystem đã có | giảm code phải bảo trì, tận dụng engine mature; vẫn giữ control plane của VI Dubber |
+
+### Adaptive chunk policy
+
+Không cắt đúng mốc thời gian nếu mốc đó nằm giữa câu.
+
+```text
+default benchmark sweet spot: 25 phút
+target macro chunk: 20-30 phút
+adaptive tuning range ban đầu: 15-40 phút
+search boundary: khoảng ±30-60 giây
+ưu tiên: silence/VAD boundary + sentence/turn boundary
+fallback: deterministic safe cut với overlap/context window nhỏ
+```
+
+`25 phút` là default để benchmark/triển khai đầu tiên, không phải hard limit. Scheduler có thể điều chỉnh trong khoảng `15-40 phút` sau khi có evidence về RAM/VRAM, nội dung, speaker density và throughput; mọi thay đổi default phải qua P23 A/B gate.
+
+Video ngắn không bị ép chia nhiều chunk. Policy ban đầu:
+
+| Độ dài / use case | Chunk target ban đầu | Core scheduling | Profile thường dùng |
+|---|---:|---|---|
+| <15 phút, clip/tutorial | 1 chunk | 1 work unit nếu memory safe | balanced_fast |
+| 15-60 phút, YouTube thông thường | 15-30 phút | 1 hoặc vài adaptive chunk | balanced_fast |
+| 1-3 giờ, podcast/bài giảng | 20-30 phút | macro chunk + checkpoint + overlap | balanced_fast |
+| 3-6 giờ, khóa học/podcast dài | 20-30 phút | macro chunk + checkpoint + overlap | balanced_fast |
+| 6-12 giờ, monologue/khóa học sạch | 20-25 phút | macro chunk + selective QA + aggressive reuse | fast hoặc balanced_fast |
+| >12 giờ | 15-25 phút | chunk nhỏ hơn để giới hạn failure scope/RAM | fast hoặc balanced_fast |
+| >6 giờ, nhiều speaker/ồn/overlap | 15-25 phút tùy density | macro chunk + diarization/risk QA | balanced_fast |
+| bất kỳ, output quan trọng | cùng chunk policy | cùng core, quality policy sâu hơn | balanced_best/max_quality |
+
+### Work-unit contract
+
+Mỗi chunk phải giữ tối thiểu:
+
+```text
+chunk_id
+source start/end + global timestamp
+boundary/context overlap metadata
+speaker identities / diarization mapping nếu có
+glossary + audience/domain context fingerprint
+ASR/translation/TTS/QA stage fingerprints
+artifact hashes + completion state
+retry count + timing/throughput telemetry
+```
+
+Final assembly không phụ thuộc thứ tự chunk hoàn thành; luôn sort/validate theo global timeline và fail closed nếu thiếu/overlap bất hợp lệ.
+
+### Scheduler contract
+
+Không chạy nhiều GPU-heavy stage cùng lúc chỉ vì có nhiều chunk.
+
+Baseline target:
+
+```text
+GPU queue: separation/ASR/TTS có ownership rõ, concurrency mặc định 1 trừ khi A/B chứng minh tốt hơn
+WebGPT queue: production baseline concurrency 2; adaptive >2 chỉ benchmark-only cho tới khi pass pressure gate
+CPU/FFmpeg queue: có thể overlap decode/preprocess/mux prep với GPU/network khi RSS/disk pressure an toàn
+QA queue: early-exit; chỉ hard/risk segments đi verification sâu
+```
+
+Scheduler phải có backpressure theo queue depth, VRAM/RAM, disk free-space và provider pressure. Không để queue không giới hạn.
+
+### Quality-preserving acceleration
+
+P23 ưu tiên **bỏ việc thừa**, không downgrade model hàng loạt:
+
+1. skip silence trước ASR khi evidence cho phép;
+2. skip deep QA nếu deterministic + lightweight gates pass;
+3. rewrite chỉ segment cần sửa;
+4. cache/reuse theo fingerprint;
+5. giữ model/engine sống trong worker khi có lợi;
+6. prefetch và overlap stage khác tài nguyên;
+7. partial recompute khi user edit;
+8. auto-tune batch/concurrency trên fixture trước khi đổi default.
+
+### Progress / observability
+
+UI/API cần expose:
+
+```text
+overall progress
+current macro chunk / total chunks
+per-stage progress của chunk đang active
+queue depth theo ASR / translate / TTS / QA
+rolling throughput (media-minutes processed / wall-minute)
+rolling ETA
+cache-hit/reuse counters
+retry/failure location theo chunk+stage
+```
+
+Pause/cancel phải dừng ở checkpoint an toàn và giữ artifact đã committed.
+
+### Progressive preview / download contract
+
+Video dài không bắt user chờ full job mới được xem kết quả. Khi một macro-chunk đã hoàn thành downstream cần thiết và được commit atomically, backend publish **preview artifact** cho chunk đó.
+
+```text
+chunk 001: READY  -> xem/tải preview ngay
+chunk 002: READY  -> xem/tải preview ngay
+chunk 003: TTS    -> chưa publish
+chunk 004: ASR    -> chưa publish
+...
+all chunks READY + global assembly/mix/final QA -> FINAL
+```
+
+Contract:
+
+1. Preview tối thiểu là MP4 của macro-chunk có audio dub + timeline đúng; tên/metadata phải ghi rõ `PREVIEW`, không giả là final.
+2. Chỉ publish sau khi chunk pass local deterministic gates + required profile QA và manifest/artifact đã commit; không expose file đang ghi dở.
+3. User có thể **play trong UI** và **download từng part** ngay khi ready; job còn lại tiếp tục chạy.
+4. Nếu edit/repair làm invalid chunk, preview cũ bị đánh `stale/superseded`; preview version mới chỉ publish sau commit mới.
+5. FINAL chỉ publish sau khi đủ chunk, validate ordering/global timestamp, full assembly, mix/master và final QA theo profile.
+6. Optional progressive playback ưu tiên **reuse FFmpeg HLS/segment/fMP4 muxing** nếu benchmark/browser compatibility pass; không tự viết streaming container/protocol.
+7. Preview packaging phải bounded I/O, không encode lại source video nhiều lần nếu remux/stream-copy an toàn đáp ứng contract.
+8. Preview artifact có fingerprint/provenance để cache/resume và UI reload không nhầm version.
+
+### P23 reuse-first engine gate
+
+Trước mỗi sub-feature P23, worker phải audit ecosystem theo gate `REUSE / ADAPT / BUILD / REFERENCE-ONLY` đã định nghĩa ở 4.10. Nguyên tắc: **own the control plane, reuse the engines**.
+
+| Nhu cầu P23 | Candidate cần audit trước khi BUILD | Default hướng xem xét |
+|---|---|---|
+| progressive preview/package | FFmpeg HLS/segment/fMP4 muxers | REUSE trực tiếp nếu contract đủ |
+| ASR/VAD long-form primitives | WhisperX hiện tại + upstream VAD/chunk primitives; faster-whisper/Silero chỉ là candidate | ADAPT/REFERENCE, không replace ASR core nếu chưa A/B |
+| subtitle/chunk/translation workflow | VideoLingo, ZastTranslate | REFERENCE/ADAPT sau license + code-path audit |
+| dubbing workflow/orchestration | Linly-Dubbing, video-dubbing-translator | REFERENCE/ADAPT phần độc lập phù hợp |
+| progress/queue/runtime UX | videoTranslator | REFERENCE/ADAPT pattern, không fork control plane |
+| mature dubbing UX/concurrency patterns | pyVideoTrans | REFERENCE-ONLY mặc định cho tới khi license/obligation phù hợp được xác minh |
+
+Không bê nguyên repo chỉ vì feature giống. Mỗi reuse phải pin source/revision/license, map dependency, benchmark local Windows/CUDA, có attribution cần thiết và rollback. Nếu engine hiện có không đáp ứng contract hoặc làm architecture phức tạp hơn rõ rệt thì mới BUILD helper nhỏ trong VI Dubber.
+
+### Acceptance matrix
+
+P23 chỉ được promote khi có benchmark cùng fixture/config/model giữa baseline và candidate:
+
+1. **Correctness:** transcript/translation/timing/terminology/QA không regress ngoài tolerance đã định nghĩa.
+2. **Short video:** overhead chunk/scheduler không làm short fixture chậm đáng kể; nếu <1 chunk thì path gần baseline.
+3. **Medium/long:** end-to-end wall time không regress; target có throughput gain đo được hoặc cùng tốc độ nhưng reliability/RAM tốt hơn rõ.
+4. **Super-long:** fixture synthetic/real representative 6h+ phải chạy với bounded RSS/VRAM/disk, không phụ thuộc load toàn waveform vào RAM.
+5. **Resume:** kill/restart ở chunk giữa job chỉ recompute chunk/stage invalid; completed chunk giữ nguyên.
+6. **Partial edit:** sửa 1 segment chỉ invalidate dependency cần thiết.
+7. **Backpressure:** queue không tăng vô hạn khi WebGPT/TTS chậm.
+8. **GPU pressure:** không OOM; concurrency cao hơn chỉ promote khi total throughput tốt hơn và p95 latency/VRAM trong gate.
+9. **Ordering:** chunk hoàn thành out-of-order vẫn assemble bitwise/deterministically tương đương timeline contract.
+10. **Profiles:** Fast/Balanced/Max cùng core; không code-clone long-form path.
+11. **Progress:** UI hiển thị chunk/stage/ETA đúng với persisted job state và reload/resume.
+12. **Failure scope:** corrupted/failed chunk không làm mất artifact đúng của chunk khác.
+13. **Progressive preview:** chunk committed có thể play/download trước full completion; preview không publish partial file và bị invalidate đúng khi edit/repair.
+14. **Final distinction:** UI/API phân biệt rõ Preview vs Final; final chỉ xuất hiện sau global assembly/mix/QA.
+15. **Reuse provenance:** mọi engine/code được reuse/adapt trong P23 có source/revision/license/decision receipt và local benchmark trước promotion.
+
+### Implementation order
+
+1. P23-specific reuse-first reconnaissance: audit/pin candidates, chọn `REUSE/ADAPT/BUILD/REFERENCE-ONLY` trước khi code lớn.
+2. Macro-chunk schema + silence/VAD boundary planner + global timestamp contract.
+3. Per-chunk manifests/cache/resume + dependency graph cho partial recompute.
+4. Streaming/windowed ASR input để bỏ full-waveform long-form pressure.
+5. Bounded queues + scheduler/backpressure; giữ GPU-heavy concurrency bảo thủ lúc đầu.
+6. Pipeline overlap giữa GPU/network/CPU stage có tài nguyên khác nhau.
+7. Persistent engine + dynamic batching/prefetch nơi benchmark cho thấy lợi ích.
+8. Risk QA/early-exit + selective rewrite trên shared policy layer.
+9. Progressive preview artifact: committed chunk MP4 trước; A/B optional FFmpeg HLS/fMP4 playback; stale/version contract.
+10. Progress/ETA/queue/chunk-ready telemetry trong web/API + download/open preview endpoints.
+11. React UI: chunk list/status, play preview, download part, Preview/Final badges, stale/re-render state, reload persistence.
+12. Auto-tune harness cho batch/concurrency/chunk size; không auto-promote nếu quality/fault gate fail.
+13. Full P17 + long/super-long acceptance, progressive preview, crash/resume/fault matrix rồi mới đổi default.
+
+### Trade-off
+
+P23 chấp nhận một ít overhead từ chunk manifest/boundary/queue để đổi lấy bounded memory, khả năng resume nhỏ hạt và throughput tốt hơn ở video dài. Không đặt mục tiêu `parallel càng nhiều càng tốt`; mục tiêu là **máy luôn bận đúng việc, không tranh cùng một bottleneck**.
+
+### Status
+
+**IN PROGRESS.** Reuse-first audit, macro-chunk planner, per-chunk manifest/resume/invalidation, production windowed ASR cho non-diarization, bounded scheduler/prefetch, chunked TTS, risk QA, progressive preview/API/UI và persisted chunk throughput/ETA đã được implement tới v2.18 với local regression coverage. Diarization vẫn cố ý dùng full-file ASR cho tới khi có cross-chunk speaker reconciliation. Auto-tune harness đã kiểm tra tuning axes sau profile resolution, bỏ ASR batch-8 khỏi default matrix vì P13 đã reject batch >4 trên hardware hiện tại, và yêu cầu tối thiểu 3 trial xoay thứ tự + median trước khi một candidate đủ điều kiện manual promotion. 6.25h synthetic control-plane acceptance đã pass bounded backpressure/RSS/disk, manifest crash-resume và completion-order independence; đây không thay cho real-media 6h+/VRAM/WebGPT/FFmpeg acceptance. Short A/B harness hiện dùng cùng working tree/runtime và chỉ bật/tắt `longform.enabled`, nhưng fresh live run bị direct Responses malformed JSON ở stage dịch nên gate vẫn fail-closed. Whole-job repeated benchmark, successful short repeated A/B và real 6h+ acceptance vẫn chưa đóng; không claim speedup trước các gate đó.
+
+---
 ## 11. TypeSafe implementation contract chi tiết
 
 ### 11.1. Không dùng TypeSafe cho
@@ -2278,7 +2523,8 @@ Các phase chi tiết ở trên là unit implementation. Để coordinator dễ 
 | **CP4 Voice Core** | P07 reference + P08 GPU TTS | quality parity/improvement + safe VRAM + throughput gain |
 | **CP5 Audio/QA** | P10-P12 assembly/mix/segment repair | loudness/clipping/critical error gates pass |
 | **CP6 Product Modes** | P13-P16 tuning/multi-speaker/profiles/editor | reproducible profiles + hard cases visible/reviewable |
-| **CP7 Full Acceptance** | P17 regression + selected P18/P19 + P20 ops | representative short/medium/long + resume + blind A/B + perf regression pass |
+| **CP7 Full Acceptance** | P17 regression + selected P19 + P20 ops | representative short/medium/long + resume + blind A/B + perf regression pass |
+| **CP8 Long-form Core** | P23 adaptive chunk/scheduler/streaming/partial recompute + progressive preview/download + reuse-first gate | short overhead safe + long/super-long bounded memory + preview/final UX + resume/throughput/quality/reuse gates pass |
 
 Không đi checkpoint sau chỉ vì code của checkpoint trước đã merge. Evidence/acceptance phải pass trước.
 
@@ -2368,11 +2614,21 @@ Phases:
 
 ### Wave 6 - Optional extras
 
-- P18 lip-sync;
 - P19 cloud/premium A/B;
 - P20 final ops.
 
 Không để optional extras chặn core Balanced Best release.
+
+### Wave 7 - Shared long-form/performance core
+
+- P23 adaptive macro-chunking + streaming I/O;
+- per-chunk cache/checkpoint + partial recompute;
+- bounded resource-aware scheduler/backpressure;
+- pipeline overlap + dynamic batching/prefetch;
+- progress/ETA + auto-tune harness;
+- P17 + 6h+ long-form acceptance/fault matrix.
+
+P23 phải giữ một shared pipeline cho mọi profile; không tạo implementation riêng chỉ cho Fast hoặc video >6h.
 
 ---
 
@@ -2452,7 +2708,6 @@ Phase chỉ COMPLETE khi gate phù hợp đã pass, không phải khi code "trô
 | stale cache | wrong audio/text | stage manifest/content hash |
 | global QA hides error | bad critical word | segment QA + critical tokens |
 | aggressive duck/compress | pumping | A/B + conservative defaults |
-| lip-sync artifact | mặt méo/jitter | optional feature only |
 | long task loses chat context | redo work | durable checkpoints/receipts |
 | parallel agents conflict | overwrite patch | explicit file ownership |
 
@@ -2488,7 +2743,6 @@ Không làm sớm chỉ vì nghe hấp dẫn:
 - bigger translation model cho 100% câu;
 - fine-tune TTS/ASR ngay;
 - distributed worker / multi-PC infrastructure: **defer sau v1**; scope hiện tại tối ưu và production-harden cho một PC chính `RTX 2070 SUPER 8 GB` trước;
-- lip-sync trước audio quality;
 - model separator mới trước khi A/B chứng minh stem hiện tại là bottleneck;
 - thêm framework mới khi helper hiện tại đủ.
 
@@ -2519,11 +2773,9 @@ Balanced Best v1 được coi là hoàn thành khi:
 19. Retry/fallback có budget, idempotent và observable; không infinite loop hoặc silent fallback.
 20. Single-PC v1 dùng ổn định độc lập; không phụ thuộc PC thứ hai/distributed worker.
 21. Mỗi phase có ecosystem phù hợp đã qua open-source reconnaissance gate; checkpoint ghi rõ `REUSE/ADAPT/BUILD/REFERENCE-ONLY`, source/revision/license khi reuse và benchmark local trước khi đổi default.
-22. P21 pass: WebGPT instance 2 direct route hoạt động, live model catalog trên UI chạy, selected model/catalog được snapshot/fingerprint, wrong port/model unavailable fail closed và không tự cross-instance/Aurora/Qwen.
-
-Optional lip-sync không nằm trong Balanced Best DoD.
-
----
+22. P21 historical acceptance vẫn giữ làm evidence cho contract WebGPT cũ; production hiện không phụ thuộc `:17842`.
+23. P22 Dedicated Dubber-WebGPT `:17850` pass isolation/direct Responses/catalog/fault/throughput gate và fail closed khi route/model sai.
+24. P23 long-form core pass shared-core acceptance: adaptive chunking, streaming/windowed input, per-chunk resume/cache, bounded scheduler/backpressure, partial recompute, progress/ETA và short→super-long benchmark không regress quality.
 
 ## 21. Definition of Done cho Max Quality
 
@@ -2533,7 +2785,6 @@ Ngoài Balanced Best:
 - hard-case candidate fan-out;
 - stronger final QA;
 - multi-speaker hard cases phù hợp fixture;
-- optional lip-sync A/B nếu user bật;
 - review UI usable cho flagged segments;
 - no silent fail on uncertainty.
 
@@ -2571,21 +2822,22 @@ Không bắt người dùng tự mở từng specialist chat hoặc copy kết q
 | P04 Translation | ACCEPTED | live WebGPT instance 2 pass (high: 43.6s, med: 38.1s, instant_low: 35.0s); 100% adherence glossary.yaml (FVG, order block, sweeps liquidity, market structure); 100% critical tokens (OpenAI, Sam Altman, GPT-4, 86.400, 99,8%, negation, modality, win/loss); tools/p04_quality_receipt passed=true |
 | P05 TypeSafe | ACCEPTED | calibration mở rộng 35 câu trading/tech thực tế (`label_provenance: "human"`), 100% PLAN classes; live TypeSafe Jev API batch 8/16/32 benchmark; tối ưu hóa ngưỡng candidate `0.87` đạt F1=1.0, precision=1.0, recall=1.0, bắt 14/14 lỗi nghiêm trọng (100%), không retry nhầm câu vụng về; model pinning chính thức khóa `jev-1.13.0` trong config.yaml; checkpoint `work/checkpoints/P05-real-calibration-acceptance.md` |
 | P06 Pronunciation | DONE | golden pronunciation set + display/TTS text separation pass; deterministic number/currency/%/unit/date/time handling, explicit acronym/name/technical overrides và ambiguous-format fail-closed đều có regression |
-| P07 Voice reference | PARTIAL | acoustic selector 3-8s, overlap reject, canonical ref/speaker tích hợp; còn blind A/B |
+| P07 Voice reference | PARTIAL / HUMAN GATE READY | acoustic selector 3-8s, overlap reject, canonical ref/speaker tích hợp; blind A/B packet đã tạo trên 4 fixture thật nơi smart selector khác legacy baseline. Mean selector score +0.2163, SNR 12.76 -> 20.00 dB, speech ratio 0.565 -> 0.672; media integrity pass. Còn >=3 blind human ballots + explicit pass. Checkpoint: `work/checkpoints/P07-reference-blind-ab-2026-09-25.md` |
 | P08 GPU TTS | ACCEPTED | RTX 2070 SUPER CUDA FP16 batch 4: RTF 0.1185, ~30.3% wall-time gain, peak VRAM 728.83 MiB safe; CPU ONNX FP32 fallback pass; default config.yaml chính thức cập nhật `backend: pytorch`, `device: cuda`, `precision: fp16`, `batch_size: 4`; checkpoint `work/checkpoints/P08-gpu-tts-acceptance.md` |
 | P09 Elastic timing | BENCHMARKED | timing policy version 3 chạy trên toàn bộ 734 cửa sổ long baseline: 0 va chạm (collision-free), 270.45s initial silence borrow, 277.86s rebalanced borrow; router hành động: 279 preserve_pause, 104 slowdown, 275 speedup, 76 rewrite; receipt tại `work/benchmarks/p03-p09-long-20260924.json` |
 | P10 Assembly | DONE | exact timeline, fades, equal-power overlap/collision regression pass; streaming 30 s blocks trên timeline 3238.67 s chỉ tăng peak RSS ~16.7 MiB, output duration 3238.6728125 s |
-| P11 Mix/master | PARTIAL | two-pass loudnorm + limiter + metrics integrated; current 226s remux đạt -14.45 LUFS / -1.61 dBTP / no clipping; còn listening A/B |
-| P12 Segment QA | PARTIAL | real 50-segment E2E: 3/50 flag đều là lỗi thật (2 thiếu critical `cần`, 1 timing overflow), repair 1 đoạn, global ASR similarity 98.4%; còn xử lý 3 lỗi còn lại + broader FPR/listening evidence |
-| P13 ASR/separator tune | PARTIAL | WhisperX 4/6/8 benchmark + CUDA OOM fallback/cleanup; chưa đủ broader parity/separator A/B để đổi default |
-| P14 Multi-speaker | PARTIAL | speaker/overlap visibility + review flags có; còn real 2-speaker + overlap fixture |
+| P11 Mix/master | PARTIAL / HUMAN GATE READY | controlled 226s A/B cùng source/stems/gains/AAC 192k 48 kHz: current two-pass + limiter đạt -14.40 LUFS, -1.62 dBTP, 0 clip samples; single-pass/no-limiter baseline đạt -14.72 LUFS, -1.11 dBTP nên fail loudness + true-peak gates. Blind packet integrity pass; còn >=3 human votes + human-attested decision. Checkpoint: `work/checkpoints/P11-controlled-listening-evidence-2026-09-25.md` |
+| P12 Segment QA | PARTIAL / HUMAN GATE READY | consolidated 8 P17 runs = 68 segments, 2 final flags; 6/8 runs zero flags; 23 benign non-exact ASR variants pass without flag. Known numeric/critical-token defect bị bắt; current policy routes missing-critical -> `pronunciation_retry`, timing-only -> `timing_rewrite`, không cần đổi selective-repair policy. Còn human TP/FP labels cho remaining flags + small unflagged sample. Checkpoint: `work/checkpoints/P12-evidence-closure-2026-09-25.md` |
+| P13 ASR/separator tune | ACCEPTED / KEEP CURRENT | full-P17 WhisperX batch 6 bị reject vì chậm hơn batch 4 (`286.99s` vs `248.89s`, +15.3% wall). Separator batch 2 không tác động RoFormer path hiện tại; oracle clean-speech skip tăng tốc separator 97.41% nhưng fail transcript/alignment parity và background-stem parity, nên cũng reject. Giữ production WhisperX batch 4 + BS-RoFormer. Receipts: `work/checkpoints/P13-full-p17-whisper-batch-ab-2026-09-25.md`, `work/checkpoints/P13-separator-clean-skip-ab-2026-09-25.md` |
+| P14 Multi-speaker | PARTIAL | speaker/overlap visibility + review flags có; synthetic two-speaker/overlap machine contract pass. Workspace scan hiện không có retained job với >=2 speaker/overlap thật và runtime không có authorized HF diarization token; còn consented real 2-speaker interview + real crosstalk/listening gate |
 | P15 Profiles | DONE | Fast/Balanced/Max resolved behavior machine-readable và profile-relevant fingerprint tests pass |
-| P16 Review UI | ACCEPTED | web.py kết nối live catalog instance 2 (:17842); dynamic effort selector (gpt-5.6-sol: medium/high default high; instant: low); selective rerender invalidation chỉ hủy downstream audio của segment sửa và giữ nguyên cache thô; test_web_review pass (44/44); Playwright Chromium headless E2E pass (3/3), chụp screenshot studio thật, reload persistence verify |
+| P16 Review UI | ACCEPTED | UI đã re-accept live catalog/status trên Dedicated Dubber-WebGPT `:17850`; dynamic effort selector (gpt-5.6-sol: medium/high default high; instant: low); selective rerender invalidation chỉ hủy downstream audio của segment sửa và giữ nguyên cache thô; Playwright focused E2E pass và reload persistence verify |
 | P17 Regression suite | ACCEPTED | 10/10 available fixtures trong `work/benchmarks/fixtures.json` (100% hoàn chỉnh cả 10 categories), 0 issues manifest validation; bổ sung full runs + baseline metrics cho `two-speakers` (100% similarity), `overlapping-speech` (94.9% similarity) và `emotional-prosody-stress` (99.5% similarity); 16/16 test harness pass; checkpoint `work/checkpoints/P17-full-fixtures-acceptance.md` |
-| P18 Lip-sync | OPTIONAL/BLOCKED | giữ optional; chỉ đánh giá sau khi P17 core acceptance pass |
 | P19 Premium/cloud | OPTIONAL/BLOCKED | cần user opt-in cho API/cost/privacy; không thuộc Balanced Best mặc định |
 | P20 Ops hardening | ACCEPTED | fault matrix cover: 429 backoff, selected model missing fail-closed, port unreachable, live disk preflight, child process kill across 4 stages (asr, translation, tts, mix_mux) với lease recovery/pause sạch, và atomic fsync temporary sibling replace an toàn khi kill; test_fault_contracts pass |
-| P21 ChatGPT Web backend | ACCEPTED | instance 2 :17842 live connected; live catalog discovery (gpt-5.6-sol, gpt-5.6-sol-instant); live translation pass across high/medium/instant_low; fail-closed khi gọi effort không hợp lệ (low trên sol); per-invocation codex override khóa instance 2; test_webgpt_retry pass |
+| P21 ChatGPT Web backend | HISTORICAL ACCEPTED / SUPERSEDED | instance 2 :17842 từng pass live catalog + translation + fail-closed; người dùng đã xóa instance này ngày 25/09/2026, evidence giữ lại nhưng route không còn active |
+| P22 Dedicated Dubber-WebGPT | ACCEPTED / DONE | `:17850`, runtime home/browser/session riêng, direct Responses, không mutate global Codex/Cockpit route; P04/P16/P20 live re-accepted; repeated-warm c1/c2 gate pass và production promote c2 (`41.1390s -> 30.8903s` median, `1.3318x`, 0 pressure/retry/failure). Checkpoint: `work/checkpoints/P22-live-correctness-2026-09-25.md` |
+| P23 Long-form/performance core | IN PROGRESS | shared adaptive chunking + windowed ASR + per-chunk cache/resume/invalidation + bounded scheduler/prefetch + chunked TTS + risk QA + progressive preview/API/UI + progress/ETA đã implement và có local tests; auto-tune đã hardened thành resolved-axis guard + 3-trial rotated median. Synthetic 6.25h control-plane gate pass bounded queue/RSS/disk + manifest resume + deterministic ordering; short A/B harness đã corrected thành same-tree toggle nhưng live direct Responses malformed JSON nên fail-closed. Repeated whole-job, successful short A/B và real-media 6h+/VRAM/live-provider/final-media acceptance còn mở nên chưa claim speedup. Checkpoints: `work/checkpoints/P23-autotune-harness-hardening-2026-09-26.md`, `work/checkpoints/P23-machine-gates-2026-09-26.md` |
 
 ---
 
@@ -2598,9 +2850,21 @@ Main worker phải re-check version khi bắt đầu phase có dependency extern
 - TypeSafe SDE cascade: `https://docs.typesafe.ai/cookbooks/sde_cascade`
 - TypeSafe parallel questions: `https://docs.typesafe.ai/cookbooks/parallel_questions`
 - VieNeu-TTS upstream: `https://github.com/pnnbao97/VieNeu-TTS`
+- VieNeu-TTS 3.8.x GPU batching/CUDA graph implementation: `https://github.com/pnnbao97/VieNeu-TTS/blob/main/src/vieneu/v3turbo.py`
+- VieNeu-TTS v3 Turbo reading-style/reference behavior: `https://github.com/pnnbao97/VieNeu-TTS/blob/main/README.md`
+- Vietnamese TTS prosodic phrasing research (Interspeech 2014): `https://www.isca-archive.org/interspeech_2014/nguyen14_interspeech.html`
 - WhisperX upstream: `https://github.com/m-bain/whisperX`
 - faster-whisper upstream: `https://github.com/SYSTRAN/faster-whisper`
+- Qwen3-ASR upstream: `https://github.com/QwenLM/Qwen3-ASR`
+- pyannote benchmark/Precision-3: `https://www.pyannote.ai/benchmark`
 - FFmpeg filters: `https://ffmpeg.org/ffmpeg-filters.html`
+- OpenAI Fast mode: `https://developers.openai.com/api/docs/guides/fast-mode`
+- Microsoft Vietnamese Localization Style Guide: `https://download.microsoft.com/download/b/f/e/bfecb1b4-21ab-48fd-a48c-c2471b026f8f/vie-vnm-StyleGuide.pdf`
+- Microsoft technical-term guidance: `https://learn.microsoft.com/style-guide/word-choice/use-technical-terms-carefully`
+- Google Cloud Translation glossary guidance: `https://docs.cloud.google.com/translate/docs/advanced/glossary`
+- DeepL glossary/custom terminology guidance: `https://www.deepl.com/en/features/glossary`
+- CNCF Vietnamese localization lessons: `https://www.cncf.io/blog/2025/06/26/cloud-native-glossary-the-vietnamese-version-is-live/`
+- Community signal về English terms trong Vietnamese: `https://www.reddit.com/r/VietNam/comments/1botbcj/`
 - Aurora upstream reference: dormant từ v1.8, không nằm trong active P21 path.
 - Codex Web GPT user fork/worker reference: `https://github.com/Miikey24s/codex-chatgpt-web/tree/cockpit-custom-v5.0.8`
 
@@ -2624,22 +2888,622 @@ Không copy benchmark upstream thành acceptance của máy hiện tại. Benchm
 | 24/09/2026 | v1.9 | Hoàn thành multi-subagent execution wave cho P21, P04, P16, P20: live translation instance 2 (high/medium/instant low) pass, 100% glossary & critical tokens, dynamic catalog & selective rerender UI pass, fault matrix (kill recovery, disk preflight, atomic fsync) pass; 337 tests passed. P04, P16, P20, P21 chuyển ACCEPTED/DONE. |
 | 24/09/2026 | v2.0 | Hoàn tất Definition of Done v2.0: (1) P17 đạt 10/10 available fixtures (two-speakers, overlapping-speech, emotional-prosody-stress) với verified SHA-256 & QA receipts; (2) P08 VieNeu GPU TTS (CUDA FP16 batch 4) chính thức ACCEPTED và cập nhật default config.yaml; (3) P03/P09 long-form baseline 734 segments & collision-free timing counterfactual được benchmark và đóng băng tại `work/benchmarks/p03-p09-long-20260924.json`; (4) Tích hợp Playwright UI QA CLI/skill (doctor/e2e/screenshot studio) mô hình theo chuẩn 6 Astra; (5) Toàn bộ test suite 340 passed; repo GitHub public `https://github.com/Miikey24s/mk-ai-dubber` đã tạo, commit và push sạch sẽ. |
 | 24/09/2026 | v2.1 | Hoàn thành P05 TypeSafe Golden Calibration & Model Pinning: (1) Xây dựng tập nhãn thực tế mở rộng 35 câu trading/tech (100% PLAN classes); (2) Live benchmark qua batch 8/16/32 trên model Jev; (3) Tối ưu hóa ngưỡng retry 0.87 đạt 100% recall lỗi nghiêm trọng; (4) Khóa model pinning `jev-1.13.0` và cập nhật `config.yaml`; chuyển P05 sang ACCEPTED. |
+| 24/09/2026 | v2.2 | Loại P18 lip-sync khỏi active product scope theo quyết định người dùng. Pipeline giữ nguyên pixel video và tập trung vào accuracy, voice, timing, throughput, QA và reliability; giữ nguyên ID P19/P20/P21 để không làm hỏng checkpoint/receipt lịch sử. |
+| 24/09/2026 | v2.3 | Bổ sung ma trận toàn hệ thống theo Low/Sweet spot/Max, ứng viên cũ-mới và score định hướng; audit sâu WebGPT cho thấy đường hiện tại `VI Dubber -> codex exec --ephemeral -> local Responses -> browser worker -> ChatGPT Web` có thể benchmark một đường provider-only trực tiếp `VI Dubber -> :17842/v1/responses` để bỏ overhead Codex process/harness/environment khỏi translation thuần tool-free. Giữ route hiện tại làm baseline cho tới khi parity/fault gates pass. |
+| 24/09/2026 | v2.4 | Chốt hướng benchmark một **dedicated Dubber-WebGPT runtime** cho VI Dubber: reuse browser/login/model/cooldown/recovery core của custom WebGPT hiện tại nhưng bỏ coding-only environment, MCP, subagents, sandbox, skills và compaction khỏi production translation path. Translation semantics vẫn thuộc VI Dubber; WebGPT chỉ làm transport/provider. Chốt candidate policy: giữ WhisperX/BS-RoFormer/TypeSafe/FFmpeg/FastAPI/timing; A/B VieNeu 3.8.3 để upgrade; thêm Qwen3-ASR làm independent shadow QA thay vì replace WhisperX; Community-1 giữ default và Precision-3 chỉ premium/multi-speaker. |
+| 24/09/2026 | v2.5 | Sau khi dùng thử Balanced Best, ghi nhận quality tổng thể tốt nhưng còn room ở độ native của tiếng Việt (nhịp, nhấn, pause, cách đọc code-switch) và ở localization thuật ngữ: không mặc định Việt hóa mọi technical term. Research chốt hướng tối ưu low-blast-radius trước: delivery-aware reference + TTS-only phrasing/pronunciation + human native A/B; translation thêm audience/domain terminology policy với `KEEP_EN/PREFER_EN/VI/CONTEXTUAL`, glossary có display/spoken form và deterministic protected-term QA. `Engulfing` là canonical example cho `KEEP_EN/PREFER_EN`, không ép thành `nến nhấn chìm`. |
+| 25/09/2026 | v2.5 execution | VieNeu 3.8.3 isolated CUDA FP16 A/B trên RTX 2070 SUPER chậm hơn 3.7.1 khoảng 10.0-13.5% wall-time ở batch 4/8/16, nên giữ 3.7.1 và để blind listening gate mở. Implement terminology policy v1 + 16-case code-switch golden set + deterministic post-translation/rewrite gate, display/spoken split, delivery-aware P07 reference score và conservative TTS-only punctuation spacing. Full suite mới 364 passed; doctor + P04 receipt pass. Checkpoint: `work/checkpoints/v2.5-quality-wave-2026-09-25.md`. |
+| 25/09/2026 | v2.6 execution | Implement deterministic compact global translation context + thread-safe per-invocation WebGPT state + bounded concurrency 1-3 + request latency telemetry. Live 6-segment/batch-2 Sol High benchmark: c1 `137.04s`, c2 `122.33s` (~1.12x; quality gates pass, 0 retry) nhưng p95 request tăng `50.08s -> 74.91s`; c3 fail với `Selected model is at capacity`. Capacity/rate-pressure giờ fail fast ở outer retry layer; production vẫn giữ `webgpt_concurrency: 1` và `global_context_enabled: false` cho tới broader repeated A/B. Checkpoint: `work/checkpoints/webgpt-global-context-concurrency-2026-09-25.md`. |
+| 25/09/2026 | v2.7 execution | Hoàn tất P13 full-P17 WhisperX batch A/B trên đủ 10 category. Batch 6 không OOM nhưng chậm hơn batch 4 tổng thể `286.99s` vs `248.89s` (+15.3% wall), chủ yếu do long-monologue; 9/10 fixture exact transcript/timing/alignment parity, long fixture similarity 99.957% và 0/146 raw segment lệch timestamp >30 ms. Giữ `asr.batch_size: 4`; broad batch 8 không cần cho gate hiện tại; P13 vẫn PARTIAL vì separator A/B còn mở. Receipt: `work/checkpoints/P13-full-p17-whisper-batch-ab-2026-09-25.md`. |
+| 25/09/2026 | v2.8 execution | Người dùng xác nhận managed WebGPT instance 2 `:17842` đã xóa và chọn triển khai Dedicated Dubber-WebGPT trước khi tiếp tục roadmap. Thêm P22: runtime riêng port `17850`, home/browser login/process riêng ngoài Git, reuse WebGPT core nhưng production translation dùng direct `/v1/responses` tool-free, giữ concurrency 1 trong migration và không mutate global Codex/Cockpit route. P21 chuyển historical/superseded; live acceptance mới chỉ được công nhận sau manual login + P04/P16/P20 re-acceptance trên `:17850`. |
+| 25/09/2026 | v2.9 execution | Hoàn tất P22 trên Dedicated Dubber-WebGPT `:17850`: login/runtime live, P04/P16/P20 re-acceptance, direct Responses fail-closed và repeated-warm c1/c2 throughput gate đều pass. c2 median `30.8903s` so với c1 `41.1390s` (`1.3318x`), quality gates pass và `0` pressure/retry/failure; production promote `webgpt_concurrency: 2`, global context giữ `false`, c3 vẫn benchmark-only. |
+| 25/09/2026 | v2.10 execution | Đóng P13 candidate tuning ở trạng thái KEEP CURRENT; sửa reference-cache regression; benchmark VieNeu serial warm-up cho thấy time-to-first-output xấu hơn cold path nên reject serial warm-up, chỉ giữ async TTS preload làm candidate chưa promote. Checkpoint: `work/checkpoints/v2.10-p13-cache-warmup-2026-09-25.md`. |
+| 25/09/2026 | v2.11 execution | Multi-subagent wave giữ tổng 4 Codex WebGPT browser turns (root + 3 child, không nested) để chuẩn bị P07/P11/P12 closure. P07 tạo 4-trial isolated blind reference A/B; P11 tạo controlled mastering A/B và objective gate pass cho current two-pass + limiter; P12 consolidate 171 checked segments across P17 + supplemental evidence, giữ current selective-repair routing. Machine-side gates đã đủ; cả ba phase vẫn PARTIAL vì acceptance còn human listening/label gate. Root validation: 48 focused tests pass, compile + diff check pass. Checkpoint: `work/checkpoints/v2.11-p07-p11-p12-human-gate-prep-2026-09-25.md`. |
+| 25/09/2026 | v2.12 plan | Thêm P23 shared long-form/performance core theo quyết định người dùng: adaptive silence/VAD-aware chunking, streaming/windowed I/O, per-chunk cache/checkpoint/resume, idempotent work units, dependency-aware partial recompute, bounded resource-aware scheduler/backpressure, pipeline overlap, dynamic batching, persistent engines/prefetch, risk-based early-exit QA, artifact minimization, progress theo chunk+stage, rolling ETA và fixture-based auto-tune. Mọi profile cùng kế thừa core này; không tạo pipeline riêng cho Fast. Thêm CP8/Wave 7 và acceptance short→super-long, chưa claim speedup cho tới khi benchmark whole-job pass. |
+| 25/09/2026 | v2.13 plan | Mở rộng P23 với progressive preview/download: macro-chunk đã commit + pass local gates được play/download ngay khi job còn chạy; Final vẫn chỉ publish sau global assembly/mix/QA. Thêm Preview/Final/stale/version contract, React chunk-monitor UX, optional FFmpeg HLS/fMP4 A/B, và P23-specific reuse-first engine gate để audit REUSE/ADAPT/BUILD/REFERENCE-ONLY trước khi tự viết mới. |
+| 25/09/2026 | v2.14 plan | Khóa default benchmark sweet spot cho P23 ở 25 phút (target 20-30 phút, adaptive range ban đầu 15-40 phút) và thêm policy chunk theo độ dài video từ <15 phút đến >12 giờ. Đây là benchmark/default ban đầu, không phải hard limit; scheduler chỉ tự đổi sau A/B về quality, throughput và memory pressure. |
+| 26/09/2026 | v2.17 execution | P23 auto-tune hardening: sửa `balanced_fast` để không ép TTS batch 1 và giữ production/P08 default batch 4; thêm guard xác nhận ASR/TTS/WebGPT/chunk tuning axes sau profile resolution; bỏ `asr8` khỏi default matrix vì P13 đã reject broad batch tăng trên cùng runtime; giữ `chunk20m` và `tts8` làm candidates; đổi promotion gate sang tối thiểu 3 trial xoay thứ tự và so median để tránh single-run/order noise. Dedicated Dubber-WebGPT `:17850` live/doctor pass; resumed 33 phút hiện có QA + 2/2 preview pass nhưng không dùng làm speed receipt vì là cache/resume run. Full suite `451 passed, 2 warnings`. Checkpoint: `work/checkpoints/P23-autotune-harness-hardening-2026-09-26.md`. |
+| 26/09/2026 | v2.18 execution | P23 machine-gate hardening: short-overhead benchmark được sửa để so cùng current tree/runtime với `longform.enabled=false/true`, absolutize glossary và tránh trộn transport lịch sử `:17842`; harness regression pass. Fresh live P22 probe trên `:17850` pass 24.573s nhưng short A/B fail-closed ở production direct Responses vì malformed JSON trong translation, nên không chạy matrix 33 phút để tránh tốn compute trên cùng provider gate đang fail. 6.25h synthetic control-plane harness dùng real `BoundedExecutor` + chunk manifest primitives pass bounded queue/RSS/disk, crash/resume và deterministic completion-order; real-media 6h+/VRAM/live-provider/final-media gate vẫn mở. Full suite `460 passed, 2 warnings`; frontend build pass. Checkpoint: `work/checkpoints/P23-machine-gates-2026-09-26.md`. |
 
 ---
 
 ## 26. Khuyến nghị execution hiện tại
 
-Hệ thống đã đạt mốc **v2.1**:
-- Toàn bộ core pipeline (P00, P01, P02, P04, P05, P06, P08, P10, P15, P16, P17, P20, P21) đều đã đạt ACCEPTED/DONE.
+Hệ thống đang ở mốc **v2.18 implementation baseline**:
+- Core pipeline (P00, P01, P02, P04, P05, P06, P08, P10, P13, P15, P16, P17, P20, P22) giữ acceptance hiện có; P21 là historical evidence.
+- P23 đã implement phần lớn shared core: adaptive chunking, windowed ASR, per-chunk cache/resume/invalidation, bounded scheduler/prefetch, chunked TTS, risk QA, progressive preview/API/UI và progress/ETA. Synthetic 6.25h control-plane stress đã pass; acceptance còn thiếu là short repeated live A/B thành công, repeated whole-job cùng fixture/hardware và real-media 6h+ resource/VRAM/provider/final-media stress; chưa được promote hoặc claim speedup trước các gate này.
 - TypeSafe semantic QA đã được calibrate trên tập dữ liệu thực tế và khóa phiên bản model `jev-1.13.0`.
-- Translation route vận hành ổn định trên Codex WebGPT instance 2 (`127.0.0.1:17842`) với dynamic catalog và model selection trên UI.
+- Instance 2 `:17842` đã bị xóa; target translation mới là Dedicated Dubber-WebGPT `127.0.0.1:17850` direct Responses. Không tiếp tục benchmark/tối ưu dựa trên listener cũ.
 - TTS default chạy PyTorch CUDA FP16 batch 4 trên RTX 2070 SUPER với fallback CPU ONNX an toàn và VRAM footprint < 800 MiB.
 - Playwright Chromium Headless UI test và screenshot tự động kiểm thử giao diện Studio.
 - Benchmark suite P17 hoàn thiện 100% (10/10 fixtures available) với validation không lỗi.
-- Mã nguồn và tài liệu đồng bộ hoàn toàn với GitHub public repository `Miikey24s/mk-ai-dubber`.
+- GitHub public repository `Miikey24s/mk-ai-dubber` vẫn là upstream public; local workspace đang có execution wave v2.18 chưa được claim là đã đồng bộ remote cho tới khi acceptance/cleanup hoàn tất.
 
-Các bước tiếp theo (v2.2+):
+### 26.1. Tối ưu ưu tiên, không đổi quality target
+
+Theo research và benchmark local đến 25/09/2026, ưu tiên theo thứ tự:
+
+0. **P23 shared long-form/performance core - IN PROGRESS / ACCEPTANCE**: implementation core đã có reuse-first audit + adaptive chunking + windowed I/O/ASR + per-chunk cache/resume + bounded scheduler/backpressure + chunked TTS + progressive preview/download + React Preview/Final UI + progress/ETA. Synthetic 6.25h control-plane gate đã pass; còn short repeated live A/B, repeated whole-job 33 phút và real-media 6h+ resource/VRAM/provider/final-media acceptance trước khi promote/claim speedup.
+
+1. **WhisperX batch 6 A/B trên full P17 fixtures - DONE / REJECTED**: broader 10-category run đảo kết luận micro-benchmark. Batch 6 không OOM nhưng chậm hơn batch 4 tổng thể khoảng 15.3% (`286.99 s` vs `248.89 s`); 9/10 fixture exact parity, long fixture similarity 99.957% nhưng không exact text parity. Giữ production batch 4.
+2. **P13 separator A/B - DONE / REJECTED candidates**: RoFormer path hiện tại không sử dụng MDXC batch knob nên batch 2 không phải A/B có ý nghĩa. Oracle clean-speech skip giảm separator wall 97.41% nhưng fail transcript/alignment parity và không giữ background stem, nên giữ BS-RoFormer hiện tại.
+3. **VieNeu 3.8.3 isolated benchmark - DONE / REJECTED**: 3.8.3 chậm hơn 3.7.1 khoảng 10.0-13.5% ở batch 4/8/16; giữ 3.7.1.
+4. **P22 Dedicated Dubber-WebGPT migration - DONE**: `:17850` đã pass login/runtime, P04/P16/P20 correctness/fault acceptance và repeated-warm c1/c2 A/B. Production dùng `webgpt_concurrency: 2`; global context vẫn tắt.
+5. **Warm-up model/CUDA graph - SERIAL WARM-UP REJECTED / ASYNC PRELOAD CANDIDATE**: VieNeu 3.7.1 batch 4 cold đo được engine init ~13.3s + first batch ~4.33s. Sinh một batch warm-up làm time-to-first-output ~18.94s so với cold ~17.63s; `warm_fused()` cũng ~18.18s và tăng reserved VRAM. Không bật warm-up nối tiếp. Candidate tiếp theo chỉ là preload TTS engine song song với translation để che phần init dưới network/model latency; `tts.async_preload_enabled` giữ **OFF mặc định** và chỉ được promote sau whole-job A/B pass.
+6. **pyannote batching chỉ cho multi-speaker**: community-1/pyannote.audio 4.0.7 đang là latest stable; benchmark embedding/segmentation batch khi P14 chạy thật. Không ảnh hưởng single-speaker path.
+
+### 26.2. Không đổi mặc định nếu chưa có bằng chứng
+
+- Không thay WhisperX `large-v3` bằng distilled/turbo chỉ để lấy speed; phải chứng minh WER/critical-token parity trên P17.
+- Không thay BS-RoFormer hiện tại: model đang nằm top nhóm vocal separation của audio-separator; candidate khác chỉ A/B khi stem quality là bottleneck thật.
+- Không thay TypeSafe Jev bằng LLM self-judge: calibration hiện tại đã pass và independence có giá trị.
+- Không chuyển TTS sang model đa ngôn ngữ nặng hơn chỉ vì benchmark trên GPU mạnh hơn; RTX 2070 SUPER 8 GB là hardware gate.
+- Direct OpenAI API cùng model là candidate latency/reliability mạnh, nhưng thuộc P19 vì phát sinh API key/cost; chỉ benchmark khi người dùng opt-in.
+
+### 26.3. Ma trận toàn hệ thống: Low / Sweet spot / Max / ứng viên
+
+Điểm dưới đây là **độ phù hợp với VI Dubber**, không phải leaderboard tuyệt đối. Trọng số định hướng: quality 40%, speed 25%, reliability 20%, fit với Windows + RTX 2070 SUPER 8 GB 15%. Score candidate chưa benchmark local là research score, không phải acceptance.
+
+| Tầng | Hiện tại | Low/Fast vẫn giữ quality tốt | Sweet spot máy hiện tại | Max setting / máy mạnh hơn | Ứng viên cũ | Ứng viên mới đáng theo dõi | Điểm hiện tại | Điểm candidate | Quyết định |
+|---|---|---|---|---|---|---|---:|---:|---|
+| Download | yt-dlp | giữ nguyên | giữ nguyên | giữ nguyên | youtube-dl | yt-dlp latest | 96 | 96 | KEEP |
+| Media/mux | FFmpeg 7.1.x | stream-copy khi không cần encode | FFmpeg filter graph hiện tại | HW encode/parallel encode nếu output yêu cầu | moviepy/pydub orchestration | FFmpeg | 98 | 98 | KEEP |
+| Separation | audio-separator + BS-RoFormer 12.9755 | clean-speech detector có thể skip separation chỉ khi A/B chứng minh parity | BS-RoFormer hiện tại | ensemble/multi-pass separation trên GPU lớn | Demucs/UVR legacy | BS/MelBand RoFormer family | 94 | 94 | KEEP |
+| ASR | WhisperX 3.8.6 + large-v3 FP16 batch 4 | giữ large-v3 batch 4; batch 6 broad A/B đã thua throughput | large-v3 batch 4 trên RTX 2070 SUPER hiện tại | WhisperX large-v3 batch lớn chỉ benchmark lại trên GPU/runtime khác; optional second ASR QA | Whisper/faster-whisper standalone | Qwen3-ASR 1.7B / 0.6B challenger | 95 | 90-96 research | KEEP batch 4 + A/B independent QA challenger |
+| Alignment | WhisperX align | giữ nguyên | giữ nguyên | dedicated aligner nếu benchmark thắng | Whisper timestamps | Qwen3 ForcedAligner (không hỗ trợ VI trong current official 11-language aligner) | 95 | 80 cho use case VI | KEEP |
+| Diarization | pyannote Community-1 | tắt hoàn toàn cho known single-speaker | Community-1 khi cần | Precision-3/on-prem speed-accuracy modes | older pyannote pipelines | Precision-3 | 88 | 94 research | KEEP default; premium A/B |
+| Translation model | WebGPT GPT-5.6 Sol High | Instant Low cho easy text + selective Sol escalation sau calibration | Sol Medium/High theo profile | account/provider mạnh hơn + high effort; direct API Fast mode nếu cost allowed | Qwen local / older WebGPT route | same Sol through lean direct local Responses transport | 87 transport / 96 quality | 96-98 transport target | OPTIMIZE transport first |
+| Translation orchestration | Dedicated direct `:17850/v1/responses`, bounded c2 | c2 + selective faster model/profile | c2 promoted; global context off | c3+ only after fresh account/cooldown benchmark; 10 is technical ceiling, not target | sequential codex-exec path | c3/adaptive queue only if later benchmark proves stable | 96 | 96 | KEEP c2 |
+| Semantic QA | TypeSafe Jev 1.13 | critical-only on Fast profile | calibrated shadow/selective gate | stronger multi-head/candidate review only on hard cases | LLM self-judge | Jev calibrated + deterministic token checks | 93 | 93 | KEEP |
+| Pronunciation | deterministic normalizer | only critical classes | current golden rules | expanded domain lexicon | prompt-only pronunciation | deterministic map + TTS-specific spoken text | 96 | 96 | KEEP |
+| TTS | VieNeu 3.7.1 v3 Turbo GPU FP16 batch 4 | giữ 3.7.1 batch 4; async preload chỉ benchmark | 3.7.1 batch 4; async preload OFF mặc định | benchmark lại 3.8.3 chỉ khi GPU/runtime target đổi; premium/open 4B TTS cho A/B | CPU ONNX / old VieNeu | VieNeu 3.8.3 đã reject trên RTX 2070 SUPER; Fish Audio S2 Pro là max-quality challenger | 89 | 96 research trước local A/B | KEEP 3.7.1; 3.8.3 REJECTED CURRENT GPU |
+| Voice reference | acoustic selector | one canonical clean ref/speaker | current smart selector | style-specific ref bank only if identity stable | first-length-valid ref | embedding-assisted selector | 88 partial | 94 potential | CLOSE P07 A/B |
+| Timing | custom elastic timing | fewer rewrites + bounded stretch | current P09 policy | prosody-aware turn optimizer if measurable | hard subtitle-slot fit | current elastic speech-turn policy | 93 | 93 | KEEP |
+| Assembly | streaming blocks | current streaming | current streaming | larger parallel blocks only if benchmark helps | giant full buffer | chunked streaming assembly | 97 | 97 | KEEP |
+| Mix/master | FFmpeg loudnorm + limiter | same chain | same + conservative ducking after A/B | richer dialogue chain if listening proves gain | simple amix | current two-pass chain | 97 | 97 | KEEP |
+| Acoustic QA | re-ASR segment QA | risk-selected only | segment QA + critical tokens | independent second-ASR on hard segments | global similarity only | Qwen3-ASR shadow verifier candidate | 90 partial | 95 potential | EXPAND P12 |
+| Cache/resume | content-addressed manifests | same | same | same | file-exists cache | current fingerprint/atomic manifests | 96 | 96 | KEEP |
+| Backend API | FastAPI | same | same | same | Gradio-only backend | FastAPI | 96 | 96 | KEEP |
+| Product UI | React/Vite + legacy Gradio path | React normal path | React normal path | React only after legacy retirement evidence | Gradio product UI | React/Vite | 90 | 95 | GRADUAL CONSOLIDATION |
+
+Interpretation đơn giản:
+
+- **Low/Fast** không có nghĩa downgrade model bừa. Ưu tiên batch, skip stage có điều kiện, selective QA và selective escalation.
+- **Sweet spot** là cấu hình nên dùng hằng ngày trên RTX 2070 SUPER 8 GB sau khi benchmark pass.
+- **Max** là để biết trần công nghệ; không tự kéo dependency/model nặng vào máy hiện tại.
+- Chỉ replace component khi candidate thắng **cùng fixture + cùng quality gate + cùng hardware target**, không dựa benchmark vendor.
+
+### 26.4. WebGPT: cách hoạt động thật và hướng tối ưu
+
+Historical runtime snapshot ngày 24/09/2026, trước P22:
+
 ```text
-1. Blind human listening test A/B trên các giọng đọc đa dạng.
-2. Đánh giá tích hợp P18 (Lip-sync với Wav2Lip/SadTalker/MuseTalk) theo nhu cầu thực tế của người dùng.
+VI Dubber
+  -> spawn `codex exec --ephemeral`
+  -> Codex tạo Responses request
+  -> per-call base_url override -> 127.0.0.1:17842/v1
+  -> codex-chatgpt-web provider-only adapter
+  -> browser turn broker / task-bound Temporary Chat tab
+  -> ChatGPT Web model selected on account
+  -> browser observes final response
+  -> local Responses result
+  -> Codex writes output file
+  -> VI Dubber parses JSON
 ```
+
+Tại snapshot này, instance 2 chạy `mode=full`, `integration_owner=cockpit`, `routing_owner=cockpit`, nhưng Cockpit integration đánh dấu ChatGPT Web là **provider-only**. Provider-only vẫn có thể expose native Codex tools khi request cần tool, nhưng không cần tin cậy `cwd`/sandbox envelope chỉ để làm provider. Translation của VI Dubber là tool-free nên không cần Full Harness capability flow trong prompt/runtime request.
+
+#### 26.4.1. Bottleneck của historical codex-exec path
+
+| Điểm | Hiện tại | Tác động | Hướng |
+|---|---|---|---|
+| Codex process | spawn một `codex exec` cho mỗi batch | startup + parsing + output-file lifecycle | benchmark direct local Responses |
+| Codex agent prompt/environment | dù task chỉ dịch, Codex vẫn xây native request envelope | thêm context/token và logic không cần cho translation | tool-free minimal request |
+| Batch scheduling | `translate_segments()` loop tuần tự | video dài bị cộng latency từng browser turn | bounded concurrency 2-3 |
+| Chat lifecycle | `--ephemeral` mỗi batch độc lập | tốt cho isolation nhưng không share video context | global context pack deterministic thay vì chat memory |
+| Context | nearby ±2 segment | dễ lệch register/entity ở batch xa nhau | one-time video/style/entity summary + glossary |
+| Retry | VI Dubber retry + WebGPT internal browser recovery | có nguy cơ retry tầng ngoài khi lỗi account cooldown | classify cooldown vs transient; one owner of retry budget |
+| Tab capacity | code custom hiện hard ceiling 10/instance | dễ hiểu nhầm là nên fan-out 10 | production target 2-3; adaptive backoff |
+| Harness | Full MCP machinery tồn tại cho coding turns | không đem value cho pure translation | production translation không attach tools/MCP |
+
+#### 26.4.2. Direct provider-only Responses — candidate đã được promote qua P22
+
+Candidate này đã benchmark và được promote thành production transport của P22. Endpoint production hiện là `:17850`:
+
+```text
+VI Dubber
+  -> HTTP POST http://127.0.0.1:17850/v1/responses
+       model = selected chatgpt-web model
+       instructions = minimal stable dubbing contract
+       input = global context + current batch
+       tools = []
+       stream = false
+       store = false
+  -> same codex-chatgpt-web browser provider
+  -> same ChatGPT Web account/model
+  -> parse Responses output directly
+```
+
+Lợi ích kỳ vọng:
+
+- bỏ `codex exec` subprocess trên từng batch;
+- không cần Codex coding-agent system/rules/environment cho translation thuần;
+- payload nhỏ và dễ đo hơn;
+- concurrency/retry/cancellation do chính VI Dubber sở hữu rõ ràng;
+- vẫn giữ provider/account model-selection contract, nhưng runtime/session/browser worker hiện thuộc Dedicated Dubber-WebGPT `:17850`.
+
+Rủi ro/gate:
+
+- phải giữ model/effort selection contract y hệt P21;
+- JSON parser/receipt/idempotency phải đạt parity với đường `codex exec`;
+- benchmark live phải so cùng prompt, cùng batch, cùng model/effort;
+- test 429/cooldown/disconnect/cancel/model removal trước khi promote;
+- route codex-exec cũ chỉ giữ làm historical comparison/diagnostic evidence sau khi P22 đã pass full P04/P20 regression; không còn là production rollback target mặc định.
+
+#### 26.4.3. WebGPT settings matrix
+
+| Chế độ | Model | Transport | Batch | Concurrent turns | Context strategy | Harness/tools | Mục tiêu |
+|---|---|---|---:|---:|---|---|---|
+| Low/Fast | Sol Instant Low trên easy batch, escalate hard/critical sang Sol | Dedicated direct Responses `:17850` | 32-48 | 2 | global compact context candidate | `tools=[]` | nhanh nhất nhưng model/context policy vẫn cần calibration parity |
+| Sweet spot | Sol High mặc định; effort/model vẫn lấy từ live catalog/profile | Dedicated direct Responses `:17850` | 32 | 2 | nearby context; global context off | `tools=[]` | production hiện tại đã accepted qua P22 |
+| Conservative | Sol High | historical codex-exec baseline | 32 | 1 | nearby ±2 | no model tool use | rollback/comparison evidence, không là production target |
+| Max throughput | model phù hợp account | direct Responses | 32-64 theo validity gate | 3-5 adaptive | global context | `tools=[]` | benchmark only; không mặc định |
+| Technical ceiling | bất kỳ | browser worker | n/a | 10/instance | n/a | n/a | chỉ là hard limit của custom runtime, không phải safe account target |
+
+#### 26.4.4. Harness và AI environment policy
+
+- **Production translation**: provider-only, tool-free, không cần gửi filesystem roots/cwd/sandbox/AGENTS/skills vào model prompt.
+- **Codex coding/development**: Full Harness vẫn đúng vì cần terminal/files/tools/approvals.
+- **DEV WebGPT harness**: chỉ dùng để test browser/MCP/tool-round/retry/compaction; không dùng làm đường production dubbing.
+- **Compaction**: không cần cho stateless translation batch; tránh retained long chat nếu global context pack đã đủ.
+- **`previous_response_id`**: không dùng mặc định cho parallel translation. Nó hữu ích cho conversational continuation nhưng tạo dependency tuần tự và context drift; chỉ A/B nếu video continuity thắng rõ.
+- **Tool registry**: production translation request phải gửi `tools=[]`; không expose connector/tool schemas vô ích.
+- **Prompt**: stable system contract ngắn + glossary/context có liên quan + batch; không nhét toàn PLAN/code/workspace.
+
+#### 26.4.5. Historical WebGPT benchmark gate v2.3 — satisfied by P22
+
+Benchmark matrix tối thiểu trên cùng real fixture:
+
+```text
+Transport: codex-exec vs direct-responses
+Model: Sol High + Sol Medium; Instant chỉ separate low-profile experiment
+Batch: 16 / 32 / 48
+Concurrency: 1 / 2 / 3
+Run state: cold / warm
+```
+
+Ghi ít nhất:
+
+- total translation wall time;
+- p50/p95 browser-turn latency;
+- segments/minute;
+- structured JSON validity;
+- retries / 429 / cooldown;
+- critical-token accuracy;
+- glossary adherence;
+- TypeSafe semantic pass rate;
+- context/register consistency ở batch boundary;
+- prompt/input size nếu đo được.
+
+Gate này đã pass ở P22 trên Dedicated Dubber-WebGPT `:17850`: direct Responses được promote sau quality/fault re-acceptance và repeated-warm c1/c2 benchmark; production giữ c2, global context off.
+
+#### 26.4.6. WebGPT upstream v6: chỉ lấy phần có giá trị
+
+Runtime production hiện tại vẫn là custom `codex-chatgpt-web 5.0.8`. Upstream đã có v6.0.0, nhưng repo custom có Cockpit routing, multi-instance, provider-only contract, 10-turn ceiling, custom compaction/subagent lifecycle và các fix riêng. Không wholesale upgrade.
+
+| Upstream v6 area | Giá trị cho VI Dubber | Quyết định |
+|---|---|---|
+| Account cooldown classification | rất cao: tránh coi cooldown là lỗi transient rồi retry liên tục | ADOPT/RECONCILE sớm |
+| Accepted-generation resubmit protection | rất cao: tránh dịch một batch hai lần khi browser đã nhận generation | ADOPT/RECONCILE sớm |
+| Browser submission/recovery fixes | cao: giảm lỗi tab/navigation/submit | ADOPT có regression |
+| Better failure diagnostics | cao: biết rõ browser/session/cooldown lỗi ở đâu | ADOPT |
+| Model family/effort verification | cao: hợp P21 live catalog/fail-closed | RECONCILE với catalog hiện tại |
+| Six-part Bigger Context | thấp cho dubbing batch; hữu ích hơn cho coding/harness task lớn | DEFER cho VI Dubber |
+| New browser chat each turn | translation đã stateless/ephemeral; direct Responses còn gọn hơn | không phải optimization chính |
+| Save chats / retained chats | không cần cho dubbing; có thể làm tăng state/custom-memory contamination | KEEP OFF cho translation |
+| Full Harness/MCP improvements | quan trọng cho coding agent, gần như neutral cho pure translation | giữ ở development path, không đưa vào production prompt |
+
+Nguyên tắc: WebGPT runtime có thể được nâng riêng sau khi custom branch rebase/reconcile pass tests, nhưng VI Dubber không chờ v6 để thử direct provider-only Responses vì endpoint/provider contract cần thiết đã tồn tại ở runtime hiện tại.
+
+#### 26.4.7. Dedicated Dubber-WebGPT: runtime riêng cho project
+
+Quyết định ngày 25/09/2026: **P22 đã ACCEPTED/DONE**, vì managed instance 2 `:17842` đã được người dùng xóa và Dedicated Dubber-WebGPT `:17850` đã pass correctness, fault, UI và repeated-warm c1/c2 gate. Không tiếp tục đầu tư vào codex-exec path cũ như production target.
+
+```text
+VI Dubber
+  -> direct POST :17850/v1/responses
+  -> Dedicated Dubber-WebGPT provider API
+  -> persistent browser/session trong home riêng
+  -> Temporary Chat
+  -> selected ChatGPT Web model
+```
+
+Ranh giới trách nhiệm:
+
+| Thuộc Dubber-WebGPT | Không thuộc Dubber-WebGPT |
+|---|---|
+| browser login/profile/session | glossary/domain terminology policy |
+| model + effort discovery/verification | global video summary |
+| browser turn submission/observation | segmentation |
+| accepted-generation idempotency | translation prompt semantics |
+| cooldown classification/backoff signals | semantic QA/TypeSafe |
+| bounded browser concurrency/queue | pronunciation normalization |
+| streaming/final Responses envelope | TTS/timing/mix |
+| transport metrics + diagnostics | product cache/fingerprints |
+
+Production translation runtime mục tiêu:
+
+```text
+browser process          warm/persistent
+login/account partition  dedicated runtime home/profile
+listener                 127.0.0.1:17850
+default concurrency      2 (promoted sau repeated-warm c1/c2)
+burst candidate          3
+technical hard ceiling   10, benchmark/debug only
+chat mode                Temporary Chat
+tools                    []
+MCP                      off
+filesystem/cwd env       off
+Codex sandbox            off
+skills/AGENTS            off
+subagents                off
+Codex compaction         off for normal translation batch
+model verification       on
+effort verification      on
+accepted-send tracking   on
+cooldown classifier      on
+adaptive concurrency     on
+idempotency/request id   on
+structured JSON gate     on
+metrics                  on
+```
+
+Adaptive concurrency policy candidate:
+
+```text
+3 concurrent
+  -> cooldown/rate-pressure -> 2
+  -> repeat pressure        -> 1
+  -> bounded backoff/recover
+```
+
+Không spam retry account cooldown. Browser/transient recovery và account/rate cooldown phải là hai class lỗi khác nhau.
+
+Triển khai active:
+
+1. **P22-A runtime isolation**: init home/config riêng, manual ChatGPT login một lần, start `:17850`, verify health/catalog.
+2. **P22-B direct Responses correctness — ACCEPTED**: VI Dubber gọi `:17850/v1/responses` trực tiếp với `tools=[]`; P04/P16/P20 đã re-accept.
+3. **P22-C throughput A/B — ACCEPTED**: repeated-warm c1/c2 trên cùng fixture cho c2 median `30.8903s` so với c1 `41.1390s` (`1.3318x`), quality gates pass và không có pressure/retry/failure; production promote c2. c3 vẫn benchmark-only vì historical capacity rejection.
+
+Dedicated runtime không được nhúng business logic dịch. Mục tiêu là transport API nhỏ và ổn định (`model`, `effort`, `input`, `request_id`) để VI Dubber có thể đổi provider sau này mà không rewrite pipeline.
+
+#### 26.4.8. Candidate component decision: giữ / đổi / thêm
+
+| Thành phần | Candidate | Quyết định hiện tại | Lý do |
+|---|---|---|---|
+| ASR core | Qwen3-ASR thay WhisperX | KEEP WhisperX | word alignment + local benchmark + integration hiện mạnh hơn cho core path |
+| Independent ASR QA | Qwen3-ASR 0.6B/1.7B | ADD shadow/selective | khác họ model, giảm correlated QA failure; không cần replace core ASR |
+| Separation | RoFormer khác/Demucs | KEEP BS-RoFormer | chưa có bằng chứng stem quality là bottleneck |
+| Translation model | model khác thay GPT-5.6 Sol | KEEP Sol | quality translation đã accepted; optimize transport/context trước |
+| Translation transport | historical generic codex-exec path | Dedicated Dubber-WebGPT `:17850` + direct Responses c2 | ACCEPTED; c2 atomicity regression + full suite pass |
+| Semantic QA | LLM self-judge | KEEP TypeSafe Jev | đã calibrate và có independence |
+| TTS | VieNeu 3.8.3 | KEEP 3.7.1; 3.8.3 REJECTED trên RTX 2070 SUPER | local CUDA FP16 A/B cho thấy 3.8.3 chậm hơn khoảng 10.0-13.5% ở batch 4/8/16; chỉ benchmark lại khi hardware/runtime target thay đổi |
+| TTS max-quality challenger | Fish Audio S2 Pro / model multilingual nặng | BENCHMARK ONLY | hardware/cost/latency lớn hơn, chưa có lý do làm default RTX 2070S |
+| Diarization | pyannote Precision-3 | KEEP Community-1 default | local/free phù hợp; Precision-3 dành case multi-speaker khó/premium |
+| Timing | framework khác | KEEP custom P09 | đã benchmark collision-free và đúng use case |
+| Mix/master | DSP framework khác | KEEP FFmpeg | deterministic, fast, mature |
+| Backend | Node/Rust rewrite | KEEP FastAPI | không phải bottleneck |
+| Product UI | Gradio legacy | GRADUAL React-only | giảm duplicate UI stack sau khi parity/ops route pass |
+
+Nguyên tắc chọn candidate: **không replace vì mới hơn**. Chỉ replace khi thắng trên cùng fixture, cùng hardware target và quality gate; candidate có lợi cho một vai trò độc lập có thể được **thêm** thay vì thay core component.
+
+### 26.5. Vietnamese-native speech quality: nên tối ưu, nhưng không đổi model/fine-tune vội
+
+#### 26.5.1. Kết luận research
+
+Balanced Best hiện đã ở mức nghe tốt/ổn theo trải nghiệm sử dụng thật, nhưng còn khoảng cách ở những chi tiết người Việt nhận ra rất nhanh: nhịp câu, chỗ ngắt, trọng âm câu, độ lên/xuống tự nhiên, cách chuyển giữa tiếng Việt và từ English, và đôi khi cách phát âm thuật ngữ chuyên ngành.
+
+**Nên tối ưu phần này.** Tuy nhiên sweet spot hiện tại không phải đổi TTS hoặc fine-tune ngay. VieNeu v3 Turbo upstream hiện coi `style=` là deprecated/ignored; cách đọc chủ yếu đi theo preset/reference (speaker embedding + reference codes). Vì vậy các đòn bẩy có blast radius thấp hơn và đúng với engine hiện tại là:
+
+1. chọn reference không chỉ sạch về acoustic mà còn đúng **delivery**;
+2. tạo **TTS-only spoken text** tốt hơn display subtitle;
+3. giữ phrase boundary/punctuation tự nhiên cho tiếng Việt;
+4. xử lý pronunciation cho English/code-switch và acronym bằng mapping có kiểm chứng;
+5. đo bằng blind A/B với người Việt trước khi đổi default.
+
+Research về Vietnamese prosody cũng cho thấy boundary cú pháp/cụm câu và pause có liên hệ trực tiếp với phrasing tự nhiên. Do đó không nên coi dấu câu hay segment chỉ là formatting; chúng là input prosody quan trọng cho TTS.
+
+#### 26.5.2. Gap trong implementation hiện tại
+
+`reference.py` hiện rank chủ yếu bằng duration, speech ratio, SNR, clipping, silence và ASR confidence. Đây là nền tốt cho **clarity**, nhưng chưa đánh giá:
+
+- speech rate / pause density;
+- delivery neutral vs excited vs explanatory;
+- pitch-energy dynamics;
+- câu mẫu có phrasing tự nhiên hay bị cắt giữa ý;
+- reference có đại diện cho cách nói mong muốn của video hay không.
+
+`tts.py` đã có display text tách khỏi TTS text qua `tts_text_mapper`, nên không cần phá subtitle để tối ưu cách đọc. Đây là chỗ nên mở rộng.
+
+#### 26.5.3. Target flow đề xuất
+
+```text
+translated display text
+  -> terminology policy
+  -> TTS pronunciation map
+  -> TTS-only phrasing pass
+       - punctuation/boundary cleanup
+       - acronym/English spoken form
+       - no semantic rewrite
+  -> VieNeu
+       + canonical reference per speaker
+       + optional delivery-matched reference only when A/B proves stable
+  -> acoustic + human native QA
+```
+
+Display subtitle và TTS text phải là hai artifact khác nhau. Ví dụ display có thể giữ:
+
+```text
+Đây là một cây nến Bullish Engulfing đang phá lên khỏi vùng kháng cự.
+```
+
+TTS text có thể chỉ thay pronunciation/punctuation nếu cần, nhưng không đổi thuật ngữ hiển thị hoặc semantic.
+
+#### 26.5.4. Reference strategy mới
+
+Giữ **một canonical reference ổn định cho mỗi speaker** làm default để bảo toàn identity. Nâng ranking theo hai tầng:
+
+```text
+Tier 1: acoustic eligibility
+  3-8s, no overlap, SNR, clipping, speech ratio, silence
+
+Tier 2: delivery suitability
+  complete phrase
+  natural pause pattern
+  moderate speech rate
+  clear articulation
+  neutral/explanatory delivery ưu tiên cho canonical ref
+```
+
+Style-specific reference bank chỉ bật sau A/B, tối đa vài class rõ như `neutral/explanatory`, `energetic`, `storytelling`. Không đổi reference theo từng câu nếu không có bằng chứng vì dễ gây identity/timbre drift và cache fragmentation.
+
+#### 26.5.5. Vietnamese prosody shaping
+
+Không thêm pause marker/SSML mà VieNeu không support chính thức. Ưu tiên những tín hiệu engine đã hiểu:
+
+- câu hoàn chỉnh thay vì fragment subtitle;
+- punctuation đúng cú pháp;
+- giữ comma/break ở clause boundary hợp lý;
+- không nối hai ý xa nhau chỉ để giảm số segment;
+- không ép mọi khoảng trống phải được lấp đầy;
+- giữ natural pause trước khi dùng time-stretch hoặc rewrite mạnh.
+
+Emotion tags `[cười]`, `[thở dài]`, `[hắng giọng]` upstream có support nhưng đang experimental; không tự chèn trong Balanced Best. Chỉ dùng khi source evidence rõ và A/B cho thấy không over-act.
+
+#### 26.5.6. English/Vietnamese pronunciation
+
+VieNeu v3 family được thiết kế cho English-Vietnamese code-switching, nên policy mặc định là **thử raw English term trước**, không phoneticize mọi English word sang kiểu Việt. Chỉ thêm `pronunciation_map` khi golden listening set chứng minh model đọc sai hoặc không ổn định.
+
+Tách ba class:
+
+| Class | Display | TTS policy |
+|---|---|---|
+| common English term model đọc tốt | `Engulfing` | giữ nguyên |
+| acronym | `FVG`, `RSI` | explicit spoken map nếu cần, ví dụ `ép vi gi` |
+| tên riêng/brand khó | giữ spelling chính thức | approved spoken override |
+
+Không ghi phonetic spelling ngược vào subtitle.
+
+#### 26.5.7. Trade-off thật
+
+| Tối ưu | Quality kỳ vọng | Cost/speed | Rủi ro |
+|---|---|---|---|
+| reference delivery-aware | cao | gần như neutral runtime | chọn sai style có thể drift identity |
+| TTS-only punctuation/phrasing | trung-cao | rất thấp | punctuation quá tay làm ngắt câu giả |
+| pronunciation map có chọn lọc | cao cho term lỗi | rất thấp | over-normalize làm English nghe kỳ |
+| style-specific refs | có thể cao | tăng cache/reference complexity | timbre/style inconsistency |
+| emotion tags | case-specific | thấp | over-acting, không ổn định |
+| fine-tune/LoRA TTS | có trần cao | cao nhất | data/QA/maintenance, có thể regress voice |
+
+**Quyết định:** chưa fine-tune. Tối ưu reference + spoken-text shaping + pronunciation + native A/B trước. Chỉ cân nhắc fine-tune nếu sau các bước trên vẫn còn gap lặp lại và đo được trên nhiều fixture.
+
+#### 26.5.8. Native listening gate
+
+Tạo fixture riêng cho Vietnamese naturalness, không chỉ WER/similarity:
+
+- câu giải thích bình thường;
+- câu hỏi;
+- câu nhấn mạnh/cảnh báo;
+- số + phần trăm + tiền;
+- câu có 1 English technical term;
+- câu có nhiều code-switch term;
+- acronym;
+- long clause có comma;
+- câu ngắn cần pause tự nhiên;
+- fast source speech nhưng output không được đọc gấp giả.
+
+Blind A/B chấm ít nhất:
+
+```text
+native naturalness
+phrase stress
+pause/breathing rhythm
+tone/pronunciation correctness
+English-Vietnamese transition
+speaker identity
+timing fit
+```
+
+Promote thay đổi chỉ khi naturalness thắng mà semantic, speaker identity và timing không regress đáng kể.
+
+### 26.6. Vietnamese-English localization: dịch như người Việt trong domain, không phải Việt hóa 100%
+
+#### 26.6.1. Kết luận research
+
+Với nội dung technical/trading/AI, một bản dịch tốt có thể và thường nên **code-switch có chủ đích**. Microsoft khuyên dùng terminology của chính audience/profession; Google/DeepL đều coi glossary/term base là cơ chế chuẩn để giữ domain term, product name hoặc term không nên dịch; CNCF Vietnamese localization cũng ghi nhận có những khái niệm chưa có bản dịch Việt được chấp nhận rộng, nên giữ English kèm context là lựa chọn hợp lệ.
+
+Community signal ở Việt Nam cũng cho thấy nhiều từ có bản dịch Việt nhưng người dùng vẫn tự nhiên chọn English form. Đây chỉ là supporting evidence, không phải source of truth; quyết định production phải dựa domain glossary + native review của VI Dubber.
+
+#### 26.6.2. Lỗi hiện tại cần tránh
+
+1. **Over-translation**: dịch thuật ngữ quen thuộc thành bản Việt đúng nghĩa nhưng nghe lạ trong cộng đồng. Ví dụ `Engulfing -> nến nhấn chìm`.
+2. **Under-translation**: giữ quá nhiều English làm câu thành nửa Việt nửa Anh khó nghe.
+3. **Batch inconsistency**: đoạn đầu dùng `Engulfing`, đoạn sau lại `nhấn chìm`.
+4. **Acronym drift**: khi giữ `FVG`, khi bung thành `Fair Value Gap`, khi lại Việt hóa.
+5. **First-mention ambiguity**: giữ term English mà audience mới không biết nó là gì.
+6. **Code-switch grammar lỗi**: term English đúng nhưng đặt vào trật tự câu Việt không tự nhiên.
+7. **Display đúng nhưng TTS đọc sai**: translation policy và pronunciation policy bị trộn thành một.
+
+#### 26.6.3. Terminology policy thay cho glossary `source -> target` đơn giản
+
+Mỗi term quan trọng nên có metadata:
+
+```yaml
+source: engulfing
+policy: KEEP_EN        # KEEP_EN | PREFER_EN | VI | CONTEXTUAL
+display: Engulfing
+first_mention: nến Engulfing
+spoken: Engulfing
+aliases:
+  - bullish engulfing
+  - bearish engulfing
+rejected:
+  - nến nhấn chìm
+domain: trading
+status: approved
+```
+
+Ý nghĩa:
+
+- `KEEP_EN`: giữ English gần như bắt buộc.
+- `PREFER_EN`: ưu tiên English nhưng cho phép giải thích Việt ở first mention/context cần thiết.
+- `VI`: dùng Vietnamese term đã tự nhiên/chuẩn hóa.
+- `CONTEXTUAL`: model chọn theo audience/context nhưng QA phải giữ consistency trong cùng video.
+
+Không cần hardcode trading vào core engine. Core chỉ hiểu policy; domain pack chứa term.
+
+#### 26.6.4. Audience/domain profile
+
+Global context pack của video nên thêm:
+
+```text
+audience: Vietnamese viewers familiar with trading
+register: conversational/explanatory
+terminology_style: mixed Vietnamese + common English trading terms
+```
+
+Với video general audience, policy có thể Việt hơn. Với trading/AI/software, policy có thể giữ nhiều English term hơn. Không dùng một tỷ lệ English cố định cho mọi video.
+
+#### 26.6.5. Prompt contract đề xuất
+
+Translation prompt nên nói rõ:
+
+```text
+Write natural spoken Vietnamese for the target audience.
+Do not translate an English technical term merely because a literal Vietnamese equivalent exists.
+Follow the terminology policy exactly:
+- KEEP_EN: preserve the approved English display form.
+- PREFER_EN: normally keep English; explain briefly in Vietnamese only when context requires it.
+- VI: use the approved Vietnamese term.
+- CONTEXTUAL: choose the form natural for this audience, then stay consistent.
+Use Vietnamese grammar around retained English terms.
+Never change a protected term during duration rewrite.
+```
+
+Prompt chỉ là lớp generation. Enforcement vẫn cần deterministic validation.
+
+#### 26.6.6. Example target style
+
+Không ưu tiên:
+
+```text
+Đây là một cây nến nhấn chìm tăng giá đang phá vùng kháng cự.
+```
+
+Target cho audience trading của user:
+
+```text
+Đây là một cây nến Bullish Engulfing đang phá lên khỏi vùng kháng cự.
+```
+
+Ví dụ khác:
+
+```text
+Move your stop loss to breakeven.
+-> Dời stop loss về hòa vốn.
+```
+
+Mục tiêu là câu **vẫn là tiếng Việt**, chỉ giữ English ở đúng những token mà người xem trong domain thực sự dùng.
+
+#### 26.6.7. Deterministic QA sau translation/rewrite
+
+Sau mỗi translation và duration rewrite:
+
+```text
+protected source terms
+  -> expected display policy
+  -> exact/case-aware token check
+  -> rejected-alternative scan
+  -> cross-batch terminology consistency
+  -> only then semantic QA / TTS
+```
+
+Các check deterministic này không giao cho TypeSafe nếu exact string/policy đã biết.
+
+Duration rewrite không được tự đổi:
+
+```text
+Engulfing -> nhấn chìm
+FVG -> khoảng trống giá trị hợp lý
+stop loss -> cắt lỗ
+```
+
+nếu term policy đang yêu cầu giữ English.
+
+#### 26.6.8. Glossary learning loop
+
+Không cố tạo glossary khổng lồ ngay. Bắt đầu bằng term xuất hiện thường xuyên/quan trọng:
+
+1. seed glossary domain nhỏ;
+2. log term mà model dịch không nhất quán hoặc user sửa thủ công;
+3. đề xuất candidate glossary entry;
+4. review/approve một lần;
+5. từ đó áp deterministic cho video sau.
+
+Manual edit trong Review UI là tín hiệu tốt để học preference, nhưng không auto-promote một edit đơn lẻ thành global rule nếu chưa đủ evidence.
+
+#### 26.6.9. Acceptance set riêng cho code-switch
+
+Golden set cần có:
+
+- `Engulfing`, `Bullish Engulfing`, `Bearish Engulfing`;
+- `stop loss`, `take profit`, `breakeven`;
+- `breakout`, `pullback`, `order block`, `Fair Value Gap/FVG`;
+- `BOS`, `CHoCH`, `liquidity sweep`;
+- AI/software terms như `prompt`, `token`, `API`, `GPU`;
+- brand/product/person names;
+- term nên Việt hóa hoàn toàn để tránh English overload.
+
+Đo:
+
+```text
+protected-term adherence
+cross-batch consistency
+rejected-translation rate
+native naturalness A/B
+TTS pronunciation pass rate
+semantic accuracy
+```
+
+#### 26.6.10. Execution order đề xuất
+
+Ưu tiên mới sau v2.5:
+
+1. **VieNeu 3.8.3 A/B**: machine benchmark DONE; không có performance upside trên RTX 2070 SUPER, giữ 3.7.1; human listening còn mở.
+2. **Vietnamese terminology policy + code-switch golden set**: IMPLEMENTED; deterministic gate + display/spoken split đã có, tiếp tục mở rộng glossary theo review thực tế.
+3. **Delivery-aware reference + TTS-only phrasing A/B**: IMPLEMENTED low-blast-radius core; production fixture hiện vẫn chọn canonical ref cũ, human listening closure còn mở.
+4. **Global translation context + bounded concurrency 2-3**: concurrency path đã IMPLEMENTED và P22 repeated-warm A/B đã promote production c2 (`1.3318x` median speedup, quality gates pass, 0 pressure/retry/failure). Global context vẫn off; c3/adaptive queue tiếp tục benchmark-only vì historical capacity failure.
+5. **P07/P11/P12 human A/B closure - MACHINE SIDE READY / HUMAN VOTES NEEDED**: blind/listening evidence đã được tạo và root verify; không relax threshold hay tự chọn winner. Bước còn lại là thu human ballots/labels theo checkpoint v2.11 rồi mới đổi phase sang ACCEPTED.
+6. Qwen3-ASR shadow QA / multi-speaker improvements sau các quality gap đang thấy bằng tai.
+
+Mục tiêu của v2.5 không phải “nghe như người thật bằng mọi giá”, mà là đưa Balanced Best từ **nghe ổn** sang **nghe đúng thói quen tiếng Việt trong domain**, với thay đổi dễ rollback và đo được.

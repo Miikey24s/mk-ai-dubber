@@ -1,7 +1,13 @@
 import pytest
 
-from vi_dubber.longform import MacroChunkPolicy, SpeechInterval, plan_macro_chunks
+from vi_dubber.longform import (
+    MacroChunkPolicy,
+    SpeechInterval,
+    plan_macro_chunks,
+    segments_for_macro_chunk,
+)
 from vi_dubber.media import detect_speech_intervals
+from vi_dubber.types import Segment
 
 
 def _policy(**overrides: float) -> MacroChunkPolicy:
@@ -75,6 +81,27 @@ def test_chunk_local_timestamp_maps_back_to_global_timeline() -> None:
         chunks[1].local_to_global(chunks[1].duration + 0.1)
 
 
+def test_macro_chunk_round_trip_is_stable() -> None:
+    chunk = plan_macro_chunks(240.0, [SpeechInterval(0.0, 240.0)], policy=_policy())[0]
+    assert type(chunk).from_dict(chunk.to_dict()) == chunk
+
+
+def test_segments_are_owned_by_exactly_one_macro_chunk_midpoint() -> None:
+    chunks = plan_macro_chunks(240.0, [SpeechInterval(0.0, 240.0)], policy=_policy())
+    segments = [
+        Segment(id=1, start=1.0, end=2.0, text="a"),
+        Segment(id=2, start=99.0, end=103.0, text="boundary"),
+        Segment(id=3, start=150.0, end=151.0, text="b"),
+    ]
+
+    ownership = {
+        chunk.chunk_id: [segment.id for segment in segments_for_macro_chunk(segments, chunk)]
+        for chunk in chunks
+    }
+
+    assert ownership == {"chunk_0001": [1], "chunk_0002": [2, 3]}
+
+
 def test_speech_intervals_are_sorted_merged_and_clipped_before_planning() -> None:
     speech = [
         SpeechInterval(108.0, 220.0),
@@ -92,6 +119,24 @@ def test_invalid_policy_and_duration_fail_closed() -> None:
         MacroChunkPolicy(min_seconds=100.0, target_seconds=50.0, max_seconds=120.0)
     with pytest.raises(ValueError):
         plan_macro_chunks(0.0)
+
+
+def test_default_policy_covers_super_long_six_hour_timeline_without_drift() -> None:
+    duration = 6 * 60 * 60 + 137.25
+    policy = MacroChunkPolicy()
+
+    chunks = plan_macro_chunks(duration, policy=policy)
+
+    assert len(chunks) > 1
+    assert chunks[0].source_start == 0.0
+    assert chunks[-1].source_end == pytest.approx(duration)
+    assert all(chunk.duration <= policy.max_seconds for chunk in chunks)
+    assert all(chunk.duration > 0 for chunk in chunks)
+    assert [chunk.index for chunk in chunks] == list(range(len(chunks)))
+    for previous, current in zip(chunks, chunks[1:]):
+        assert previous.source_end == pytest.approx(current.source_start)
+        assert previous.context_end <= duration
+        assert current.context_start >= 0.0
 
 
 def test_detect_speech_intervals_builds_complement_of_ffmpeg_silence(

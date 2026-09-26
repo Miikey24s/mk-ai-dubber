@@ -20,9 +20,21 @@ from .preflight import raise_for_preflight, run_preflight
 from .profiles import PROFILE_OVERRIDES
 from .runtime import PROJECT_ROOT, WORK_DIR, command_version, configure_runtime, ffmpeg_exe, find_codex_exe
 from .translate import PINNED_WEBGPT_MODEL, normalize_translation_provider, webgpt_route_info
+from .webgpt_runtime import (
+    DUBBER_WEBGPT_PORT,
+    default_core_repo,
+    default_runtime_home,
+    initialize_runtime,
+    login_runtime,
+    runtime_status,
+    start_runtime,
+    stop_runtime,
+)
 
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+webgpt_runtime_app = typer.Typer(no_args_is_help=True, add_completion=False)
+app.add_typer(webgpt_runtime_app, name="webgpt-runtime")
 console = Console()
 
 
@@ -54,11 +66,11 @@ def dub(
     profile: Optional[str] = typer.Option(
         None,
         "--profile",
-        help="fast | balanced_best | max_quality",
+        help="fast | balanced_fast | balanced_best | max_quality",
     ),
     resume: bool = typer.Option(True, "--resume/--fresh"),
 ) -> None:
-    """Lồng tiếng Việt cho một video bằng dedicated Codex WebGPT instance 2."""
+    """Lồng tiếng Việt cho một video bằng Dedicated Dubber-WebGPT."""
     if output is None:
         output = input_video.with_name(f"{input_video.stem}_vi.mp4")
     resolved = load_config(config, profile)
@@ -67,7 +79,7 @@ def dub(
     )
     if translation_provider != "webgpt":
         raise typer.BadParameter(
-            "VI Dubber hiện chỉ cho phép translator=webgpt (Codex ChatGPT Web instance 2, port 17842)."
+            f"VI Dubber hiện chỉ cho phép translator=webgpt (Dedicated Dubber-WebGPT, port {DUBBER_WEBGPT_PORT})."
         )
     if diarize is None:
         diarization_value = resolved.get("diarization", {}).get("enabled", "auto")
@@ -192,18 +204,26 @@ def doctor(
         except Exception as exc:
             table.add_row(module, f"LỖI - {exc}")
     try:
-        route = webgpt_route_info()
+        resolved = load_config(config)
+    except Exception as exc:
+        resolved = {}
+        table.add_row("Config schema", f"LỖI - {exc}")
+
+    translation_config = dict(resolved.get("translation", {}) or {}) if resolved else {}
+    try:
+        route = webgpt_route_info(translation_config)
     except Exception as exc:
         route = {"ready": False, "reason": f"probe lỗi: {type(exc).__name__}: {exc}"}
-    if find_codex_exe() is None and shutil.which("codex") is None:
-        table.add_row("Codex WebGPT", "LỖI - không tìm thấy lệnh Codex; pipeline sẽ không chạy")
+    transport = str(translation_config.get("webgpt_transport") or "codex-exec").strip().lower()
+    if transport == "codex-exec" and find_codex_exe() is None and shutil.which("codex") is None:
+        table.add_row("Dedicated Dubber-WebGPT", "LỖI - route codex-exec cần lệnh Codex nhưng không tìm thấy")
     elif bool(route.get("ready")):
         table.add_row(
-            "Codex WebGPT",
-            f"OK - {route.get('model') or PINNED_WEBGPT_MODEL} · instance 2 · port {route.get('port') or 17842}",
+            "Dedicated Dubber-WebGPT",
+            f"OK - {route.get('model') or PINNED_WEBGPT_MODEL} · port {route.get('port') or DUBBER_WEBGPT_PORT} · {transport}",
         )
     else:
-        table.add_row("Codex WebGPT", f"CHƯA KẾT NỐI - {route.get('reason') or 'không rõ nguyên nhân'}")
+        table.add_row("Dedicated Dubber-WebGPT", f"CHƯA KẾT NỐI - {route.get('reason') or 'không rõ nguyên nhân'}")
     local_model = PROJECT_ROOT / "models" / "llm" / "Qwen--Qwen3-14B-GGUF" / "Qwen3-14B-Q4_K_M.gguf"
     table.add_row("LLM local", f"OK - {local_model.name}" if local_model.exists() else "CHƯA CÓ MODEL")
     table.add_row(
@@ -211,16 +231,83 @@ def doctor(
         "CÓ KEY - shadow mode" if os.getenv("TYPESAFE_API_KEY") else "TÙY CHỌN - thiếu TYPESAFE_API_KEY",
     )
     table.add_row("Token diarization", "đã có" if os.getenv("HUGGINGFACE_TOKEN") else "tùy chọn / chưa có")
-    try:
-        resolved = load_config(config)
+    if resolved:
         table.add_row("Profile mặc định", str(resolved["profile"]))
         table.add_row("Translator mặc định", str(resolved.get("translation", {}).get("provider", "webgpt")))
         table.add_row("Retry budget", str(resolved.get("reliability", {}).get("retry_budget", 3)))
         table.add_row("Config schema", "OK")
-    except Exception as exc:
-        table.add_row("Config schema", f"LỖI - {exc}")
     table.add_row("Profiles", ", ".join(sorted(PROFILE_OVERRIDES)))
     console.print(table)
+
+
+@webgpt_runtime_app.command("init")
+def webgpt_runtime_init(
+    force: bool = typer.Option(False, "--force", help="Reset config runtime nhưng không xóa browser login state."),
+) -> None:
+    """Tạo home/config riêng cho Dedicated Dubber-WebGPT mà không đổi global Codex/Cockpit route."""
+    try:
+        config = initialize_runtime(force=force)
+    except RuntimeError as exc:
+        console.print(f"[red]Không init được Dedicated Dubber-WebGPT:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(f"[green]Đã chuẩn bị Dedicated Dubber-WebGPT[/] tại {default_runtime_home()}")
+    console.print(f"Core: {default_core_repo()}")
+    console.print(f"Port: {config.get('port', DUBBER_WEBGPT_PORT)}")
+    console.print("Bước account còn lại: `uv run vi-dubber webgpt-runtime login`.")
+
+
+@webgpt_runtime_app.command("login")
+def webgpt_runtime_login() -> None:
+    """Mở Chrome profile riêng và lưu ChatGPT login cho Dubber-WebGPT."""
+    try:
+        code = login_runtime()
+    except RuntimeError as exc:
+        console.print(f"[red]Không mở được login Dedicated Dubber-WebGPT:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if code != 0:
+        raise typer.Exit(code=code)
+
+
+@webgpt_runtime_app.command("start")
+def webgpt_runtime_start() -> None:
+    """Khởi chạy Dedicated Dubber-WebGPT ở nền trên port riêng."""
+    try:
+        status = start_runtime()
+    except RuntimeError as exc:
+        console.print(f"[red]Không start được Dedicated Dubber-WebGPT:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(
+        f"[green]Dedicated Dubber-WebGPT online[/] · port {status.get('port')} · "
+        f"models={', '.join(status.get('models') or []) or 'catalog trống'}"
+    )
+
+
+@webgpt_runtime_app.command("status")
+def webgpt_runtime_status() -> None:
+    """Kiểm tra health, login state và live model catalog của runtime riêng."""
+    status = runtime_status()
+    table = Table("Hạng mục", "Kết quả")
+    table.add_row("Home", str(status.get("home") or default_runtime_home()))
+    table.add_row("Port", str(status.get("port") or DUBBER_WEBGPT_PORT))
+    table.add_row("Login riêng", "OK" if status.get("login_state") else "CHƯA CÓ")
+    table.add_row("Runtime", "ONLINE" if status.get("ready") else "OFFLINE")
+    table.add_row("Models", ", ".join(status.get("models") or []) or "-")
+    if status.get("reason"):
+        table.add_row("Chi tiết", str(status["reason"]))
+    console.print(table)
+
+
+@webgpt_runtime_app.command("stop")
+def webgpt_runtime_stop(
+    force: bool = typer.Option(False, "--force", help="Cho phép dừng dù runtime còn active turn."),
+) -> None:
+    """Dừng runtime riêng; mặc định từ chối nếu đang có turn chạy."""
+    try:
+        status = stop_runtime(force=force)
+    except RuntimeError as exc:
+        console.print(f"[red]Không stop được Dedicated Dubber-WebGPT:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print("Đã dừng Dedicated Dubber-WebGPT." if not status.get("ready") else "Runtime vẫn đang online.")
 
 
 if __name__ == "__main__":

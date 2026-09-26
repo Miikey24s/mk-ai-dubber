@@ -32,6 +32,7 @@ from .jobs import (
 )
 from .media import (
     assemble_voice_track,
+    build_chunk_preview,
     extract_audio,
     measure_mix_metrics,
     media_duration,
@@ -40,10 +41,17 @@ from .media import (
     voice_track_metrics,
     write_srt,
 )
-from .longform import MacroChunkPolicy, SpeechInterval, plan_macro_chunks
+from .longform import (
+    MacroChunk,
+    MacroChunkPolicy,
+    SpeechInterval,
+    plan_macro_chunks,
+    segments_for_macro_chunk,
+)
 from .longform_state import (
     chunk_stage_fingerprint,
     commit_chunk_stage,
+    invalidate_chunk_from,
     load_chunk_stage,
 )
 from .metrics import MetricsRecorder
@@ -53,6 +61,7 @@ from .qa import (
     SEGMENT_QA_POLICY_VERSION,
     SegmentQAObservation,
     run_segment_qa_cycle,
+    select_acoustic_qa_segment_ids,
     transcript_similarity,
 )
 from .review import load_review_overrides
@@ -80,13 +89,106 @@ from .translate import (
     normalize_translation_provider,
     webgpt_model_catalog,
 )
-from .tts import TTSStat, build_reference_clips, synthesize_segments
+from .tts import (
+    TTSStat,
+    TTSEnginePreload,
+    TTSEngineRuntime,
+    build_reference_clips,
+    load_tts_engine,
+    release_tts_engine_preloads_for_current_thread,
+    start_tts_engine_preload,
+    synthesize_segments,
+)
 from .types import SEGMENT_SCHEMA_VERSION, Segment
 from .versions import runtime_versions
 
 
 console = Console()
 ProgressCallback = Callable[[float, str], None]
+REFERENCE_SELECTION_POLICY_VERSION = 3
+
+
+def _chunk_stage_telemetry(
+    *,
+    completed_media_seconds: float,
+    total_pending_media_seconds: float,
+    elapsed_seconds: float,
+    pending_chunks: int,
+    queue_name: str,
+    concurrency: int,
+) -> dict[str, Any]:
+    """Build persisted throughput/ETA telemetry for one bounded chunk stage."""
+    elapsed = max(0.001, float(elapsed_seconds))
+    completed = max(0.0, float(completed_media_seconds))
+    pending_media = max(0.0, float(total_pending_media_seconds))
+    throughput = completed / elapsed
+    remaining = max(0.0, pending_media - completed)
+    return {
+        "throughput_media_seconds_per_wall_second": throughput,
+        "eta_seconds": remaining / throughput if throughput > 0 else None,
+        "queue": {
+            f"{queue_name}_pending_chunks": max(0, int(pending_chunks)),
+            f"gpu_{queue_name}_concurrency": max(1, int(concurrency)),
+        },
+    }
+
+
+def _tts_async_preload_allowed(
+    config: dict[str, Any],
+    requested_provider: str,
+    *,
+    translation_cache_miss: bool,
+) -> bool:
+    """Gate the experimental preload to the measured Dedicated WebGPT path."""
+    if not translation_cache_miss or requested_provider != "webgpt":
+        return False
+    tts_config = config.get("tts", {}) or {}
+    translation_config = config.get("translation", {}) or {}
+    return (
+        bool(tts_config.get("async_preload_enabled", False))
+        and str(tts_config.get("backend", "")).strip().lower() == "pytorch"
+        and "cuda" in str(tts_config.get("device", "")).strip().lower()
+        and (
+            str(translation_config.get("webgpt_transport", "")).strip().lower()
+            == "direct-responses"
+        )
+    )
+
+
+def _start_tts_async_preload(
+    config: dict[str, Any],
+    requested_provider: str,
+    *,
+    translation_cache_miss: bool,
+) -> TTSEnginePreload | None:
+    if not _tts_async_preload_allowed(
+        config,
+        requested_provider,
+        translation_cache_miss=translation_cache_miss,
+    ):
+        return None
+    try:
+        return start_tts_engine_preload(config.get("tts", {}) or {})
+    except Exception:
+        # Starting the optimization must never make translation/TTS less reliable.
+        return None
+
+
+def _resolve_tts_async_preload(preload: TTSEnginePreload | None) -> TTSEngineRuntime | None:
+    if preload is None:
+        return None
+    try:
+        return preload.result()
+    except Exception:
+        # A failed background init falls back to synthesize_segments' normal lazy load.
+        return None
+
+
+def _tts_cache_config(tts_config: dict[str, Any]) -> dict[str, Any]:
+    """Return only TTS settings that can affect rendered output/cache identity."""
+    cache_config = dict(tts_config)
+    cache_config.pop("async_preload_enabled", None)
+    return cache_config
 
 
 def _semantic_rewrite_accepted(result: dict[str, Any], profile: str) -> bool:
@@ -99,6 +201,24 @@ def _semantic_rewrite_accepted(result: dict[str, Any], profile: str) -> bool:
     if not isinstance(items, list) or not items or not isinstance(items[0], dict):
         return profile != "max_quality"
     return str(items[0].get("decision") or "review") == "pass"
+
+
+def _attempt_optional_prefit_rewrite_batch(
+    translator: Any,
+    rewrite_items: list[tuple[Segment, float, float, float, int]],
+    glossary: dict[str, Any],
+) -> tuple[dict[int, str], dict[str, Any], dict[str, str] | None]:
+    """Run duration prefit without making this optional optimization a hard dependency."""
+    try:
+        with translator.running():
+            rewritten = translator.rewrite_batch(rewrite_items, glossary)
+    except Exception as exc:
+        try:
+            stats = dict(translator.stats())
+        except Exception:
+            stats = {}
+        return {}, stats, {"type": type(exc).__name__, "message": str(exc)}
+    return dict(rewritten), dict(translator.stats()), None
 
 
 def _notify(callback: ProgressCallback | None, fraction: float, message: str) -> None:
@@ -316,6 +436,7 @@ def _prepare_tts_partial_cache(
     *,
     resume: bool,
     preserve_raw_on_mismatch: bool = False,
+    preserve_all_on_mismatch: bool = False,
 ) -> tuple[Path, bool]:
     """Keep incomplete TTS work only when it belongs to the exact same request."""
     receipt_path = output_dir / "request.json"
@@ -326,7 +447,9 @@ def _prepare_tts_partial_cache(
         and receipt.get("fingerprint") == request_fingerprint
     )
     if not matches:
-        if resume and preserve_raw_on_mismatch and output_dir.is_dir():
+        if resume and preserve_all_on_mismatch and output_dir.is_dir():
+            pass
+        elif resume and preserve_raw_on_mismatch and output_dir.is_dir():
             for child in output_dir.iterdir():
                 if child.name.endswith("_raw.wav") or child.name.endswith("_raw.meta.json"):
                     continue
@@ -570,8 +693,22 @@ def _run_pipeline_impl(
             translation_catalog_timestamp,
             "translation_catalog_timestamp",
         )
-        if not selected_catalog_revision:
+        live_catalog = None
+        explicit_webgpt_selection = any(
+            str(value or "").strip()
+            for value in (
+                translation_model,
+                translation_config.get("translation_model"),
+                translation_config.get("webgpt_model"),
+                translation_config.get("codex_model"),
+            )
+        )
+        if not selected_catalog_revision and explicit_webgpt_selection:
+            # CLI/direct callers do not arrive with the UI catalog snapshot.
+            # Resolve it here so model, effort, display name and catalog
+            # revision are persisted before the expensive pipeline starts.
             live_catalog = webgpt_model_catalog(translation_config)
+        if live_catalog is not None:
             live_model = next(
                 (
                     item
@@ -582,7 +719,7 @@ def _run_pipeline_impl(
             )
             if live_model is None:
                 raise ValueError(
-                    f"Model WebGPT đã chọn {selected_model!r} không có trong live catalog instance 2."
+                    f"Model WebGPT đã chọn {selected_model!r} không có trong live catalog Dedicated Dubber-WebGPT."
                 )
             selected_catalog_revision = str(live_catalog.get("revision") or "").strip()
             selected_catalog_timestamp = str(live_catalog.get("updated_at") or "").strip()
@@ -676,6 +813,27 @@ def _run_pipeline_impl(
             message=message,
         )
         _notify(progress_callback, value, message)
+
+    def update_longform_metadata(
+        *,
+        stage: str,
+        progress_value: float,
+        message: str,
+        values: dict[str, Any],
+    ) -> None:
+        """Merge long-form telemetry without discarding earlier chunk/queue fields."""
+        check_control(job_dir)
+        state = load_job_state(job_dir)
+        metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+        current = metadata.get("longform") if isinstance(metadata.get("longform"), dict) else {}
+        update_job_state(
+            job_dir,
+            status="running",
+            stage=stage,
+            progress=progress_value,
+            message=message,
+            metadata={"longform": {**current, **values}},
+        )
 
     metrics_path = job_dir / "metrics.json"
     metrics = MetricsRecorder(
@@ -838,10 +996,23 @@ def _run_pipeline_impl(
     )
     source_srt = job_dir / "source_en.srt"
     chunk_plan_path = job_dir / "chunks" / "plan.json"
+    macro_chunks: list[MacroChunk] = []
     with metrics.stage("asr"):
         if _stage_cache_hit(job_dir, "asr", asr_fingerprint, resume=resume):
             metrics.increment("cache_hits")
             segments = _load_segments(source_json)
+            if windowed_asr:
+                chunk_plan = _load_json_dict(chunk_plan_path)
+                raw_chunks = chunk_plan.get("chunks")
+                if not isinstance(raw_chunks, list) or not raw_chunks:
+                    raise RuntimeError("ASR cache long-form thiếu macro chunk plan hợp lệ")
+                macro_chunks = [
+                    MacroChunk.from_dict(item)
+                    for item in raw_chunks
+                    if isinstance(item, dict)
+                ]
+                if len(macro_chunks) != len(raw_chunks):
+                    raise RuntimeError("ASR cache long-form có macro chunk plan bị hỏng")
         else:
             metrics.increment("cache_misses")
             stage_artifacts: list[Path] = [source_json, source_srt]
@@ -857,6 +1028,7 @@ def _run_pipeline_impl(
                     [SpeechInterval(start, end) for start, end in speech_ranges],
                     policy=longform_policy,
                 )
+                macro_chunks = chunks
                 atomic_write_json(
                     chunk_plan_path,
                     {
@@ -907,26 +1079,22 @@ def _run_pipeline_impl(
                     remaining = max(0.0, missing_duration - completed_duration)
                     eta_seconds = remaining / throughput if throughput > 0 else None
                     completed_chunks = len(chunk_results)
-                    update_job_state(
-                        job_dir,
-                        status="running",
+                    update_longform_metadata(
                         stage="asr",
-                        progress=0.20 + 0.14 * (completed_chunks / max(1, len(chunks))),
+                        progress_value=0.20 + 0.14 * (completed_chunks / max(1, len(chunks))),
                         message=f"ASR macro chunk {completed_chunks}/{len(chunks)}",
-                        metadata={
-                            "longform": {
-                                "enabled": True,
-                                "current_chunk": current_chunk,
-                                "completed_chunks": completed_chunks,
-                                "total_chunks": len(chunks),
-                                "missing_chunks_at_start": len(missing_chunks),
-                                "throughput_media_seconds_per_wall_second": throughput,
-                                "eta_seconds": eta_seconds,
-                                "queue": {
-                                    "asr_prefetch_max_pending": 1,
-                                    "gpu_asr_concurrency": 1,
-                                },
-                            }
+                        values={
+                            "enabled": True,
+                            "current_chunk": current_chunk,
+                            "completed_chunks": completed_chunks,
+                            "total_chunks": len(chunks),
+                            "missing_chunks_at_start": len(missing_chunks),
+                            "throughput_media_seconds_per_wall_second": throughput,
+                            "eta_seconds": eta_seconds,
+                            "queue": {
+                                "asr_prefetch_max_pending": 1,
+                                "gpu_asr_concurrency": 1,
+                            },
                         },
                     )
 
@@ -1076,11 +1244,12 @@ def _run_pipeline_impl(
     )
     provider_label = {
         "aurora": f"Aurora · {selected_model}" + (f" · {selected_effort}" if selected_effort else ""),
-        "webgpt": f"Codex WebGPT instance 2 · {selected_model}",
+        "webgpt": f"Dedicated Dubber-WebGPT · {selected_model}",
         "local": "LLM local only · Qwen",
         "hybrid": "LLM fallback · WebGPT → local khi cần",
     }[requested_provider]
     current_translation_stats: dict[str, Any] = {}
+    tts_engine_preload: TTSEnginePreload | None = None
     with metrics.stage("translation"):
         translation_manifest = _stage_cache_hit(
             job_dir,
@@ -1102,6 +1271,11 @@ def _run_pipeline_impl(
             # translation fingerprint input changes.
             (job_dir / "translations_cache.json").unlink(missing_ok=True)
             progress(0.34, f"Đang dịch bằng {provider_label}", stage="translation")
+            tts_engine_preload = _start_tts_async_preload(
+                config,
+                requested_provider,
+                translation_cache_miss=True,
+            )
             translator = build_translator(
                 config["translation"],
                 job_dir,
@@ -1110,17 +1284,23 @@ def _run_pipeline_impl(
                 model_override=selected_model,
                 effort_override=selected_effort,
             )
-            with translator.running():
-                segments = translator.translate_segments(
-                    segments,
-                    glossary,
-                    progress_callback=lambda value, message: progress(
-                        0.34 + value * 0.16,
-                        message,
-                        stage="translation",
-                    ),
-                )
-                current_translation_stats = translator.stats()
+            try:
+                with translator.running():
+                    segments = translator.translate_segments(
+                        segments,
+                        glossary,
+                        progress_callback=lambda value, message: progress(
+                            0.34 + value * 0.16,
+                            message,
+                            stage="translation",
+                        ),
+                    )
+                    current_translation_stats = translator.stats()
+            except BaseException:
+                if tts_engine_preload is not None:
+                    tts_engine_preload.release()
+                    tts_engine_preload = None
+                raise
             translation_stats = dict(current_translation_stats)
             _save_segments(translated_baseline_json, segments)
             atomic_write_json(
@@ -1277,6 +1457,7 @@ def _run_pipeline_impl(
                     rewrite_items.append((segment, target, measured, ratio, target_chars))
 
                 accepted_ids: list[int] = []
+                prefit_error: dict[str, str] | None = None
                 if rewrite_items:
                     prefit_translator = build_translator(
                         config["translation"],
@@ -1286,8 +1467,19 @@ def _run_pipeline_impl(
                         model_override=selected_model,
                         effort_override=selected_effort,
                     )
-                    with prefit_translator.running():
-                        rewritten = prefit_translator.rewrite_batch(rewrite_items, glossary)
+                    rewritten, current_prefit_stats, prefit_error = (
+                        _attempt_optional_prefit_rewrite_batch(
+                            prefit_translator,
+                            rewrite_items,
+                            glossary,
+                        )
+                    )
+                    if prefit_error is not None:
+                        # Prefit only saves a likely TTS/rewrite round-trip. The primary
+                        # translation already passed its gates, so a transient provider
+                        # failure here should degrade to that text instead of killing the job.
+                        metrics.increment("translation_prefit_fail_open")
+                    else:
                         for segment, _target, _measured, _ratio, _target_chars in rewrite_items:
                             candidate_text = str(rewritten.get(segment.id) or "").strip()
                             if not candidate_text or candidate_text == segment.vi:
@@ -1295,7 +1487,6 @@ def _run_pipeline_impl(
                             if verify_semantic_candidate(segment, candidate_text, "prefit_candidate"):
                                 segment.vi = candidate_text
                                 accepted_ids.append(segment.id)
-                        current_prefit_stats = prefit_translator.stats()
 
                 _save_segments(prefit_json, segments)
                 atomic_write_json(
@@ -1305,20 +1496,23 @@ def _run_pipeline_impl(
                         "profile": selected_profile,
                         "candidates": len(rewrite_items),
                         "accepted_ids": accepted_ids,
+                        "status": "degraded" if prefit_error is not None else "passed",
+                        "error": prefit_error,
                         "fit": fit_receipts,
                         "translator": current_prefit_stats,
                     },
                 )
-                _commit_stage(
-                    job_dir,
-                    "translation_prefit",
-                    inputs=prefit_inputs,
-                    artifacts=[prefit_json, prefit_meta_path],
-                    config=prefit_config,
-                    model=translation_model_provenance,
-                    prompt={"policy": "duration-prefit-v2"},
-                    versions={"policy": 2, "translation_policy": TRANSLATION_POLICY_VERSION},
-                )
+                if prefit_error is None:
+                    _commit_stage(
+                        job_dir,
+                        "translation_prefit",
+                        inputs=prefit_inputs,
+                        artifacts=[prefit_json, prefit_meta_path],
+                        config=prefit_config,
+                        model=translation_model_provenance,
+                        prompt={"policy": "duration-prefit-v2"},
+                        versions={"policy": 2, "translation_policy": TRANSLATION_POLICY_VERSION},
+                    )
         tts_text_source_json = prefit_json
 
     review_overrides = load_review_overrides(job_dir)
@@ -1349,11 +1543,12 @@ def _run_pipeline_impl(
     reference_config = {
         "clone_original_voice": bool(config["tts"].get("clone_original_voice", True)),
     }
+    reference_versions = {"policy": REFERENCE_SELECTION_POLICY_VERSION}
     reference_fingerprint = stage_fingerprint(
         "reference_selection",
         inputs=reference_inputs,
         config=reference_config,
-        versions={"policy": 3},
+        versions=reference_versions,
     )
     references: dict[str, Path] = {}
     reference_selection_receipts: dict[str, Any] = {}
@@ -1414,7 +1609,7 @@ def _run_pipeline_impl(
                 inputs=reference_inputs,
                 artifacts=[reference_meta_path, *references.values()],
                 config=reference_config,
-                versions={"policy": 2},
+                versions=reference_versions,
             )
 
     reference_identity = {
@@ -1447,6 +1642,7 @@ def _run_pipeline_impl(
         },
     }
     tts_config = dict(config.get("tts", {}) or {})
+    tts_cache_config = _tts_cache_config(tts_config)
     timing_config = dict(config.get("timing", {}) or {})
     timing_windows = allocate_timing_windows(
         segments,
@@ -1482,7 +1678,7 @@ def _run_pipeline_impl(
     tts_request_fingerprint = stage_fingerprint(
         "tts_request",
         inputs=tts_request_inputs,
-        config={"tts": tts_config, "timing": timing_config},
+        config={"tts": tts_cache_config, "timing": timing_config},
         model=tts_model,
         prompt={"rewrite_policy": "duration-rewrite-v1"},
         versions=tts_versions,
@@ -1494,6 +1690,11 @@ def _run_pipeline_impl(
         tts_request_fingerprint,
         translated_json,
         resume=resume,
+    )
+    chunked_tts = bool(
+        windowed_asr
+        and len(macro_chunks) > 1
+        and longform_config.get("chunked_tts_enabled", True)
     )
     current_rewrite_stats: dict[str, Any] = {}
     pronunciation_map = merge_pronunciation_map(
@@ -1531,6 +1732,11 @@ def _run_pipeline_impl(
                 for segment in segments
             ]
             rewrite_stats = dict(rewrite_meta["stats"])
+        # Translation can miss while a valid downstream TTS cache survives.
+        # Finish and release speculative init before segment QA touches CUDA.
+        if tts_engine_preload is not None:
+            tts_engine_preload.release()
+        tts_engine_preload = None
     else:
         metrics.increment("cache_misses")
         tts_request_receipt_path, _partial_request_matches = _prepare_tts_partial_cache(
@@ -1538,38 +1744,268 @@ def _run_pipeline_impl(
             tts_request_fingerprint,
             resume=resume,
             preserve_raw_on_mismatch=bool(review_overrides),
+            preserve_all_on_mismatch=chunked_tts,
         )
-        translator = build_translator(
-            config["translation"],
-            job_dir,
-            requested_provider,
-            retry_budget=translation_retry_budget,
-            model_override=selected_model,
-            effort_override=selected_effort,
-        )
+        tts_engine_runtime: TTSEngineRuntime | None = None
+        if chunked_tts:
+            rendered = []
+            tts_stats = []
+            segment_by_id = {segment.id: segment for segment in segments}
+            missing_tts_chunks: list[tuple[MacroChunk, list[Segment], dict[str, Any]]] = []
+            glossary_identity = fingerprint_file(glossary_path)
 
-        with translator.running():
-            rendered, tts_stats = synthesize_segments(
-                segments,
-                tts_output_dir,
-                config["tts"],
-                config["timing"],
-                translator,
-                glossary,
-                references,
-                voice_ref=voice_ref,
-                progress_callback=lambda value, message: progress(
-                    0.54 + value * 0.26,
-                    message,
-                    stage="tts",
-                ),
-                metrics=metrics,
-                rewrite_verifier=verify_rewrite,
-                tts_text_mapper=tts_text,
-                timing_windows=timing_windows,
-                locked_segment_ids=manual_review_ids,
+            def chunk_tts_payload(chunk_segments: list[Segment]) -> dict[str, Any]:
+                speaker_refs = (
+                    reference_identity
+                    if "override" in reference_identity
+                    else {
+                        speaker: reference_identity.get(speaker)
+                        for speaker in sorted({segment.speaker for segment in chunk_segments})
+                    }
+                )
+                return {
+                    "segments": [
+                        {
+                            "id": segment.id,
+                            "start": segment.start,
+                            "end": segment.end,
+                            "vi": segment.vi,
+                            "speaker": segment.speaker,
+                            "timing": (
+                                {
+                                    "start": timing_windows[segment.id].start,
+                                    "end": timing_windows[segment.id].end,
+                                    "target_duration": timing_windows[segment.id].target_duration,
+                                    "borrowed_before": timing_windows[segment.id].borrowed_before,
+                                    "borrowed_after": timing_windows[segment.id].borrowed_after,
+                                }
+                                if segment.id in timing_windows
+                                else None
+                            ),
+                        }
+                        for segment in chunk_segments
+                    ],
+                    "glossary": glossary_identity,
+                    "references": speaker_refs,
+                    "provider": requested_provider,
+                    "semantic_rewrite_gate": tts_request_inputs["semantic_rewrite_gate"],
+                }
+
+            for chunk in macro_chunks:
+                chunk_segments = segments_for_macro_chunk(segments, chunk)
+                payload = chunk_tts_payload(chunk_segments)
+                fingerprint = chunk_stage_fingerprint(
+                    chunk,
+                    "tts",
+                    inputs=payload,
+                    config={"tts": tts_cache_config, "timing": timing_config},
+                    model=tts_model,
+                    prompt={"rewrite_policy": "duration-rewrite-v1"},
+                    versions=tts_versions,
+                )
+                chunk_dir = job_dir / "chunks" / chunk.chunk_id
+                chunk_segments_path = chunk_dir / "segments_vi.json"
+                chunk_stats_path = chunk_dir / "tts_stats.json"
+                manifest = (
+                    load_chunk_stage(job_dir, chunk, "tts", fingerprint)
+                    if resume
+                    else None
+                )
+                if manifest is not None:
+                    cached_segments = _load_segments(chunk_segments_path)
+                    stats_payload = _load_json_dict(chunk_stats_path)
+                    raw_stats = stats_payload.get("stats")
+                    expected_ids = [segment.id for segment in chunk_segments]
+                    cached_ids = [segment.id for segment in cached_segments]
+                    if cached_ids == expected_ids and isinstance(raw_stats, list):
+                        try:
+                            cached_stats = [
+                                TTSStat(**item) for item in raw_stats if isinstance(item, dict)
+                            ]
+                        except TypeError:
+                            cached_stats = []
+                        if len(cached_stats) == len(chunk_segments):
+                            for cached in cached_segments:
+                                live = segment_by_id[cached.id]
+                                live.vi = cached.vi
+                                live.speaker = cached.speaker
+                            rendered.extend(
+                                (
+                                    placement_segment(segment_by_id[segment_id]),
+                                    tts_output_dir / f"{segment_id:05d}.wav",
+                                )
+                                for segment_id in expected_ids
+                            )
+                            tts_stats.extend(cached_stats)
+                            metrics.increment("cache_hits")
+                            continue
+                metrics.increment("cache_misses")
+                missing_tts_chunks.append((chunk, chunk_segments, payload))
+
+            completed_tts_chunks = len(macro_chunks) - len(missing_tts_chunks)
+            missing_tts_duration = sum(chunk.duration for chunk, _segments, _payload in missing_tts_chunks)
+            completed_tts_duration = 0.0
+            completed_tts_chunks_this_run = 0
+            tts_chunk_started_at = time.perf_counter()
+            translator = None
+            try:
+                if missing_tts_chunks:
+                    translator = build_translator(
+                        config["translation"],
+                        job_dir,
+                        requested_provider,
+                        retry_budget=translation_retry_budget,
+                        model_override=selected_model,
+                        effort_override=selected_effort,
+                    )
+                    tts_engine_runtime = _resolve_tts_async_preload(tts_engine_preload)
+                    if tts_engine_runtime is None:
+                        tts_engine_runtime = load_tts_engine(config["tts"])
+                    with translator.running():
+                        for chunk, chunk_segments, payload in missing_tts_chunks:
+                            local_rendered, local_stats = synthesize_segments(
+                                chunk_segments,
+                                tts_output_dir,
+                                config["tts"],
+                                config["timing"],
+                                translator,
+                                glossary,
+                                references,
+                                voice_ref=voice_ref,
+                                progress_callback=lambda value, message, done=completed_tts_chunks: progress(
+                                    0.54
+                                    + 0.26
+                                    * ((done + value) / max(1, len(macro_chunks))),
+                                    message,
+                                    stage="tts",
+                                ),
+                                metrics=metrics,
+                                rewrite_verifier=verify_rewrite,
+                                tts_text_mapper=tts_text,
+                                timing_windows=timing_windows,
+                                locked_segment_ids=manual_review_ids,
+                                engine_runtime=tts_engine_runtime,
+                            )
+                            chunk_dir = job_dir / "chunks" / chunk.chunk_id
+                            chunk_segments_path = chunk_dir / "segments_vi.json"
+                            chunk_stats_path = chunk_dir / "tts_stats.json"
+                            _save_segments(chunk_segments_path, chunk_segments)
+                            atomic_write_json(
+                                chunk_stats_path,
+                                {
+                                    "version": 1,
+                                    "stats": [item.to_dict() for item in local_stats],
+                                },
+                            )
+                            commit_chunk_stage(
+                                job_dir,
+                                chunk,
+                                "tts",
+                                inputs=payload,
+                                artifacts=[
+                                    chunk_segments_path,
+                                    chunk_stats_path,
+                                    *[path for _, path in local_rendered],
+                                ],
+                                config={"tts": tts_cache_config, "timing": timing_config},
+                                model=tts_model,
+                                prompt={"rewrite_policy": "duration-rewrite-v1"},
+                                versions=tts_versions,
+                            )
+                            rendered.extend(local_rendered)
+                            tts_stats.extend(local_stats)
+                            completed_tts_chunks += 1
+                            completed_tts_chunks_this_run += 1
+                            completed_tts_duration += chunk.duration
+                            telemetry = _chunk_stage_telemetry(
+                                completed_media_seconds=completed_tts_duration,
+                                total_pending_media_seconds=missing_tts_duration,
+                                elapsed_seconds=time.perf_counter() - tts_chunk_started_at,
+                                pending_chunks=(
+                                    len(missing_tts_chunks) - completed_tts_chunks_this_run
+                                ),
+                                queue_name="tts",
+                                concurrency=1,
+                            )
+                            update_longform_metadata(
+                                stage="tts",
+                                progress_value=0.54
+                                + 0.26 * (completed_tts_chunks / max(1, len(macro_chunks))),
+                                message=f"TTS macro chunk {completed_tts_chunks}/{len(macro_chunks)}",
+                                values={
+                                    "enabled": True,
+                                    "phase": "tts",
+                                    "current_chunk": chunk.chunk_id,
+                                    "completed_tts_chunks": completed_tts_chunks,
+                                    "total_chunks": len(macro_chunks),
+                                    "tts_batch_size": max(
+                                        1,
+                                        int(config.get("tts", {}).get("batch_size", 1)),
+                                    ),
+                                    **telemetry,
+                                },
+                            )
+                    current_rewrite_stats = translator.stats()
+                rendered.sort(key=lambda item: item[0].id)
+                tts_stats.sort(key=lambda item: item.segment_id)
+                current_rewrite_stats = dict(current_rewrite_stats)
+                current_rewrite_stats["rewrite_calls"] = max(
+                    int(current_rewrite_stats.get("rewrite_calls") or 0),
+                    sum(int(item.rewrites) for item in tts_stats),
+                )
+            finally:
+                if tts_engine_preload is not None:
+                    tts_engine_preload.release()
+                if tts_engine_runtime is not None:
+                    tts_engine_runtime.release()
+                tts_engine_runtime = None
+                tts_engine_preload = None
+        else:
+            translator = build_translator(
+                config["translation"],
+                job_dir,
+                requested_provider,
+                retry_budget=translation_retry_budget,
+                model_override=selected_model,
+                effort_override=selected_effort,
             )
-            current_rewrite_stats = translator.stats()
+            try:
+                tts_engine_runtime = _resolve_tts_async_preload(tts_engine_preload)
+                if tts_engine_runtime is None:
+                    # Preload failure is an optimization miss, not a TTS failure.
+                    # Retry normal lazy init here, retaining the existing CPU fallback.
+                    tts_engine_runtime = load_tts_engine(config["tts"])
+                with translator.running():
+                    rendered, tts_stats = synthesize_segments(
+                        segments,
+                        tts_output_dir,
+                        config["tts"],
+                        config["timing"],
+                        translator,
+                        glossary,
+                        references,
+                        voice_ref=voice_ref,
+                        progress_callback=lambda value, message: progress(
+                            0.54 + value * 0.26,
+                            message,
+                            stage="tts",
+                        ),
+                        metrics=metrics,
+                        rewrite_verifier=verify_rewrite,
+                        tts_text_mapper=tts_text,
+                        timing_windows=timing_windows,
+                        locked_segment_ids=manual_review_ids,
+                        engine_runtime=tts_engine_runtime,
+                    )
+                    current_rewrite_stats = translator.stats()
+            finally:
+                # Do not pin the GPU runtime through rewritten/segment QA.
+                if tts_engine_preload is not None:
+                    tts_engine_preload.release()
+                if tts_engine_runtime is not None:
+                    tts_engine_runtime.release()
+                tts_engine_runtime = None
+                tts_engine_preload = None
         rewrite_stats = dict(current_rewrite_stats)
         _save_segments(translated_json, segments, review_statuses=review_statuses)
         tts_stats_path.write_text(
@@ -1599,7 +2035,7 @@ def _run_pipeline_impl(
                 tts_request_receipt_path,
                 *[path for _, path in rendered],
             ],
-            config={"tts": tts_config, "timing": timing_config},
+            config={"tts": tts_cache_config, "timing": timing_config},
             model=tts_model,
             prompt={"rewrite_policy": "duration-rewrite-v1"},
             versions=tts_versions,
@@ -1715,6 +2151,10 @@ def _run_pipeline_impl(
         segment_qa_stage_config = {
             "policy_version": SEGMENT_QA_POLICY_VERSION,
             "asr": dict(config.get("asr", {}) or {}),
+            "scope": str(qa_config.get("segment_scope", "all")),
+            "risk_sample_ratio": float(qa_config.get("risk_sample_ratio", 0.05)),
+            "risk_sample_min": int(qa_config.get("risk_sample_min", 2)),
+            "risk_sample_max": int(qa_config.get("risk_sample_max", 4)),
             "min_similarity": float(qa_config.get("min_similarity", 0.78)),
             "severe_similarity": float(qa_config.get("severe_similarity", 0.55)),
             "max_timing_ratio": float(qa_config.get("max_timing_ratio", 1.03)),
@@ -1755,25 +2195,55 @@ def _run_pipeline_impl(
                 metrics.increment("cache_misses")
                 rendered_by_id = {segment.id: (segment, path) for segment, path in rendered}
                 stats_by_id = {item.segment_id: item for item in tts_stats}
-                actual_texts = transcribe_text_files(
-                    [rendered_by_id[segment.id][1] for segment in segments],
-                    config["asr"],
-                    language="vi",
-                )
                 spoken_qa_contracts = {
                     segment.id: _segment_qa_spoken_contract(segment, pronunciation_map)
                     for segment in segments
+                }
+                risk_ids: set[int] = set()
+                for segment in segments:
+                    stat = stats_by_id[segment.id]
+                    # Timing/overflow is deterministic and remains checked on every segment.
+                    # Re-ASR is reserved for risks that actually need acoustic evidence.
+                    if stat.rewrites > 0:
+                        risk_ids.add(segment.id)
+                    if spoken_qa_contracts[segment.id][1]:
+                        risk_ids.add(segment.id)
+                    if segment.id in manual_review_ids or segment.speaker_visibility()["needs_review"]:
+                        risk_ids.add(segment.id)
+
+                qa_selection = select_acoustic_qa_segment_ids(
+                    [segment.id for segment in segments],
+                    risk_ids=risk_ids,
+                    scope=segment_qa_stage_config["scope"],
+                    sample_ratio=segment_qa_stage_config["risk_sample_ratio"],
+                    sample_min=segment_qa_stage_config["risk_sample_min"],
+                    sample_max=segment_qa_stage_config["risk_sample_max"],
+                )
+                selected_ids = set(qa_selection["selected_segment_ids"])
+                selected_segments = [segment for segment in segments if segment.id in selected_ids]
+                selected_actuals = transcribe_text_files(
+                    [rendered_by_id[segment.id][1] for segment in selected_segments],
+                    config["asr"],
+                    language="vi",
+                )
+                actual_by_id = {
+                    segment.id: actual
+                    for segment, actual in zip(selected_segments, selected_actuals, strict=True)
                 }
                 observations = [
                     SegmentQAObservation(
                         segment_id=segment.id,
                         expected=spoken_qa_contracts[segment.id][0],
-                        actual=actual,
+                        # Non-selected segments still receive deterministic timing QA.
+                        # Using the approved script as actual avoids pretending an ASR check ran.
+                        actual=actual_by_id.get(segment.id, spoken_qa_contracts[segment.id][0]),
                         target_duration=stats_by_id[segment.id].target_duration,
                         actual_duration=stats_by_id[segment.id].final_duration,
-                        critical_terms=spoken_qa_contracts[segment.id][1],
+                        critical_terms=(
+                            spoken_qa_contracts[segment.id][1] if segment.id in selected_ids else ()
+                        ),
                     )
-                    for segment, actual in zip(segments, actual_texts, strict=True)
+                    for segment in segments
                 ]
 
                 def repair_segments(
@@ -1871,6 +2341,20 @@ def _run_pipeline_impl(
                     segment_qa_report.get("summary", {}).get("repairs_completed") or 0
                 )
                 metrics.increment("qa_repairs", completed_repairs)
+                repaired_acoustic_ids = {
+                    int(item["segment_id"])
+                    for item in segment_qa_report.get("repairs", [])
+                    if isinstance(item, dict) and item.get("status") == "completed"
+                }
+                acoustic_checked_ids = selected_ids | repaired_acoustic_ids
+                qa_selection["selected_segment_ids"] = sorted(acoustic_checked_ids)
+                qa_selection["acoustic_segments_checked"] = len(acoustic_checked_ids)
+                qa_selection["deterministic_segments_checked"] = len(segments)
+                segment_qa_report["selection"] = qa_selection
+                for bucket in ("initial", "final"):
+                    for item in segment_qa_report.get(bucket, []):
+                        if isinstance(item, dict):
+                            item["acoustic_checked"] = int(item.get("segment_id", -1)) in acoustic_checked_ids
 
                 if completed_repairs:
                     rendered = [rendered_by_id[segment.id] for segment in segments]
@@ -1898,7 +2382,7 @@ def _run_pipeline_impl(
                             tts_request_receipt_path,
                             *[path for _, path in rendered],
                         ],
-                        config={"tts": tts_config, "timing": timing_config},
+                        config={"tts": tts_cache_config, "timing": timing_config},
                         model=tts_model,
                         prompt={"rewrite_policy": "duration-rewrite-v1"},
                         versions=tts_versions,
@@ -1925,6 +2409,121 @@ def _run_pipeline_impl(
             f"{int(segment_summary.get('final_failed') or 0)}/{len(segments)} đoạn còn bị flag; "
             f"đã repair {int(segment_summary.get('repairs_completed') or 0)} đoạn."
         )
+
+    chunk_qa_manifests: dict[str, dict[str, Any]] = {}
+    chunk_qa_status: dict[str, dict[str, Any]] = {}
+    if chunked_tts:
+        rendered_by_segment_id = {segment.id: path for segment, path in rendered}
+        final_qa_rows = {
+            int(item["segment_id"]): item
+            for item in (segment_qa_report or {}).get("final", [])
+            if isinstance(item, dict) and item.get("segment_id") is not None
+        }
+        segment_qa_enabled = bool(qa_config.get("enabled", True)) and bool(
+            qa_config.get("segment_enabled", True)
+        )
+        for chunk in macro_chunks:
+            chunk_segments = segments_for_macro_chunk(segments, chunk)
+            chunk_rows = [
+                final_qa_rows[segment.id]
+                for segment in chunk_segments
+                if segment.id in final_qa_rows
+            ]
+            if segment_qa_enabled and len(chunk_rows) != len(chunk_segments):
+                raise RuntimeError(
+                    f"Thiếu kết quả segment QA cho {chunk.chunk_id}; không publish preview"
+                )
+            failed_segment_ids = sorted(
+                int(item["segment_id"])
+                for item in chunk_rows
+                if not bool(item.get("passed", False))
+            )
+            qa_state = (
+                "failed"
+                if failed_segment_ids
+                else "passed"
+                if segment_qa_enabled
+                else "skipped_by_config"
+            )
+            qa_payload = {
+                "segments": [
+                    {
+                        "id": segment.id,
+                        "start": segment.start,
+                        "end": segment.end,
+                        "vi": segment.vi,
+                        "speaker": segment.speaker,
+                        "audio": fingerprint_file(rendered_by_segment_id[segment.id]),
+                    }
+                    for segment in chunk_segments
+                ],
+                "segment_qa_enabled": segment_qa_enabled,
+                "segment_qa": chunk_rows,
+                "status": qa_state,
+                "failed_segment_ids": failed_segment_ids,
+            }
+            qa_fingerprint = chunk_stage_fingerprint(
+                chunk,
+                "qa",
+                inputs=qa_payload,
+                upstream={"tts_request": tts_request_fingerprint},
+                config={
+                    "segment_enabled": segment_qa_enabled,
+                    "min_similarity": float(qa_config.get("min_similarity", 0.78)),
+                    "max_timing_ratio": float(qa_config.get("max_timing_ratio", 1.03)),
+                },
+                versions={
+                    "policy": 1,
+                    "segment_qa_policy": SEGMENT_QA_POLICY_VERSION,
+                },
+            )
+            chunk_dir = job_dir / "chunks" / chunk.chunk_id
+            qa_path = chunk_dir / "qa.json"
+            qa_manifest = (
+                load_chunk_stage(job_dir, chunk, "qa", qa_fingerprint)
+                if resume
+                else None
+            )
+            if qa_manifest is None:
+                invalidate_chunk_from(job_dir, chunk.chunk_id, "qa")
+                atomic_write_json(
+                    qa_path,
+                    {
+                        "version": 1,
+                        "chunk_id": chunk.chunk_id,
+                        "status": qa_state,
+                        "passed": not failed_segment_ids,
+                        "segment_ids": [segment.id for segment in chunk_segments],
+                        "failed_segment_ids": failed_segment_ids,
+                        "segment_qa_enabled": segment_qa_enabled,
+                        "rows": chunk_rows,
+                    },
+                )
+                qa_manifest = commit_chunk_stage(
+                    job_dir,
+                    chunk,
+                    "qa",
+                    inputs=qa_payload,
+                    artifacts=[qa_path],
+                    upstream={"tts_request": tts_request_fingerprint},
+                    config={
+                        "segment_enabled": segment_qa_enabled,
+                        "min_similarity": float(qa_config.get("min_similarity", 0.78)),
+                        "max_timing_ratio": float(qa_config.get("max_timing_ratio", 1.03)),
+                    },
+                    versions={
+                        "policy": 1,
+                        "segment_qa_policy": SEGMENT_QA_POLICY_VERSION,
+                    },
+                )
+            if failed_segment_ids:
+                invalidate_chunk_from(job_dir, chunk.chunk_id, "preview")
+            chunk_qa_manifests[chunk.chunk_id] = qa_manifest
+            chunk_qa_status[chunk.chunk_id] = {
+                "status": qa_state,
+                "passed": not failed_segment_ids,
+                "failed_segment_ids": failed_segment_ids,
+            }
 
     write_srt(segments, output_path.with_suffix(".vi.srt"), translated=True)
 
@@ -1979,10 +2578,137 @@ def _run_pipeline_impl(
                 versions={"policy": 3},
             )
 
+    mix = dict(config["mix"])
+    target_lufs, target_true_peak = resolve_loudness_profile(
+        profile=str(mix.get("loudness_profile") or config.get("profile") or "youtube"),
+        custom_lufs=mix.get("final_lufs"),
+        custom_true_peak=mix.get("final_true_peak_db"),
+    )
     voice_metrics = voice_track_metrics(voice_track)
+    preview_entries: list[dict[str, Any]] = []
+    if chunked_tts and bool(longform_config.get("progressive_preview_enabled", True)):
+        rendered_by_segment_id = {segment.id: path for segment, path in rendered}
+        background_identity = fingerprint_file(background)
+        ready_chunk_ids: list[str] = []
+        blocked_chunk_ids: list[str] = []
+        for processed, chunk in enumerate(macro_chunks, start=1):
+            qa_status = chunk_qa_status.get(chunk.chunk_id, {})
+            if not bool(qa_status.get("passed", False)):
+                blocked_chunk_ids.append(chunk.chunk_id)
+                invalidate_chunk_from(job_dir, chunk.chunk_id, "preview")
+            else:
+                chunk_segments = segments_for_macro_chunk(segments, chunk)
+                qa_manifest = chunk_qa_manifests[chunk.chunk_id]
+                preview_inputs = {
+                    "source": source_identity,
+                    "background": background_identity,
+                    "qa": qa_manifest["fingerprint"],
+                    "rendered_audio": [
+                        {
+                            "segment_id": segment.id,
+                            "start": segment.start,
+                            "end": segment.end,
+                            "artifact": fingerprint_file(rendered_by_segment_id[segment.id]),
+                        }
+                        for segment in chunk_segments
+                    ],
+                    "assembly": assembly_config,
+                }
+                preview_config = {
+                    "mix": mix,
+                    "target_lufs": target_lufs,
+                    "target_true_peak_db": target_true_peak,
+                    "container": "mp4",
+                    "label": "PREVIEW",
+                }
+                preview_fingerprint = chunk_stage_fingerprint(
+                    chunk,
+                    "preview",
+                    inputs=preview_inputs,
+                    upstream={"qa": qa_manifest["fingerprint"]},
+                    config=preview_config,
+                    versions={"policy": 1},
+                )
+                chunk_dir = job_dir / "chunks" / chunk.chunk_id
+                preview_path = chunk_dir / "preview" / f"PREVIEW_{chunk.chunk_id}.mp4"
+                preview_meta_path = chunk_dir / "preview.json"
+                preview_manifest = (
+                    load_chunk_stage(
+                        job_dir,
+                        chunk,
+                        "preview",
+                        preview_fingerprint,
+                    )
+                    if resume
+                    else None
+                )
+                if preview_manifest is None:
+                    invalidate_chunk_from(job_dir, chunk.chunk_id, "preview")
+                    build_chunk_preview(
+                        input_path,
+                        background,
+                        voice_track,
+                        preview_path,
+                        start=chunk.source_start,
+                        duration=chunk.duration,
+                        background_gain_db=float(mix.get("background_gain_db", 0.0)),
+                        voice_gain_db=float(mix.get("voice_gain_db", 1.5)),
+                        final_lufs=target_lufs,
+                        true_peak_db=target_true_peak,
+                        duck_background=bool(mix.get("duck_background", False)),
+                    )
+                    atomic_write_json(
+                        preview_meta_path,
+                        {
+                            "version": 1,
+                            "kind": "preview",
+                            "label": "PREVIEW",
+                            "final": False,
+                            "stale": False,
+                            "chunk_id": chunk.chunk_id,
+                            "index": chunk.index,
+                            "start": chunk.source_start,
+                            "end": chunk.source_end,
+                            "duration": chunk.duration,
+                            "qa_status": qa_status.get("status"),
+                            "artifact": relative_artifact_path(job_dir, preview_path),
+                        },
+                    )
+                    preview_manifest = commit_chunk_stage(
+                        job_dir,
+                        chunk,
+                        "preview",
+                        inputs=preview_inputs,
+                        artifacts=[preview_path, preview_meta_path],
+                        upstream={"qa": qa_manifest["fingerprint"]},
+                        config=preview_config,
+                        versions={"policy": 1},
+                    )
+                preview_meta = _load_json_dict(preview_meta_path)
+                entry = {
+                    **preview_meta,
+                    "manifest_fingerprint": preview_manifest["fingerprint"],
+                }
+                preview_entries.append(entry)
+                ready_chunk_ids.append(chunk.chunk_id)
+
+            update_longform_metadata(
+                stage="preview",
+                progress_value=0.82 + 0.02 * (processed / max(1, len(macro_chunks))),
+                message=f"Preview macro chunk {processed}/{len(macro_chunks)}",
+                values={
+                    "enabled": True,
+                    "phase": "preview",
+                    "current_chunk": chunk.chunk_id,
+                    "preview_ready_chunks": list(ready_chunk_ids),
+                    "preview_blocked_chunks": list(blocked_chunk_ids),
+                    "preview_total_chunks": len(macro_chunks),
+                    "preview_policy_version": 1,
+                },
+            )
+
     console.rule("5/6 Mix + ghép video")
     progress(0.84, "Đang mix âm thanh và ghép video cuối", stage="mix_mux")
-    mix = dict(config["mix"])
     cached_video = job_dir / "dubbed.mp4"
     mix_metrics_path = job_dir / "mix_metrics.json"
     mix_inputs = {
@@ -2001,11 +2727,6 @@ def _run_pipeline_impl(
             metrics.increment("cache_hits")
         else:
             metrics.increment("cache_misses")
-            target_lufs, target_true_peak = resolve_loudness_profile(
-                profile=str(mix.get("loudness_profile") or config.get("profile") or "youtube"),
-                custom_lufs=mix.get("final_lufs"),
-                custom_true_peak=mix.get("final_true_peak_db"),
-            )
             mux_dubbed_video(
                 input_path,
                 background,
@@ -2039,7 +2760,9 @@ def _run_pipeline_impl(
     mix_metrics = _load_json_dict(mix_metrics_path)
 
     qa_result: dict[str, Any] | None = None
-    if bool(config.get("qa", {}).get("enabled", True)):
+    qa_enabled = bool(config.get("qa", {}).get("enabled", True))
+    full_track_qa = bool(config.get("reliability", {}).get("final_full_qa", True))
+    if qa_enabled and full_track_qa:
         console.rule("6/6 Kiểm tra lại bằng ASR")
         progress(0.91, "Đang kiểm tra lại track tiếng Việt bằng ASR", stage="acoustic_qa")
         expected = " ".join(item.vi for item in segments)
@@ -2087,6 +2810,7 @@ def _run_pipeline_impl(
             segment_passed = bool(segment_summary.get("passed", True))
             qa_result = {
                 **raw_qa,
+                "mode": "full_track",
                 "threshold": threshold,
                 "global_passed": global_passed,
                 "segment_summary": segment_summary,
@@ -2098,6 +2822,45 @@ def _run_pipeline_impl(
             atomic_write_json(job_dir / "qa.json", qa_result)
         status = "green" if qa_result["passed"] else "yellow"
         console.print(f"Độ tương đồng QA: [{status}]{similarity:.1%}[/] (mục tiêu {threshold:.0%})")
+    elif qa_enabled:
+        console.rule("6/6 QA theo rủi ro")
+        progress(0.91, "Đã hoàn tất QA theo rủi ro", stage="qa")
+        segment_summary = segment_qa_report.get("summary", {}) if segment_qa_report else {}
+        selection = segment_qa_report.get("selection", {}) if segment_qa_report else {}
+        selected_ids = {
+            int(segment_id) for segment_id in selection.get("selected_segment_ids", [])
+        }
+        final_rows = segment_qa_report.get("final", []) if segment_qa_report else []
+        acoustic_similarities = [
+            float(item.get("similarity", 1.0))
+            for item in final_rows
+            if isinstance(item, dict) and int(item.get("segment_id", -1)) in selected_ids
+        ]
+        similarity = (
+            sum(acoustic_similarities) / len(acoustic_similarities)
+            if acoustic_similarities
+            else 1.0
+        )
+        threshold = float(config["qa"].get("min_similarity", 0.78))
+        segment_passed = bool(segment_summary.get("passed", True))
+        qa_result = {
+            "mode": "risk_segments",
+            "similarity": similarity,
+            "similarity_scope": "selected_segments",
+            "threshold": threshold,
+            "global_passed": None,
+            "full_track_skipped": True,
+            "segment_summary": segment_summary,
+            "segment_selection": selection,
+            "segment_artifact": str(job_dir / "segment_qa.json") if segment_qa_report else None,
+            "passed": segment_passed,
+        }
+        atomic_write_json(job_dir / "qa.json", qa_result)
+        status = "green" if qa_result["passed"] else "yellow"
+        console.print(
+            f"QA acoustic theo rủi ro: [{status}]{len(selected_ids)}/{len(segments)} đoạn[/]; "
+            "bỏ full-track re-ASR."
+        )
     else:
         console.rule("6/6 Bỏ qua QA")
 
@@ -2130,6 +2893,7 @@ def _run_pipeline_impl(
         "translation": translation_stats,
         "semantic_qa": semantic_qa_summary(semantic_qa_path),
         "qa": qa_result,
+        "previews": preview_entries,
         "metrics": {
             "artifact": str(metrics_path),
             "schema_version": metrics_snapshot["schema_version"],
@@ -2271,3 +3035,5 @@ def run_pipeline(
         except Exception:
             pass
         raise
+    finally:
+        release_tts_engine_preloads_for_current_thread()

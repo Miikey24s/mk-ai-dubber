@@ -10,6 +10,8 @@ import vi_dubber.api as api_mod
 from vi_dubber.api import create_app
 from vi_dubber.artifacts import atomic_write_json
 from vi_dubber.jobs import update_job_state
+from vi_dubber.longform import MacroChunk
+from vi_dubber.longform_state import commit_chunk_stage
 
 
 @pytest.fixture
@@ -108,6 +110,69 @@ def test_api_get_job_details(client: TestClient, tmp_path: Path) -> None:
     assert data["status"] == "completed"
     assert len(data["segments"]) == 1
     assert data["segments"][0]["vi"] == "Xin chào thế giới"
+
+
+def test_api_lists_and_serves_only_verified_chunk_previews(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    job_dir = tmp_path / "work" / "job-preview01"
+    preview_dir = job_dir / "chunks" / "chunk_0001" / "preview"
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    preview_path = preview_dir / "PREVIEW_chunk_0001.mp4"
+    preview_path.write_bytes(b"verified-preview")
+    meta_path = job_dir / "chunks" / "chunk_0001" / "preview.json"
+    atomic_write_json(
+        meta_path,
+        {
+            "version": 1,
+            "kind": "preview",
+            "label": "PREVIEW",
+            "final": False,
+            "stale": False,
+            "chunk_id": "chunk_0001",
+            "index": 0,
+            "start": 0.0,
+            "end": 30.0,
+            "duration": 30.0,
+            "qa_status": "passed",
+            "artifact": "chunks/chunk_0001/preview/PREVIEW_chunk_0001.mp4",
+        },
+    )
+    chunk = MacroChunk(
+        chunk_id="chunk_0001",
+        index=0,
+        source_start=0.0,
+        source_end=30.0,
+        context_start=0.0,
+        context_end=30.0,
+        boundary_reason="end",
+    )
+    commit_chunk_stage(
+        job_dir,
+        chunk,
+        "preview",
+        inputs={"fixture": True},
+        artifacts=[preview_path, meta_path],
+        versions={"policy": 1},
+    )
+
+    listed = client.get("/api/jobs/job-preview01/previews")
+    assert listed.status_code == 200
+    previews = listed.json()
+    assert len(previews) == 1
+    assert previews[0]["label"] == "PREVIEW"
+    assert previews[0]["final"] is False
+    assert previews[0]["play_url"].endswith("/previews/chunk_0001")
+
+    played = client.get("/api/jobs/job-preview01/previews/chunk_0001")
+    assert played.status_code == 200
+    assert played.content == b"verified-preview"
+    assert played.headers["x-vi-dubber-artifact"] == "PREVIEW"
+
+    preview_path.write_bytes(b"tampered")
+    assert client.get("/api/jobs/job-preview01/previews").json() == []
+    assert client.get("/api/jobs/job-preview01/previews/chunk_0001").status_code == 404
 
 
 def test_api_job_control_and_segments(client: TestClient, tmp_path: Path) -> None:
@@ -228,6 +293,76 @@ def test_api_update_segment(client: TestClient, tmp_path: Path) -> None:
     segs = res_segs.json()
     assert segs[0]["vi"] == "Bản dịch mới đã duyệt"
     assert segs[0]["review_status"] == "reviewed"
+
+
+def test_segment_edit_marks_only_own_longform_preview_stale(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    job_dir = tmp_path / "work" / "job-longedit01"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    update_job_state(
+        job_dir,
+        status="completed",
+        stage="complete",
+        progress=1.0,
+        message="Done",
+        metadata={
+            "longform": {
+                "enabled": True,
+                "preview_ready_chunks": ["chunk_0001", "chunk_0002"],
+                "preview_stale_chunks": [],
+            }
+        },
+    )
+    atomic_write_json(
+        job_dir / "segments_vi.json",
+        [
+            {
+                "id": 1,
+                "start": 10.0,
+                "end": 12.0,
+                "text": "source",
+                "vi": "bản cũ",
+                "speaker": "SPEAKER_00",
+                "review_status": "unreviewed",
+            }
+        ],
+    )
+    atomic_write_json(
+        job_dir / "chunks" / "plan.json",
+        {
+            "version": 1,
+            "chunks": [
+                {
+                    "chunk_id": "chunk_0001",
+                    "source_start": 0.0,
+                    "source_end": 30.0,
+                },
+                {
+                    "chunk_id": "chunk_0002",
+                    "source_start": 30.0,
+                    "source_end": 60.0,
+                },
+            ],
+        },
+    )
+    preview_manifest = job_dir / "chunks" / "chunk_0001" / "manifests" / "preview.json"
+    preview_manifest.parent.mkdir(parents=True, exist_ok=True)
+    preview_manifest.write_text("{}\n", encoding="utf-8")
+
+    response = client.patch(
+        "/api/jobs/job-longedit01/segments/1",
+        json={"vi": "bản mới"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["receipt"]["longform_chunk_id"] == "chunk_0001"
+    assert not preview_manifest.exists()
+    state = json.loads((job_dir / "state.json").read_text(encoding="utf-8"))
+    longform = state["metadata"]["longform"]
+    assert longform["preview_ready_chunks"] == ["chunk_0002"]
+    assert longform["preview_stale_chunks"] == ["chunk_0001"]
 
 
 def test_api_rerender_and_dub(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

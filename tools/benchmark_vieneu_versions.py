@@ -167,6 +167,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
         raise BenchmarkError("CUDA is required for this isolated VieNeu GPU benchmark")
 
     version = importlib.metadata.version("vieneu")
+    engine_started = time.perf_counter()
     engine = Vieneu(
         mode="v3turbo",
         backend="pytorch",
@@ -175,17 +176,47 @@ def run_benchmark(args: argparse.Namespace) -> int:
         dtype="float16",
         max_batch_size=max(batch_sizes),
     )
+    engine_init_wall_s = time.perf_counter() - engine_started
+
+    fused_warmup_wall_s = 0.0
+    fused_warmup_graphs = 0
+    if bool(getattr(args, "warm_fused", False)):
+        batch_engine_factory = getattr(engine, "_get_batch_engine", None)
+        if not callable(batch_engine_factory):
+            raise BenchmarkError("VieNeu engine does not expose the batch engine required for fused warm-up")
+        batch_engine = batch_engine_factory()
+        warm_fused = getattr(batch_engine, "warm_fused", None)
+        if not callable(warm_fused):
+            raise BenchmarkError("VieNeu batch engine does not expose warm_fused")
+        fused_started = time.perf_counter()
+        fused_warmup_graphs = int(
+            warm_fused(
+                batch_sizes=tuple(batch_sizes),
+                max_len=int(args.fused_max_len),
+            )
+        )
+        _sync_cuda()
+        fused_warmup_wall_s = time.perf_counter() - fused_started
 
     results: list[dict[str, Any]] = []
     for batch_size in batch_sizes:
         texts = list(DEFAULT_TEXTS[:batch_size])
+        warmup_runs: list[dict[str, Any]] = []
         for warmup_index in range(args.warmups):
-            _run_batch(
+            wall_s, _outputs, peak_allocated_mib, peak_reserved_mib = _run_batch(
                 engine,
                 texts,
                 reference=reference,
                 batch_size=batch_size,
                 seed=args.seed + 10_000 + warmup_index,
+            )
+            warmup_runs.append(
+                {
+                    "warmup": warmup_index,
+                    "wall_s": wall_s,
+                    "peak_cuda_allocated_mib": peak_allocated_mib,
+                    "peak_cuda_reserved_mib": peak_reserved_mib,
+                }
             )
         repetitions: list[dict[str, Any]] = []
         for repetition in range(args.repetitions):
@@ -220,6 +251,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 "max_peak_cuda_reserved_mib": max(
                     float(row["peak_cuda_reserved_mib"]) for row in repetitions
                 ),
+                "warmup_runs": warmup_runs,
+                "warmup_total_wall_s": sum(float(row["wall_s"]) for row in warmup_runs),
                 "repetitions": repetitions,
             }
         )
@@ -260,6 +293,11 @@ def run_benchmark(args: argparse.Namespace) -> int:
         "device": "cuda",
         "dtype": "float16",
         "precision": "fp16",
+        "engine_init_wall_s": engine_init_wall_s,
+        "fused_warmup": bool(getattr(args, "warm_fused", False)),
+        "fused_warmup_wall_s": fused_warmup_wall_s,
+        "fused_warmup_graphs": fused_warmup_graphs,
+        "fused_max_len": int(args.fused_max_len),
         "seed": args.seed,
         "warmups": args.warmups,
         "repetitions": args.repetitions,
@@ -439,6 +477,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--label", required=True)
     run.add_argument("--batch-size", type=int, action="append", default=[])
     run.add_argument("--warmups", type=int, default=1)
+    run.add_argument("--warm-fused", action="store_true")
+    run.add_argument("--fused-max-len", type=int, default=1024)
     run.add_argument("--repetitions", type=int, default=3)
     run.add_argument("--seed", type=int, default=20260925)
     run.set_defaults(handler=run_benchmark)

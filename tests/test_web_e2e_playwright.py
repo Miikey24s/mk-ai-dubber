@@ -79,8 +79,8 @@ def test_playwright_model_catalog_live_dropdown(page: Page, gradio_server: str) 
     effort_label = page.locator("text=Effort").first
     expect(effort_label).to_be_visible(timeout=10000)
 
-    # Check that the catalog banner reflects instance 2 connection
-    status_banner = page.locator("text=17842").first
+    # Check that the catalog banner reflects the dedicated runtime connection.
+    status_banner = page.locator("text=17850").first
     expect(status_banner).to_be_visible(timeout=10000)
 
 
@@ -92,4 +92,4 @@ def test_playwright_browser_reload_preserves_ui(page: Page, gradio_server: str) 
     page.reload(wait_until="domcontentloaded")
     expect(page).to_have_title("VI Dubber Studio")
     expect(page.locator("text=BƯỚC 01")).to_be_visible()
-    expect(page.locator("text=17842").first).to_be_visible(timeout=10000)
+    expect(page.locator("text=17850").first).to_be_visible(timeout=10000)

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import {
-  formatBytes,
-  formatRtf,
   formatSeconds,
   resolveActiveStageIndex,
   PIPELINE_STAGES,
@@ -11,18 +9,13 @@ import {
 import { StageDefinition } from '@/types';
 import { StageDetailModal } from '@/components/pipeline/StageDetailModal';
 import {
-  Cpu,
-  Gauge,
   Wifi,
   Play,
   Pause,
   Square,
   CheckCircle2,
-  Radio,
   Timer,
   Clock,
-  Check,
-  Loader2,
 } from 'lucide-react';
 
 export const SystemBar: React.FC = () => {
@@ -36,10 +29,6 @@ export const SystemBar: React.FC = () => {
   const progress = activeJob?.progress || 0;
   const rtfValue = activeJob?.result?.real_time_factor || 0.77;
   const audioDuration = activeJob?.result?.duration_seconds || 184.5;
-
-  const vramPercent = Math.round(
-    (systemStatus.gpu_vram_used_bytes / systemStatus.gpu_vram_total_bytes) * 100
-  );
 
   // Live timer simulation / sync
   useEffect(() => {
@@ -71,142 +60,85 @@ export const SystemBar: React.FC = () => {
     ? resolveActiveStageIndex(activeJob.stage, activeJob.progress)
     : 0;
 
+  const activeStage = PIPELINE_STAGES[activeIndex];
+  const stageName = activeStage ? (language === 'vi' ? activeStage.labelVi : activeStage.labelEn) : '';
+
   return (
-    <div className="h-[36px] shrink-0 bg-white dark:bg-[#090d16] border-b border-slate-200 dark:border-[#1e293b] px-3 flex items-center justify-between text-xs font-mono select-none overflow-x-auto no-scrollbar gap-3 w-full">
-      {/* Section 1: System Telemetry (GPU, RTF, WebGPT, ETA) */}
-      <div className="flex items-center gap-3 shrink-0">
-        {/* GPU VRAM */}
-        <div className="flex items-center gap-1.5" title={systemStatus.gpu_name}>
-          <Cpu className="w-3.5 h-3.5 text-sky-500" />
-          <span className="font-semibold text-slate-800 dark:text-slate-200">VRAM:</span>
-          <span className="text-slate-700 dark:text-slate-300">
-            {formatBytes(systemStatus.gpu_vram_used_bytes)}/{formatBytes(systemStatus.gpu_vram_total_bytes)}
-          </span>
-          <div className="w-10 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden hidden sm:block">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                vramPercent > 85 ? 'bg-rose-500' : vramPercent > 70 ? 'bg-amber-500' : 'bg-sky-500'
-              }`}
-              style={{ width: `${vramPercent}%` }}
+    <div className="h-[36px] shrink-0 bg-white dark:bg-[#090d16] border-b border-slate-200 dark:border-slate-800 px-3 flex items-center justify-between text-xs font-mono select-none overflow-x-auto no-scrollbar gap-4 w-full">
+      {/* Section 1: Progress bar with stage label */}
+      <div className="flex flex-1 items-center gap-3 min-w-[200px] max-w-xl">
+        <button
+          onClick={() => setSelectedStage(activeStage)}
+          className="font-bold text-slate-800 dark:text-slate-200 hover:text-orange-500 dark:hover:text-orange-400 transition cursor-pointer whitespace-nowrap"
+          title={language === 'vi' ? 'Xem chi tiết bước xử lý' : 'Click to view stage details'}
+        >
+          {t('system.stage_of', { current: activeIndex + 1, total: 7 })}: {stageName} · {Math.round(progress * 100)}%
+        </button>
+        <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full relative mx-2 cursor-pointer" onClick={() => setSelectedStage(activeStage)}>
+          {/* 7 stage marker dots */}
+          {PIPELINE_STAGES.map((_, i) => (
+            <div key={i}
+              className={`absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${i < activeIndex ? 'bg-emerald-500' : i === activeIndex ? 'bg-orange-500 ring-2 ring-orange-500/30' : 'bg-slate-300 dark:bg-slate-700'}`}
+              style={{ left: `${(i / 6) * 100}%` }}
             />
-          </div>
-          <span className="text-slate-600 dark:text-slate-400">{vramPercent}%</span>
-        </div>
-
-        <div className="h-3 w-px bg-slate-200 dark:bg-slate-800" />
-
-        {/* RTF Speed */}
-        <div className="flex items-center gap-1.5" title={t('system.rtf')}>
-          <Gauge className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="font-semibold text-slate-800 dark:text-slate-200">RTF:</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatRtf(rtfValue)}</span>
-        </div>
-
-        <div className="h-3 w-px bg-slate-200 dark:bg-slate-800 hidden md:block" />
-
-        {/* WebGPT Status */}
-        <div className="items-center gap-1.5 hidden md:flex" title="Codex WebGPT Sol Engine">
-          <Radio className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-          <span className="font-semibold text-slate-800 dark:text-slate-200">WebGPT:</span>
-          <span className="text-orange-600 dark:text-orange-400 truncate max-w-[110px]">
-            {systemStatus.webgpt_model.replace('chatgpt-web/', '')}
-          </span>
-          <span className="text-slate-500 dark:text-slate-400">:{systemStatus.webgpt_port}</span>
-        </div>
-
-        <div className="h-3 w-px bg-slate-200 dark:bg-slate-800 hidden lg:block" />
-
-        {/* Dynamic Job ETA */}
-        <div className="items-center gap-2 hidden lg:flex">
-          <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-            <Timer className="w-3 h-3 text-slate-500" />
-            <span className="text-slate-800 dark:text-slate-200 font-bold tabular-nums">
-              {formatSeconds(liveElapsed)}
-            </span>
-          </div>
-          <span className="text-slate-300 dark:text-slate-700">/</span>
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-sky-500" />
-            <span className="text-sky-600 dark:text-sky-400 font-bold tabular-nums">
-              {isJobComplete ? 'COMPLETE' : `ETA ${formatSeconds(remainingSeconds)}`}
-            </span>
-          </div>
-          <span className="text-slate-600 dark:text-slate-400 font-bold">
-            ({Math.round(progress * 100)}%)
-          </span>
+          ))}
+          {/* Progress fill */}
+          <div className="h-full bg-orange-500 rounded-full transition-all duration-500"
+            style={{ width: `${progress * 100}%` }} />
         </div>
       </div>
 
-      {/* Section 2: 7-Stage Pipeline Mini-Stepper */}
-      <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
-        {PIPELINE_STAGES.map((stage, idx) => {
-          const isDone = isJobComplete || idx < activeIndex;
-          const isCurrent = !isJobComplete && idx === activeIndex && activeJob?.status === 'running';
-          const isPaused = !isJobComplete && idx === activeIndex && activeJob?.status === 'paused';
-          const isWaiting = !isJobComplete && idx > activeIndex;
-
-          const stageShortNames = ['PREP', 'SEP', 'ASR', 'SOL', 'TTS', 'MIX', 'QA'];
-          const shortName = stageShortNames[idx] || `0${idx + 1}`;
-
-          return (
-            <button
-              key={stage.id}
-              onClick={() => setSelectedStage(stage)}
-              className={`h-6 px-1.5 rounded flex items-center gap-1 text-[11px] font-mono border transition-all cursor-pointer ${
-                isCurrent
-                  ? 'bg-orange-500 text-white font-bold border-orange-600 shadow-sm animate-pulse'
-                  : isDone
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                  : isPaused
-                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
-                  : 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800/80 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-              title={`${stage.index + 1}. ${language === 'vi' ? stage.labelVi : stage.labelEn} (${stage.internalStageNames[0]}) - Click to inspect`}
-            >
-              {isCurrent && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
-              {isDone && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-              {isPaused && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />}
-              {isWaiting && <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />}
-              <span>{shortName}</span>
-            </button>
-          );
-        })}
+      {/* Section 2: ETA Timer */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+          <Timer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+          <span className="text-slate-800 dark:text-slate-100 font-bold tabular-nums">
+            {formatSeconds(liveElapsed)}
+          </span>
+        </div>
+        <span className="text-slate-300 dark:text-slate-700">/</span>
+        <div className="flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5 text-sky-500" />
+          <span className="text-sky-600 dark:text-sky-400 font-bold tabular-nums">
+            {isJobComplete ? t('stepper.completed') : `ETA ${formatSeconds(remainingSeconds)}`}
+          </span>
+        </div>
       </div>
 
       {/* Section 3: Stream Status & Job Control */}
       <div className="flex items-center gap-2 shrink-0">
         {/* Stream Live Indicator */}
         <div className="flex items-center gap-1 text-[11px]" title="Telemetry Stream Connection">
-          <Wifi className="w-3 h-3 text-emerald-500" />
+          <Wifi className="w-3.5 h-3.5 text-emerald-500" />
           <span className="text-emerald-600 dark:text-emerald-400 font-semibold hidden sm:inline">
-            {systemStatus.websocket_connected ? 'WS LIVE' : 'POLLING'}
+            {systemStatus.websocket_connected ? t('system.ws_live') : t('system.polling')}
           </span>
         </div>
 
         {/* Job Actions */}
         {activeJob && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 ml-2">
             {activeJob.status === 'running' ? (
               <button
                 onClick={() => controlJob('pause')}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[11px] font-semibold transition"
-                title="Pause Job"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold transition cursor-pointer"
+                title={t('common.pause')}
               >
-                <Pause className="w-3 h-3" />
+                <Pause className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{t('common.pause')}</span>
               </button>
             ) : activeJob.status === 'paused' ? (
               <button
                 onClick={() => controlJob('run')}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition"
-                title="Resume Job"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition cursor-pointer"
+                title={t('common.resume')}
               >
-                <Play className="w-3 h-3" />
+                <Play className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{t('common.resume')}</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs px-2.5 h-7">
+                <CheckCircle2 className="w-4 h-4" />
                 <span>{activeJob.status.toUpperCase()}</span>
               </div>
             )}
@@ -214,10 +146,10 @@ export const SystemBar: React.FC = () => {
             {(activeJob.status === 'running' || activeJob.status === 'paused') && (
               <button
                 onClick={() => controlJob('cancel')}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[11px] font-semibold transition"
-                title="Abort Job"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-semibold transition cursor-pointer"
+                title={t('common.abort')}
               >
-                <Square className="w-2.5 h-2.5" />
+                <Square className="w-3 h-3" />
                 <span className="hidden sm:inline">{t('common.abort')}</span>
               </button>
             )}

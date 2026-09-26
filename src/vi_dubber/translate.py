@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 import tomllib
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ from .pronunciation import normalize_pronunciation
 from .runtime import MODELS_DIR, PROJECT_ROOT, find_codex_exe, llama_server_exe
 from .terminology import TerminologyGlossary, glossary_prompt_json, load_terminology_glossary
 from .types import Segment
+from .webgpt_runtime import DUBBER_WEBGPT_BASE_URL, DUBBER_WEBGPT_PORT
 
 
 SYSTEM_PROMPT = """You are a senior English-to-Vietnamese dubbing adapter.
@@ -47,8 +49,11 @@ WEBGPT_PRESSURE_MARKERS = (
     "selected model is at capacity",
     "rate limit",
     "rate_limited",
+    "rate_limit_exceeded",
     "cooldown",
 )
+WEBGPT_TRANSPORT_CODEX_EXEC = "codex-exec"
+WEBGPT_TRANSPORT_DIRECT_RESPONSES = "direct-responses"
 
 
 def load_glossary(path: Path | None) -> dict[str, str]:
@@ -322,6 +327,37 @@ def _is_webgpt_pressure_error(detail: str) -> bool:
     return any(marker in normalized for marker in WEBGPT_PRESSURE_MARKERS)
 
 
+def _normalize_webgpt_transport(value: Any) -> str:
+    transport = str(value or WEBGPT_TRANSPORT_CODEX_EXEC).strip().lower().replace("_", "-")
+    if transport not in {WEBGPT_TRANSPORT_CODEX_EXEC, WEBGPT_TRANSPORT_DIRECT_RESPONSES}:
+        raise ValueError(
+            "webgpt_transport phải là 'codex-exec' hoặc 'direct-responses'."
+        )
+    return transport
+
+
+def _webgpt_response_output_text(payload: dict[str, Any]) -> str:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return ""
+    parts: list[str] = []
+    for item in output:
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        content = item.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") not in {"output_text", "text"}:
+                continue
+            text = block.get("text")
+            if isinstance(text, str) and text:
+                parts.append(text)
+    return "\n".join(parts).strip()
+
+
 class LocalTranslator:
     def __init__(self, config: dict[str, Any], work_dir: Path):
         self.config = config
@@ -583,8 +619,10 @@ def _codex_config_path() -> Path:
     return home / "config.toml"
 
 
-WEBGPT_INSTANCE_PORT = 17842
-WEBGPT_INSTANCE_BASE_URL = f"http://127.0.0.1:{WEBGPT_INSTANCE_PORT}/v1"
+# Backward-compatible constant names for older imports/artifacts. The active
+# runtime is now the project-owned Dedicated Dubber-WebGPT listener.
+WEBGPT_INSTANCE_PORT = DUBBER_WEBGPT_PORT
+WEBGPT_INSTANCE_BASE_URL = DUBBER_WEBGPT_BASE_URL
 DEFAULT_WEBGPT_MODEL = "chatgpt-web/gpt-5.6-sol"
 # Backward-compatible import name used by older tests/artifacts.
 PINNED_WEBGPT_MODEL = DEFAULT_WEBGPT_MODEL
@@ -595,7 +633,7 @@ def _webgpt_base_url(config: dict[str, Any] | None = None) -> str:
     configured = str((config or {}).get("webgpt_base_url") or WEBGPT_INSTANCE_BASE_URL).strip().rstrip("/")
     if configured != WEBGPT_INSTANCE_BASE_URL:
         raise ValueError(
-            "VI Dubber hiện khóa Codex WebGPT vào instance 2 tại "
+            "VI Dubber hiện khóa translation vào Dedicated Dubber-WebGPT tại "
             f"{WEBGPT_INSTANCE_BASE_URL}; nhận được {configured or 'base_url trống'}."
         )
     return configured
@@ -612,22 +650,22 @@ def webgpt_model_catalog(config: dict[str, Any] | None = None) -> dict[str, Any]
     try:
         response = requests.get(f"{base_url}/models", timeout=max(1.0, timeout))
     except requests.RequestException as exc:
-        raise RuntimeError(f"Không thể lấy model catalog từ Codex WebGPT instance 2 tại {base_url}: {exc}") from exc
+        raise RuntimeError(f"Không thể lấy model catalog từ Dedicated Dubber-WebGPT tại {base_url}: {exc}") from exc
     if not response.ok:
         detail = response.text.strip()[:600]
         raise RuntimeError(
-            f"Codex WebGPT instance 2 model catalog trả HTTP {response.status_code}"
+            f"Dedicated Dubber-WebGPT model catalog trả HTTP {response.status_code}"
             + (f": {detail}" if detail else "")
         )
     try:
         payload = response.json()
     except ValueError as exc:
-        raise RuntimeError("Codex WebGPT instance 2 model catalog trả JSON không hợp lệ.") from exc
+        raise RuntimeError("Dedicated Dubber-WebGPT model catalog trả JSON không hợp lệ.") from exc
     if not isinstance(payload, dict):
-        raise RuntimeError("Codex WebGPT instance 2 model catalog phải là JSON object.")
+        raise RuntimeError("Dedicated Dubber-WebGPT model catalog phải là JSON object.")
     raw_models = payload.get("data", payload.get("models", []))
     if not isinstance(raw_models, list):
-        raise RuntimeError("Codex WebGPT instance 2 model catalog không có danh sách model hợp lệ.")
+        raise RuntimeError("Dedicated Dubber-WebGPT model catalog không có danh sách model hợp lệ.")
 
     models: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -660,7 +698,7 @@ def webgpt_model_catalog(config: dict[str, Any] | None = None) -> dict[str, Any]
             }
         )
     if not models:
-        raise RuntimeError("Codex WebGPT instance 2 model catalog đang trống.")
+        raise RuntimeError("Dedicated Dubber-WebGPT model catalog đang trống.")
 
     configured_model = str(config.get("webgpt_model") or DEFAULT_WEBGPT_MODEL).strip()
     ids = {item["id"] for item in models}
@@ -777,7 +815,7 @@ def aurora_model_catalog(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def translation_model_catalog(config: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Public live catalog used by the product UI from WebGPT instance 2."""
+    """Public live catalog used by the product UI from Dedicated Dubber-WebGPT."""
     return webgpt_model_catalog(dict(config or {}))
 
 
@@ -803,13 +841,13 @@ def webgpt_route_info(config: dict[str, Any] | None = None) -> dict[str, str | b
         if not isinstance(health_payload, dict):
             raise RuntimeError("healthz không trả JSON object")
         if int(health_payload.get("port") or 0) != WEBGPT_INSTANCE_PORT:
-            raise RuntimeError(f"healthz không phải instance 2 port {WEBGPT_INSTANCE_PORT}")
+            raise RuntimeError(f"healthz không phải Dedicated Dubber-WebGPT port {WEBGPT_INSTANCE_PORT}")
         if not bool(health_payload.get("accepting_turns", False)):
-            raise RuntimeError("instance 2 hiện không nhận turn mới")
+            raise RuntimeError("Dedicated Dubber-WebGPT hiện không nhận turn mới")
         catalog = webgpt_model_catalog(config)
         model_ids = {str(item.get("id") or "") for item in catalog.get("models", [])}
         if model not in model_ids:
-            raise RuntimeError(f"model {model!r} không có trong live catalog instance 2")
+            raise RuntimeError(f"model {model!r} không có trong live catalog Dedicated Dubber-WebGPT")
     except Exception as exc:
         return {
             "ready": False,
@@ -817,7 +855,7 @@ def webgpt_route_info(config: dict[str, Any] | None = None) -> dict[str, str | b
             "model": model,
             "base_url": base_url,
             "port": WEBGPT_INSTANCE_PORT,
-            "reason": f"Codex WebGPT instance 2 chưa sẵn sàng: {exc}",
+            "reason": f"Dedicated Dubber-WebGPT chưa sẵn sàng: {exc}",
         }
     return {
         "ready": True,
@@ -858,6 +896,7 @@ class WebGptTranslator:
             or ""
         ).strip()
         self.supported_efforts: list[str] = []
+        self.transport = _normalize_webgpt_transport(config.get("webgpt_transport"))
         self.timeout = int(config.get("webgpt_timeout_seconds", config.get("codex_timeout_seconds", 900)))
         configured_retry_budget = config.get("retry_budget", 0) if retry_budget is None else retry_budget
         self.retry_budget = int(configured_retry_budget)
@@ -871,7 +910,7 @@ class WebGptTranslator:
             self.retry_backoff_seconds,
             float(config.get("webgpt_retry_backoff_max_seconds", 2.0)),
         )
-        self.concurrency = max(1, min(3, int(config.get("webgpt_concurrency", 1))))
+        self.concurrency = max(1, min(3, int(config.get("webgpt_concurrency", 2))))
         self.global_context_enabled = bool(config.get("global_context_enabled", False))
         self.global_context_samples = max(0, int(config.get("global_context_samples", 8)))
         self.global_context_max_chars = max(0, int(config.get("global_context_max_chars", 2400)))
@@ -913,10 +952,6 @@ class WebGptTranslator:
         yield self
 
     def _run_json(self, prompt: str, schema: dict[str, Any], label: str) -> Any:
-        executable = find_codex_exe() or shutil.which("codex")
-        if executable is None:
-            raise RuntimeError("Không tìm thấy lệnh Codex trên PATH. Hãy mở/cài Codex rồi chạy lại.")
-
         webgpt_dir = self.work_dir / "webgpt"
         webgpt_dir.mkdir(parents=True, exist_ok=True)
         prompt = (
@@ -925,9 +960,19 @@ class WebGptTranslator:
             + f"\nOutput JSON schema: {json.dumps(schema, ensure_ascii=False)}"
         )
 
-        env = os.environ.copy()
-        env.setdefault("PYTHONUTF8", "1")
+        executable: str | None = None
+        env: dict[str, str] | None = None
+        if self.transport == WEBGPT_TRANSPORT_CODEX_EXEC:
+            executable = find_codex_exe() or shutil.which("codex")
+            if executable is None:
+                raise RuntimeError("Không tìm thấy lệnh Codex trên PATH. Hãy mở/cài Codex rồi chạy lại.")
+            env = os.environ.copy()
+            env.setdefault("PYTHONUTF8", "1")
+
         max_attempts = 1 + self.retry_budget
+        direct_request_id = uuid.uuid4().hex
+        direct_thread_id = f"thread_vi_dubber_{direct_request_id}"
+        direct_turn_id = f"turn_vi_dubber_{direct_request_id}"
         for attempt_index in range(max_attempts):
             with self._stats_lock:
                 self.webgpt_attempts += 1
@@ -936,88 +981,199 @@ class WebGptTranslator:
             output_path = webgpt_dir / f"{label}-{stamp}.json"
             self._last_output_path = output_path
             self._invocation_local.last_output_path = output_path
-            cmd = [
-                executable,
-                "exec",
-                "--ephemeral",
-                "--ignore-rules",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "--color",
-                "never",
-                "-o",
-                str(output_path),
-            ]
-            cmd.extend(
-                [
-                    "-c",
-                    'model_provider="codex_local_access"',
-                    "-c",
-                    f'model_providers.codex_local_access.base_url="{self.base_url}"',
-                    "-c",
-                    'model_providers.codex_local_access.wire_api="responses"',
-                    "-c",
-                    "model_providers.codex_local_access.requires_openai_auth=true",
-                ]
-            )
-            cmd.extend(["--model", self.model])
-            if self.effort:
-                cmd.extend(["-c", f'model_reasoning_effort="{self.effort}"'])
-            cmd.append("-")
 
             retryable_error: Exception | None = None
-            try:
-                result = subprocess.run(
-                    cmd,
-                    input=prompt,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=self.timeout,
-                    check=False,
-                    env=env,
-                )
-            except subprocess.TimeoutExpired as exc:
-                retryable_error = RuntimeError(
-                    f"Dịch bằng ChatGPT Web GPT quá thời gian chờ ({self.timeout}s)."
-                )
-                retryable_error.__cause__ = exc
-            except OSError as exc:
-                retryable_error = RuntimeError(
-                    f"Không thể chạy Codex WebGPT: {exc}"
-                )
-                retryable_error.__cause__ = exc
-            else:
-                if result.returncode != 0:
-                    detail = (result.stderr or result.stdout).strip()
-                    retryable_error = RuntimeError(
-                        f"Dịch bằng ChatGPT Web GPT thất bại: {detail[-1200:]}"
+            fail_fast = False
+            if self.transport == WEBGPT_TRANSPORT_DIRECT_RESPONSES:
+                turn_metadata = {"thread_id": direct_thread_id, "turn_id": direct_turn_id}
+                request_payload: dict[str, Any] = {
+                    "model": self.model,
+                    "input": [{
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": prompt}],
+                        "internal_chat_message_metadata_passthrough": {"turn_id": direct_turn_id},
+                    }],
+                    "prompt_cache_key": direct_thread_id,
+                    "client_metadata": {
+                        "x-codex-turn-metadata": json.dumps(
+                            turn_metadata,
+                            separators=(",", ":"),
+                        ),
+                    },
+                    "tools": [],
+                    "tool_choice": "none",
+                    "parallel_tool_calls": False,
+                    "stream": False,
+                    "store": False,
+                }
+                if self.effort:
+                    request_payload["reasoning"] = {"effort": self.effort, "summary": "none"}
+                try:
+                    response = requests.post(
+                        f"{self.base_url}/responses",
+                        json=request_payload,
+                        headers={"Accept": "application/json"},
+                        timeout=self.timeout,
                     )
-                    if _is_webgpt_pressure_error(detail):
-                        with self._stats_lock:
-                            self.webgpt_failures += 1
-                            self.webgpt_pressure_failures += 1
-                        raise retryable_error
-                elif not output_path.exists():
+                except requests.Timeout as exc:
                     retryable_error = RuntimeError(
-                        "ChatGPT Web GPT đã chạy xong nhưng không tạo file kết quả."
+                        f"Dịch direct Responses quá thời gian chờ ({self.timeout}s)."
                     )
+                    retryable_error.__cause__ = exc
+                except requests.RequestException as exc:
+                    retryable_error = RuntimeError(f"Không thể gọi direct WebGPT Responses: {exc}")
+                    retryable_error.__cause__ = exc
                 else:
-                    try:
-                        return _extract_json(
-                            output_path.read_text(encoding="utf-8"),
-                            array=False,
-                        )
-                    except (OSError, UnicodeError, ValueError) as exc:
+                    if not response.ok:
+                        detail = response.text.strip()[-1200:]
                         retryable_error = RuntimeError(
-                            "ChatGPT Web GPT trả kết quả JSON không hợp lệ."
+                            f"Direct WebGPT Responses trả HTTP {response.status_code}"
+                            + (f": {detail}" if detail else "")
                         )
-                        retryable_error.__cause__ = exc
+                        fail_fast = response.status_code in {400, 401, 403, 404, 409, 429}
+                        if response.status_code == 429 or _is_webgpt_pressure_error(detail):
+                            with self._stats_lock:
+                                self.webgpt_failures += 1
+                                self.webgpt_pressure_failures += 1
+                            raise retryable_error
+                    else:
+                        try:
+                            envelope = response.json()
+                        except ValueError as exc:
+                            retryable_error = RuntimeError("Direct WebGPT Responses trả JSON envelope không hợp lệ.")
+                            retryable_error.__cause__ = exc
+                        else:
+                            if not isinstance(envelope, dict):
+                                retryable_error = RuntimeError("Direct WebGPT Responses phải trả JSON object.")
+                            elif envelope.get("status") != "completed" or envelope.get("error"):
+                                error = envelope.get("error")
+                                incomplete = envelope.get("incomplete_details")
+                                detail = json.dumps(
+                                    error or incomplete or {"status": envelope.get("status")},
+                                    ensure_ascii=False,
+                                    default=str,
+                                )
+                                retryable_error = RuntimeError(f"Direct WebGPT Responses thất bại: {detail[-1200:]}")
+                                if _is_webgpt_pressure_error(detail):
+                                    with self._stats_lock:
+                                        self.webgpt_failures += 1
+                                        self.webgpt_pressure_failures += 1
+                                    raise retryable_error
+                                error_type = str(error.get("type") if isinstance(error, dict) else "").casefold()
+                                error_code = str(error.get("code") if isinstance(error, dict) else "").casefold()
+                                fail_fast = any(
+                                    marker in {error_type, error_code}
+                                    for marker in {
+                                        "authentication_error",
+                                        "invalid_api_key",
+                                        "invalid_request_error",
+                                        "model_not_found",
+                                        "permission_denied",
+                                        "permission_error",
+                                    }
+                                )
+                            else:
+                                output_text = _webgpt_response_output_text(envelope)
+                                if not output_text:
+                                    retryable_error = RuntimeError(
+                                        "Direct WebGPT Responses hoàn tất nhưng không có output_text."
+                                    )
+                                else:
+                                    try:
+                                        parsed = _extract_json(output_text, array=False)
+                                        output_path.write_text(output_text, encoding="utf-8")
+                                        return parsed
+                                    except (OSError, UnicodeError, ValueError) as exc:
+                                        retryable_error = RuntimeError(
+                                            "Direct WebGPT Responses trả kết quả JSON không hợp lệ."
+                                        )
+                                        retryable_error.__cause__ = exc
+            else:
+                assert executable is not None
+                cmd = [
+                    executable,
+                    "exec",
+                    "--ephemeral",
+                    "--ignore-rules",
+                    "--skip-git-repo-check",
+                    "--sandbox",
+                    "read-only",
+                    "--color",
+                    "never",
+                    "-o",
+                    str(output_path),
+                ]
+                cmd.extend(
+                    [
+                        "-c",
+                        'model_provider="codex_local_access"',
+                        "-c",
+                        f'model_providers.codex_local_access.base_url="{self.base_url}"',
+                        "-c",
+                        'model_providers.codex_local_access.wire_api="responses"',
+                        "-c",
+                        "model_providers.codex_local_access.requires_openai_auth=true",
+                    ]
+                )
+                cmd.extend(["--model", self.model])
+                if self.effort:
+                    cmd.extend(["-c", f'model_reasoning_effort="{self.effort}"'])
+                cmd.append("-")
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        input=prompt,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=self.timeout,
+                        check=False,
+                        env=env,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    retryable_error = RuntimeError(
+                        f"Dịch bằng ChatGPT Web GPT quá thời gian chờ ({self.timeout}s)."
+                    )
+                    retryable_error.__cause__ = exc
+                except OSError as exc:
+                    retryable_error = RuntimeError(
+                        f"Không thể chạy Codex WebGPT: {exc}"
+                    )
+                    retryable_error.__cause__ = exc
+                else:
+                    if result.returncode != 0:
+                        detail = (result.stderr or result.stdout).strip()
+                        retryable_error = RuntimeError(
+                            f"Dịch bằng ChatGPT Web GPT thất bại: {detail[-1200:]}"
+                        )
+                        if _is_webgpt_pressure_error(detail):
+                            with self._stats_lock:
+                                self.webgpt_failures += 1
+                                self.webgpt_pressure_failures += 1
+                            raise retryable_error
+                    elif not output_path.exists():
+                        retryable_error = RuntimeError(
+                            "ChatGPT Web GPT đã chạy xong nhưng không tạo file kết quả."
+                        )
+                    else:
+                        try:
+                            return _extract_json(
+                                output_path.read_text(encoding="utf-8"),
+                                array=False,
+                            )
+                        except (OSError, UnicodeError, ValueError) as exc:
+                            retryable_error = RuntimeError(
+                                "ChatGPT Web GPT trả kết quả JSON không hợp lệ."
+                            )
+                            retryable_error.__cause__ = exc
 
             with self._stats_lock:
                 self.webgpt_failures += 1
+            if fail_fast:
+                assert retryable_error is not None
+                raise retryable_error
             if attempt_index + 1 >= max_attempts:
                 with self._stats_lock:
                     self.webgpt_retries_exhausted += 1
@@ -1050,6 +1206,8 @@ class WebGptTranslator:
             "schema": schema,
             "prompt": prompt,
         }
+        if self.transport != WEBGPT_TRANSPORT_CODEX_EXEC:
+            request["transport"] = self.transport
         encoded = json.dumps(
             request,
             ensure_ascii=False,
@@ -1216,12 +1374,15 @@ class WebGptTranslator:
 
             pending.append((offset, batch, prompt, request_identity))
 
-        def apply_result(offset: int, batch: list[Segment], result: dict[str, Any]) -> None:
+        def validate_result(batch: list[Segment], result: dict[str, Any]) -> dict[int, str]:
             translations = result.get("translations", [])
             by_id = {int(item["id"]): str(item["vi"]).strip() for item in translations}
             missing = [item.id for item in batch if item.id not in by_id]
             if missing:
                 raise RuntimeError(f"Codex WebGPT thiếu các đoạn có id: {missing}")
+            return by_id
+
+        def apply_result(offset: int, batch: list[Segment], by_id: dict[int, str]) -> None:
             for item in batch:
                 item.vi = by_id[item.id]
                 cached_by_id[item.id] = item.vi
@@ -1243,7 +1404,7 @@ class WebGptTranslator:
         if self.concurrency <= 1 or len(pending) <= 1:
             for offset, batch, prompt, request_identity in pending:
                 result = self._run_translation_request(prompt, schema, request_identity)
-                apply_result(offset, batch, result)
+                apply_result(offset, batch, validate_result(batch, result))
         else:
             worker_count = min(self.concurrency, len(pending))
             with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="vi-dubber-webgpt") as executor:
@@ -1256,14 +1417,18 @@ class WebGptTranslator:
                     ): (offset, batch)
                     for offset, batch, prompt, request_identity in pending
                 }
+                staged_results: list[tuple[int, list[Segment], dict[int, str]]] = []
                 try:
                     for future in as_completed(future_map):
                         offset, batch = future_map[future]
-                        apply_result(offset, batch, future.result())
+                        result = future.result()
+                        staged_results.append((offset, batch, validate_result(batch, result)))
                 except Exception:
                     for future in future_map:
                         future.cancel()
                     raise
+                for offset, batch, by_id in sorted(staged_results, key=lambda item: item[0]):
+                    apply_result(offset, batch, by_id)
         return segments
 
     def rewrite_shorter(
@@ -1363,6 +1528,7 @@ class WebGptTranslator:
             "used": "webgpt",
             "provider": "webgpt",
             "model": self.model,
+            "transport": self.transport,
             "base_url": self.base_url,
             "instance_port": WEBGPT_INSTANCE_PORT,
             "translation_concurrency": self.concurrency,

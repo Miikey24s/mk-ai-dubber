@@ -1190,6 +1190,7 @@ PROGRESS_STAGES = ["Chuẩn bị", "Tách âm", "ASR", "Dịch", "TTS", "Mix", "
 
 PROFILE_CHOICES = {
     "Fast": "fast",
+    "Balanced Fast (Sweet Spot)": "balanced_fast",
     "Balanced Best": "balanced_best",
     "Max Quality": "max_quality",
 }
@@ -1353,15 +1354,15 @@ def _catalog_status_html(catalog: dict[str, Any], provider_selection: str) -> st
         status_class = "local"
     elif provider == "webgpt":
         if catalog.get("status") == "loading":
-            detail = "Đang tải model catalog từ Codex WebGPT instance 2 · 127.0.0.1:17842..."
+            detail = "Đang tải model catalog từ Dedicated Dubber-WebGPT · 127.0.0.1:17850..."
             status_class = "warning"
         elif catalog.get("status") == "ready":
             count = len(catalog.get("models") or [])
             revision = str(catalog.get("revision") or "").strip()
-            detail = f"Instance 2 · :17842 · {count} model khả dụng" + (f" · catalog {revision}" if revision else "")
+            detail = f"Dedicated runtime · :17850 · {count} model khả dụng" + (f" · catalog {revision}" if revision else "")
             status_class = "ready"
         else:
-            detail = str(catalog.get("error") or "Không tải được model catalog từ instance 2.")
+            detail = str(catalog.get("error") or "Không tải được model catalog từ Dedicated Dubber-WebGPT.")
             status_class = "warning"
     elif provider == "hybrid":
         detail = "Legacy WebGPT → Qwen fallback."
@@ -1471,7 +1472,7 @@ def _backend_info_html(selection: str) -> str:
         if route["ready"]:
             status_class = "ready"
             dot = '<span class="status-dot green"></span>'
-            status_text = "Instance 2 online · port 17842"
+            status_text = "Dedicated Dubber-WebGPT online · port 17850"
         else:
             status_class = "warning"
             dot = '<span class="status-dot amber"></span>'
@@ -2232,10 +2233,10 @@ def run_persisted_job(
     provider = str(metadata.get("translation_provider") or "webgpt")
     if provider != "webgpt":
         raise gr.Error(
-            f"Job này dùng provider cũ {provider!r}; hiện chỉ được resume bằng Codex WebGPT instance 2. "
+            f"Job này dùng provider cũ {provider!r}; hiện chỉ được resume bằng Dedicated Dubber-WebGPT. "
             "Hãy chạy fresh với WebGPT để tránh trộn provenance/cache."
         )
-    profile = str(metadata.get("profile") or "balanced_best")
+    profile = str(metadata.get("profile") or "balanced_fast")
     diarization = str(metadata.get("diarization") or "Tự động")
     translation_model = str(metadata.get("translation_model") or "").strip() or None
     translation_effort = str(metadata.get("translation_effort") or "").strip() or None
@@ -2365,7 +2366,7 @@ def run_web_job(
     voice_ref: str | None,
     hf_token: str | None,
     resume: bool,
-    profile_mode: str = "Balanced Best",
+    profile_mode: str = "Balanced Fast (Sweet Spot)",
     translation_model: str | None = None,
     translation_effort: str | None = None,
     translation_catalog: dict[str, Any] | None = None,
@@ -2377,7 +2378,7 @@ def run_web_job(
     configure_runtime()
     provider = _provider_code(translation_mode)
     if provider != "webgpt":
-        raise gr.Error("VI Dubber hiện chỉ dùng Codex ChatGPT Web instance 2 (port 17842).")
+        raise gr.Error("VI Dubber hiện chỉ dùng Dedicated Dubber-WebGPT (port 17850).")
     provider_label = PROVIDER_LABELS[provider]
     profile = normalize_profile(PROFILE_CHOICES.get(profile_mode, profile_mode))
     selected_model = str(translation_model or "").strip() or None
@@ -2675,7 +2676,7 @@ def build_app() -> gr.Blocks:
                 )
                 profile_mode = gr.Radio(
                     list(PROFILE_CHOICES),
-                    value="Balanced Best",
+                    value="Balanced Fast (Sweet Spot)",
                     label="Profile chất lượng",
                 )
 

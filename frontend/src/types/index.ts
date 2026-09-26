@@ -6,7 +6,7 @@ export type JobStatus =
   | 'cancelled'
   | 'completed';
 
-export type ProfileType = 'fast' | 'balanced_best' | 'max_quality';
+export type ProfileType = 'fast' | 'balanced_fast' | 'balanced_best' | 'max_quality';
 
 export type StageId =
   | 'prepare'
@@ -79,6 +79,46 @@ export interface JobMetadata {
   source_sha256?: string;
   diarization?: string | boolean;
   config_path?: string;
+  longform?: LongformMetadata;
+}
+
+export interface LongformMetadata {
+  enabled?: boolean;
+  phase?: string;
+  current_chunk?: string;
+  completed_chunks?: number;
+  completed_tts_chunks?: number;
+  total_chunks?: number;
+  eta_seconds?: number | null;
+  throughput_media_seconds_per_wall_second?: number;
+  queue?: {
+    asr_prefetch_max_pending?: number;
+    gpu_asr_concurrency?: number;
+    [key: string]: number | undefined;
+  };
+  preview_ready_chunks?: string[];
+  preview_stale_chunks?: string[];
+  preview_blocked_chunks?: string[];
+  preview_total_chunks?: number;
+  preview_policy_version?: number;
+}
+
+export interface PreviewArtifact {
+  version: number;
+  kind: 'preview';
+  label: 'PREVIEW';
+  final: false;
+  stale: false;
+  chunk_id: string;
+  index: number;
+  start: number;
+  end: number;
+  duration: number;
+  qa_status?: string;
+  artifact: string;
+  manifest_fingerprint: string;
+  play_url: string;
+  download_url: string;
 }
 
 export interface MixTelemetry {
@@ -97,7 +137,9 @@ export interface QaTelemetry {
   similarity: number;
   threshold: number;
   passed: boolean;
-  global_passed?: boolean;
+  global_passed?: boolean | null;
+  mode?: string;
+  full_track_skipped?: boolean;
   segment_summary?: {
     segments_checked: number;
     initial_failed: number;
@@ -133,6 +175,7 @@ export interface JobResult {
   mix: MixTelemetry;
   qa: QaTelemetry;
   semantic_qa: SemanticQaTelemetry;
+  previews?: PreviewArtifact[];
   voice_track?: {
     peak: number;
     peak_dbfs: number;

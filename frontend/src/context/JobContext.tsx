@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { JobState, Segment, SystemStatus } from '@/types';
+import { JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
 import {
   fetchJobs,
+  fetchBackendHealth,
   fetchSystemStatus,
   fetchJobSegments,
   updateSegmentReview,
@@ -9,7 +10,7 @@ import {
   uploadMediaFile,
   createDubJob,
 } from '@/lib/api';
-import { MOCK_JOBS, MOCK_SEGMENTS, MOCK_SYSTEM_STATUS } from '@/lib/mockData';
+import { MOCK_SYSTEM_STATUS } from '@/lib/mockData';
 
 interface CreateJobOptions {
   source: 'youtube' | 'file';
@@ -33,10 +34,13 @@ interface JobContextType {
   setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
+  selectedPreview: PreviewArtifact | null;
+  setSelectedPreview: (preview: PreviewArtifact | null) => void;
   selectedAudioTrack: 'a' | 'b' | 'bgm';
   setSelectedAudioTrack: (track: 'a' | 'b' | 'bgm') => void;
   systemStatus: SystemStatus;
   loading: boolean;
+  isBackendOnline: boolean | null;
   updateSegment: (segmentId: number, changes: Partial<Segment>) => Promise<void>;
   acceptSegment: (segmentId: number) => Promise<void>;
   acceptAllSegments: () => Promise<void>;
@@ -55,56 +59,91 @@ interface JobContextType {
 const JobContext = createContext<JobContextType | undefined>(undefined);
 
 export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [jobs, setJobs] = useState<JobState[]>(MOCK_JOBS);
-  const [activeJobId, setActiveJobId] = useState<string>(MOCK_JOBS[0].id);
-  const [segments, setSegments] = useState<Segment[]>(MOCK_SEGMENTS);
+  const [jobs, setJobs] = useState<JobState[]>([]);
+  const [activeJobId, setActiveJobId] = useState<string>('');
+  const [segments, setSegments] = useState<Segment[]>([]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [selectedPreview, setSelectedPreview] = useState<PreviewArtifact | null>(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<'a' | 'b' | 'bgm'>('b');
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(MOCK_SYSTEM_STATUS);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isBackendOnline, setIsBackendOnline] = useState<boolean | null>(null);
   const [isRawJsonOpen, setIsRawJsonOpen] = useState<boolean>(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState<boolean>(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0] || null;
 
-  // Poll jobs & system status
+  // Jobs, backend heartbeat and expensive telemetry have separate failure domains.
   const refreshJobs = useCallback(async () => {
     try {
-      const [jobsData, sysData] = await Promise.all([
-        fetchJobs(),
-        fetchSystemStatus(),
-      ]);
+      const jobsData = await fetchJobs();
       if (jobsData && jobsData.length > 0) {
         setJobs(jobsData);
-      }
-      if (sysData) {
-        setSystemStatus(sysData);
+        setActiveJobId(current => current || jobsData[0].id);
+      } else {
+        setJobs([]);
       }
     } catch (err) {
       console.error('Failed refreshing jobs:', err);
     }
   }, []);
 
-  // Initial and recurring poll
+  const refreshBackendHealth = useCallback(async () => {
+    try {
+      setIsBackendOnline(await fetchBackendHealth());
+    } catch (err) {
+      console.error('Backend health check failed:', err);
+      setIsBackendOnline(false);
+    }
+  }, []);
+
+  const refreshSystemStatus = useCallback(async () => {
+    try {
+      const sysData = await fetchSystemStatus();
+      if (sysData) setSystemStatus(sysData);
+    } catch (err) {
+      // Telemetry is intentionally non-fatal: /api/system may probe external runtimes.
+      console.error('Failed refreshing system telemetry:', err);
+    }
+  }, []);
+
+  // Keep the lightweight heartbeat/jobs responsive; poll expensive telemetry less often.
   useEffect(() => {
     setLoading(true);
-    refreshJobs().finally(() => setLoading(false));
-    const interval = setInterval(refreshJobs, 2000);
-    return () => clearInterval(interval);
-  }, [refreshJobs]);
+    Promise.allSettled([
+      refreshJobs(),
+      refreshBackendHealth(),
+      refreshSystemStatus(),
+    ]).finally(() => setLoading(false));
+
+    const jobsInterval = setInterval(refreshJobs, 2000);
+    const healthInterval = setInterval(refreshBackendHealth, 2000);
+    const systemInterval = setInterval(refreshSystemStatus, 10000);
+    return () => {
+      clearInterval(jobsInterval);
+      clearInterval(healthInterval);
+      clearInterval(systemInterval);
+    };
+  }, [refreshJobs, refreshBackendHealth, refreshSystemStatus]);
 
   // Load segments when activeJob changes
   useEffect(() => {
     if (!activeJobId) return;
+    setSelectedPreview(null);
     let isMounted = true;
-    fetchJobSegments(activeJobId).then(segs => {
-      if (isMounted && segs) {
-        setSegments(segs);
-      }
-    });
+    fetchJobSegments(activeJobId)
+      .then(segs => {
+        if (isMounted && segs) {
+          setSegments(segs);
+        }
+      })
+      .catch(err => {
+        console.error('Failed fetching segments:', err);
+        if (isMounted) setSegments([]);
+      });
     return () => { isMounted = false; };
   }, [activeJobId]);
 
@@ -184,7 +223,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await createDubJob({
         input_path: inputPath,
         youtube_url: youtubeUrl,
-        profile: options.profile || 'balanced_best',
+        profile: options.profile || 'balanced_fast',
         translation_model: options.model,
         translation_effort: options.effort,
       });
@@ -201,7 +240,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           metadata: {
             input_name: (options.source === 'file' ? options.file?.name : options.youtubeUrl) || 'New Dubbing Ingest',
             source_mode: options.source === 'youtube' ? 'YouTube' : 'Local',
-            profile: (options.profile as any) || 'balanced_best',
+            profile: (options.profile as any) || 'balanced_fast',
             translation_model: options.model || 'chatgpt-web/gpt-5.6-sol',
           },
         };
@@ -215,7 +254,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     } catch (err) {
       console.error('createNewJob error:', err);
-      return null;
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -235,10 +274,13 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentTime,
         isPlaying,
         setIsPlaying,
+        selectedPreview,
+        setSelectedPreview,
         selectedAudioTrack,
         setSelectedAudioTrack,
         systemStatus,
         loading,
+        isBackendOnline,
         updateSegment,
         acceptSegment,
         acceptAllSegments,

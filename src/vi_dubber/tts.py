@@ -4,7 +4,9 @@ from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from collections.abc import Callable, Mapping
+import gc
 import json
+import threading
 from typing import Any
 
 from .artifacts import atomic_write_json, fingerprint_data, fingerprint_file
@@ -14,6 +16,11 @@ from .timing import TimingWindow, rebalance_timing_windows, timing_action
 from .translate import ProgressCallback
 from .types import Segment
 from .versions import runtime_versions
+
+
+_TTS_GPU_SLOT = threading.Lock()
+_ACTIVE_PRELOADS_LOCK = threading.Lock()
+_ACTIVE_PRELOADS_BY_OWNER: dict[int, set[Any]] = {}
 
 
 @dataclass(slots=True)
@@ -30,6 +37,208 @@ class TTSStat:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class TTSEngineRuntime:
+    engine: Any
+    allow_cpu_fallback: bool
+    engine_is_cpu_fallback: bool
+    cpu_fallback_engine: Any | None = None
+    _gpu_slot_owned: bool = False
+    _released: bool = False
+
+    def release(self) -> None:
+        """Release VieNeu resources before another CUDA stage starts."""
+        if self._released:
+            return
+        self._released = True
+        seen: set[int] = set()
+        for candidate in (self.cpu_fallback_engine, self.engine):
+            if candidate is None or id(candidate) in seen:
+                continue
+            seen.add(id(candidate))
+            close = getattr(candidate, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        self.cpu_fallback_engine = None
+        self.engine = None
+        gc.collect()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+        if self._gpu_slot_owned:
+            self._gpu_slot_owned = False
+            _TTS_GPU_SLOT.release()
+
+
+def _new_cpu_fallback_engine() -> Any:
+    from vieneu import Vieneu
+
+    return Vieneu(
+        mode="v3turbo",
+        backend="onnx",
+        device="cpu",
+        precision="fp32",
+    )
+
+
+def load_tts_engine(
+    tts_config: Mapping[str, Any],
+    *,
+    cpu_fallback_on_init_error: bool = True,
+    _gpu_slot_owned: bool = False,
+) -> TTSEngineRuntime:
+    """Load the configured VieNeu runtime without generating audio."""
+    backend = str(tts_config.get("backend", "onnx"))
+    device = str(tts_config.get("device", "cpu"))
+    precision = str(tts_config.get("precision", "fp32"))
+    wants_gpu = "cuda" in device.lower()
+    engine_kwargs: dict[str, Any] = {
+        "mode": "v3turbo",
+        "backend": backend,
+        "device": device,
+        "precision": precision,
+    }
+    if "dtype" in tts_config:
+        engine_kwargs["dtype"] = str(tts_config["dtype"])
+    elif backend.lower() == "pytorch" and "cuda" in device.lower():
+        engine_kwargs["dtype"] = "float16"
+
+    allow_cpu_fallback = backend.lower() == "pytorch" or "cuda" in device.lower()
+    gpu_slot_owned = bool(_gpu_slot_owned)
+    if wants_gpu and not gpu_slot_owned:
+        _TTS_GPU_SLOT.acquire()
+        gpu_slot_owned = True
+    try:
+        from vieneu import Vieneu
+
+        engine = Vieneu(**engine_kwargs)
+    except BaseException:
+        if gpu_slot_owned:
+            gpu_slot_owned = False
+            _TTS_GPU_SLOT.release()
+        if not allow_cpu_fallback or not cpu_fallback_on_init_error:
+            raise
+        engine = _new_cpu_fallback_engine()
+        return TTSEngineRuntime(
+            engine=engine,
+            allow_cpu_fallback=True,
+            engine_is_cpu_fallback=True,
+            cpu_fallback_engine=engine,
+        )
+    return TTSEngineRuntime(
+        engine=engine,
+        allow_cpu_fallback=allow_cpu_fallback,
+        engine_is_cpu_fallback=False,
+        _gpu_slot_owned=gpu_slot_owned,
+    )
+
+
+def _register_tts_preload(preload: Any, owner_thread_id: int) -> None:
+    with _ACTIVE_PRELOADS_LOCK:
+        _ACTIVE_PRELOADS_BY_OWNER.setdefault(owner_thread_id, set()).add(preload)
+
+
+def _unregister_tts_preload(preload: Any, owner_thread_id: int) -> None:
+    with _ACTIVE_PRELOADS_LOCK:
+        active = _ACTIVE_PRELOADS_BY_OWNER.get(owner_thread_id)
+        if not active:
+            return
+        active.discard(preload)
+        if not active:
+            _ACTIVE_PRELOADS_BY_OWNER.pop(owner_thread_id, None)
+
+
+def release_tts_engine_preloads_for_current_thread() -> None:
+    """Release speculative preloads owned by the current pipeline thread."""
+    owner_thread_id = threading.get_ident()
+    with _ACTIVE_PRELOADS_LOCK:
+        active = list(_ACTIVE_PRELOADS_BY_OWNER.pop(owner_thread_id, set()))
+    for preload in active:
+        preload.release()
+
+
+class TTSEnginePreload:
+    """Daemon-backed engine preload that can overlap network translation."""
+
+    def __init__(self, tts_config: Mapping[str, Any]):
+        if not _TTS_GPU_SLOT.acquire(blocking=False):
+            raise RuntimeError("Another TTS preload is already active")
+        self._config = dict(tts_config)
+        self._owner_thread_id = threading.get_ident()
+        self._event = threading.Event()
+        self._runtime: TTSEngineRuntime | None = None
+        self._error: BaseException | None = None
+        self._slot_owned = True
+        self._released = False
+        self._thread = threading.Thread(
+            target=self._run,
+            name="vi-dubber-tts-preload",
+            daemon=True,
+        )
+        _register_tts_preload(self, self._owner_thread_id)
+        try:
+            self._thread.start()
+        except BaseException:
+            _unregister_tts_preload(self, self._owner_thread_id)
+            self._release_slot()
+            raise
+
+    def _run(self) -> None:
+        try:
+            # Speculative preload must never lock the job into CPU because of
+            # transient VRAM pressure. Lazy TTS can retry with normal fallback.
+            self._slot_owned = False
+            self._runtime = load_tts_engine(
+                self._config,
+                cpu_fallback_on_init_error=False,
+                _gpu_slot_owned=True,
+            )
+        except BaseException as exc:  # propagate on result(); never fail the translation thread
+            self._error = exc
+        finally:
+            self._event.set()
+
+    def _release_slot(self) -> None:
+        if self._slot_owned:
+            self._slot_owned = False
+            _TTS_GPU_SLOT.release()
+
+    def done(self) -> bool:
+        return self._event.is_set()
+
+    def result(self) -> TTSEngineRuntime:
+        self._event.wait()
+        if self._error is not None:
+            raise self._error
+        if self._runtime is None:
+            raise RuntimeError("TTS preload finished without an engine runtime")
+        return self._runtime
+
+    def release(self) -> None:
+        """Wait for speculative init, then free any runtime and preload slot."""
+        if self._released:
+            return
+        self._released = True
+        self._event.wait()
+        runtime = self._runtime
+        self._runtime = None
+        if runtime is not None:
+            runtime.release()
+        self._release_slot()
+        _unregister_tts_preload(self, self._owner_thread_id)
+
+
+def start_tts_engine_preload(tts_config: Mapping[str, Any]) -> TTSEnginePreload:
+    return TTSEnginePreload(tts_config)
 
 
 def build_reference_clips(
@@ -87,6 +296,48 @@ def synthesize_segments(
     output_dir: Path,
     tts_config: dict[str, Any],
     timing_config: dict[str, Any],
+    translator,
+    glossary: dict[str, str],
+    references: dict[str, Path],
+    voice_ref: Path | None = None,
+    progress_callback: ProgressCallback | None = None,
+    metrics: Any | None = None,
+    rewrite_verifier: Callable[[Segment, str], bool] | None = None,
+    tts_text_mapper: Callable[[Segment], str] | dict[int, str] | None = None,
+    timing_windows: Mapping[int, TimingWindow] | None = None,
+    locked_segment_ids: set[int] | None = None,
+    engine_runtime: TTSEngineRuntime | None = None,
+) -> tuple[list[tuple[Segment, Path]], list[TTSStat]]:
+    owns_runtime = engine_runtime is None
+    runtime = engine_runtime or load_tts_engine(tts_config)
+    try:
+        return _synthesize_segments_impl(
+            segments,
+            output_dir,
+            tts_config,
+            timing_config,
+            translator,
+            glossary,
+            references,
+            voice_ref=voice_ref,
+            progress_callback=progress_callback,
+            metrics=metrics,
+            rewrite_verifier=rewrite_verifier,
+            tts_text_mapper=tts_text_mapper,
+            timing_windows=timing_windows,
+            locked_segment_ids=locked_segment_ids,
+            engine_runtime=runtime,
+        )
+    finally:
+        if owns_runtime:
+            runtime.release()
+
+
+def _synthesize_segments_impl(
+    segments: list[Segment],
+    output_dir: Path,
+    tts_config: dict[str, Any],
+    timing_config: dict[str, Any],
     translator: Any,
     glossary: dict[str, str],
     references: dict[str, Path],
@@ -97,47 +348,16 @@ def synthesize_segments(
     tts_text_mapper: Callable[[Segment], str] | dict[int, str] | None = None,
     timing_windows: Mapping[int, TimingWindow] | None = None,
     locked_segment_ids: set[int] | None = None,
+    engine_runtime: TTSEngineRuntime | None = None,
 ) -> tuple[list[tuple[Segment, Path]], list[TTSStat]]:
-    from vieneu import Vieneu
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    backend = str(tts_config.get("backend", "onnx"))
-    device = str(tts_config.get("device", "cpu"))
-    precision = str(tts_config.get("precision", "fp32"))
-    engine_kwargs: dict[str, Any] = {
-        "mode": "v3turbo",
-        "backend": backend,
-        "device": device,
-        "precision": precision,
-    }
-    if "dtype" in tts_config:
-        engine_kwargs["dtype"] = str(tts_config["dtype"])
-    elif backend.lower() == "pytorch" and "cuda" in device.lower():
-        # VieNeu v3 Turbo uses `dtype`, not `precision`, for the PyTorch path.
-        engine_kwargs["dtype"] = "float16"
-
-    allow_cpu_fallback = backend.lower() == "pytorch" or "cuda" in device.lower()
-    cpu_fallback_engine: Any | None = None
-    engine_is_cpu_fallback = False
-
-    def _new_cpu_fallback_engine():
-        return Vieneu(
-            mode="v3turbo",
-            backend="onnx",
-            device="cpu",
-            precision="fp32",
-        )
-
-    try:
-        engine = Vieneu(**engine_kwargs)
-    except Exception:
-        if not allow_cpu_fallback:
-            raise
-        engine = _new_cpu_fallback_engine()
-        cpu_fallback_engine = engine
-        engine_is_cpu_fallback = True
-        if metrics is not None:
-            metrics.increment("tts_cpu_fallbacks")
+    runtime = engine_runtime or load_tts_engine(tts_config)
+    engine = runtime.engine
+    allow_cpu_fallback = runtime.allow_cpu_fallback
+    cpu_fallback_engine = runtime.cpu_fallback_engine
+    engine_is_cpu_fallback = runtime.engine_is_cpu_fallback
+    if engine_is_cpu_fallback and metrics is not None:
+        metrics.increment("tts_cpu_fallbacks")
 
     pad = max(0.0, float(timing_config.get("segment_pad_ms", 35))) / 1000.0
     preset = str(tts_config.get("preset_voice", "Minh Quân"))
@@ -154,6 +374,11 @@ def synthesize_segments(
     locked_ids = set(locked_segment_ids or ())
     engine_versions = runtime_versions("vieneu", "torch")
     resolved_timing_windows = dict(timing_windows) if timing_windows is not None else None
+    raw_identity_tts_config = dict(tts_config)
+    # Preload only changes when the engine is initialized, not the synthesized
+    # audio contract. Keep raw checkpoints reusable when this optimization is
+    # toggled between runs.
+    raw_identity_tts_config.pop("async_preload_enabled", None)
 
     def _target_duration(segment: Segment) -> float:
         if resolved_timing_windows is not None and segment.id in resolved_timing_windows:
@@ -193,7 +418,7 @@ def synthesize_segments(
                 "text": text,
                 "speaker": segment.speaker,
                 "reference": ref_identity,
-                "tts": tts_config,
+                "tts": raw_identity_tts_config,
                 "runtime": engine_versions,
             }
         )
@@ -219,6 +444,7 @@ def synthesize_segments(
         nonlocal cpu_fallback_engine
         if cpu_fallback_engine is None:
             cpu_fallback_engine = _new_cpu_fallback_engine()
+            runtime.cpu_fallback_engine = cpu_fallback_engine
         return cpu_fallback_engine
 
     def _infer(current_engine: Any, text: str, speaker: str):

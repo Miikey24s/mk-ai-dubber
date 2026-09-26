@@ -2,16 +2,16 @@
 
 Pipeline lồng tiếng video English -> Vietnamese, có web dashboard cục bộ và nhận video từ máy hoặc YouTube.
 
-Backend dịch hiện tại được khóa vào **Codex ChatGPT Web instance 2** tại `http://127.0.0.1:17842/v1`. UI chỉ expose backend này trong giai đoạn hiện tại. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của instance 2 để tránh chạy một model đã biến mất hoặc bị đổi tên.
+Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
 
-Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ vẫn được giữ trong source để rollback/test và để job lịch sử còn đọc được provenance, nhưng không phải lựa chọn product UI hiện tại và không được dùng làm fallback tự động cho instance 2.
+Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ vẫn được giữ trong source để rollback/test và để job lịch sử còn đọc được provenance, nhưng không phải lựa chọn product UI hiện tại và không được dùng làm fallback tự động cho Dedicated Dubber-WebGPT.
 
 ## Stack
 
 - BS-Roformer: tách lời thoại khỏi nhạc/SFX.
 - WhisperX large-v3: transcript + word timing.
 - pyannote community-1: tách người nói khi có Hugging Face token.
-- Codex WebGPT: backend chất lượng cao qua dedicated instance 2 (`127.0.0.1:17842`), mặc định `chatgpt-web/gpt-5.6-sol`.
+- Dedicated Dubber-WebGPT: backend chất lượng cao qua runtime riêng (`127.0.0.1:17850`), mặc định `chatgpt-web/gpt-5.6-sol` và dùng direct Responses tool-free.
 - Qwen3-14B GGUF + llama.cpp: backend local và fallback.
 - VieNeu-TTS v3 Turbo FP32 ONNX: TTS tiếng Việt 48 kHz + instant voice cloning.
 - FFmpeg: khớp thời lượng, mix, loudness và mux video.
@@ -53,7 +53,18 @@ Web dashboard:
 
 Mở `http://127.0.0.1:7860`, chọn tệp trên máy hoặc dán URL YouTube, sau đó chọn backend dịch. Dashboard hiển thị progress theo các stage thật của pipeline, video đầu ra, SRT và thống kê tác vụ.
 
-Khi dùng WebGPT, pipeline không đổi route global trong `~/.codex/config.toml`. Mỗi invocation Codex của VI Dubber tự override provider URL về đúng `http://127.0.0.1:17842/v1`, đồng thời health-check port và live model catalog trước khi chạy. Auth Codex hiện có vẫn được dùng; không cần copy API key thủ công vào project.
+Khi dùng WebGPT, pipeline không đổi route global trong `~/.codex/config.toml`. VI Dubber gọi trực tiếp `http://127.0.0.1:17850/v1/responses`, health-check port và live model catalog trước khi chạy; coding harness, MCP, cwd/filesystem và subagents không đi vào production translation request.
+
+Khởi tạo runtime riêng một lần:
+
+```powershell
+uv run vi-dubber webgpt-runtime init
+uv run vi-dubber webgpt-runtime login
+uv run vi-dubber webgpt-runtime start
+uv run vi-dubber webgpt-runtime status
+```
+
+`login` mở Chrome profile riêng để người dùng tự đăng nhập ChatGPT. Runtime home mặc định nằm ngoài Git tại `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`; có thể override bằng `VI_DUBBER_WEBGPT_HOME`. Core WebGPT mặc định lấy từ `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; có thể override bằng `VI_DUBBER_WEBGPT_CORE`.
 
 Semantic QA dùng TypeSafe khi `TYPESAFE_API_KEY` có trong environment. Nội dung English/Vietnamese của các segment được gửi tới TypeSafe để chấm `faithful / partial / wrong` và kiểm tra các fact quan trọng. Chế độ hiện tại là `shadow`: kết quả được lưu vào `work/<job>/semantic_qa.json`, nhưng lỗi TypeSafe hoặc đoạn bị flag không làm dừng tác vụ.
 
@@ -93,5 +104,7 @@ Không ghi token vào config/project.
 ## Kết quả trung gian
 
 Mỗi tác vụ có thư mục riêng trong `work/`: stems, transcript English, snapshot bản dịch ban đầu (`segments_translated.json`), script tiếng Việt cuối sau timing rewrite (`segments_vi.json`), reference clips, từng TTS segment, final voice track, timing stats, translation metadata, `semantic_qa.json` và `qa.json`. YouTube downloads nằm trong `work/youtube/`, output web nằm trong `work/outputs/`. Có thể chạy lại với `--resume`; dùng `--fresh` khi muốn làm lại transcript/translation từ đầu.
+
+Video dài hơn ngưỡng `longform.single_chunk_threshold_seconds` dùng macro-chunk theo silence nhưng vẫn giữ timestamp toàn cục. ASR/TTS/QA/preview có manifest theo chunk để resume và invalidation cục bộ; translation vẫn chạy trên ngữ cảnh toàn video. Dashboard chỉ phát preview khi manifest và hash artifact còn hợp lệ, luôn gắn nhãn **PREVIEW**; sửa nội dung một segment sẽ làm stale riêng chunk chứa segment đó và khóa preview cũ cho tới khi render lại. Diarization hiện vẫn dùng đường full-file để tránh đổi speaker ID giữa các chunk.
 
 Lip-sync chưa nằm trong core: pipeline giữ nguyên pixel video và thay audio. Mục tiêu hiện tại là ưu tiên accuracy, translation, voice và timing; lip-sync có thể thêm sau như một post-process độc lập.

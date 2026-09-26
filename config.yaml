@@ -1,4 +1,4 @@
-profile: balanced_best
+profile: balanced_fast
 
 asr:
   model: large-v3
@@ -23,12 +23,13 @@ segmentation:
 
 translation:
   provider: webgpt
-  webgpt_base_url: http://127.0.0.1:17842/v1
+  webgpt_base_url: http://127.0.0.1:17850/v1
+  webgpt_transport: direct-responses
   webgpt_model: chatgpt-web/gpt-5.6-sol
   webgpt_timeout_seconds: 900
   webgpt_catalog_timeout_seconds: 5
   codex_segments_per_batch: 32
-  webgpt_concurrency: 1
+  webgpt_concurrency: 2
   global_context_enabled: false
   global_context_samples: 8
   global_context_max_chars: 2400
@@ -91,6 +92,17 @@ diarization:
   enabled: auto
   min_speakers: null
   max_speakers: null
+
+longform:
+  enabled: true
+  target_seconds: 1500
+  min_seconds: 900
+  max_seconds: 2400
+  boundary_search_seconds: 60
+  context_seconds: 2
+  single_chunk_threshold_seconds: 900
+  chunked_tts_enabled: true
+  progressive_preview_enabled: true
 
 reliability:
   retry_budget: 3

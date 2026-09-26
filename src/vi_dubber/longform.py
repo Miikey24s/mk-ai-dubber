@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass
 from math import isfinite
 from typing import Any, Iterable
 
+from .types import Segment
+
 
 @dataclass(frozen=True, slots=True)
 class SpeechInterval:
@@ -70,6 +72,18 @@ class MacroChunk:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MacroChunk":
+        return cls(
+            chunk_id=str(data["chunk_id"]),
+            index=int(data["index"]),
+            source_start=float(data["source_start"]),
+            source_end=float(data["source_end"]),
+            context_start=float(data["context_start"]),
+            context_end=float(data["context_end"]),
+            boundary_reason=str(data["boundary_reason"]),
+        )
 
 
 def _normalize_speech_intervals(
@@ -203,3 +217,13 @@ def plan_macro_chunks(
         )
         source_start = source_end
     return chunks
+
+
+def segments_for_macro_chunk(segments: Iterable[Segment], chunk: MacroChunk) -> list[Segment]:
+    """Assign each segment to one macro chunk by global midpoint ownership."""
+    owned: list[Segment] = []
+    for segment in segments:
+        midpoint = (float(segment.start) + float(segment.end)) / 2.0
+        if chunk.source_start <= midpoint < chunk.source_end:
+            owned.append(segment)
+    return owned

@@ -618,7 +618,7 @@ def test_run_persisted_job_rejects_legacy_non_webgpt_provider(tmp_path: Path) ->
         },
     )
 
-    with pytest.raises(gr.Error, match="chỉ được resume bằng Codex WebGPT instance 2"):
+    with pytest.raises(gr.Error, match="chỉ được resume bằng Dedicated Dubber-WebGPT"):
         list(web.run_persisted_job(str(job), None, progress=lambda *_args, **_kwargs: None))
 
 

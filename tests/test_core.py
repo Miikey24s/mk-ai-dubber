@@ -370,7 +370,7 @@ def test_webgpt_defaults_to_current_sol_model_and_allows_catalog_model_override(
     assert translator.model == PINNED_WEBGPT_MODEL
     instant = WebGptTranslator({"webgpt_model": "chatgpt-web/gpt-5.6-sol-instant"}, tmp_path)
     assert instant.model == "chatgpt-web/gpt-5.6-sol-instant"
-    with pytest.raises(ValueError, match="instance 2"):
+    with pytest.raises(ValueError, match="Dedicated Dubber-WebGPT"):
         WebGptTranslator({"webgpt_base_url": "http://127.0.0.1:17841/v1"}, tmp_path)
 
 
@@ -629,7 +629,7 @@ def test_web_job_streams_pipeline_progress(tmp_path: Path, monkeypatch: pytest.M
 
     def fake_pipeline(*, input_path, output_path, translation_provider, progress_callback, **kwargs):
         seen_provider.append(translation_provider)
-        progress_callback(0.34, "Đang dịch bằng Codex WebGPT instance 2")
+        progress_callback(0.34, "Đang dịch bằng Dedicated Dubber-WebGPT")
         progress_callback(0.84, "Đang mix âm thanh và ghép video cuối")
         return {
             "output": str(output_path),

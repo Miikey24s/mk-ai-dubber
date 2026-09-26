@@ -1,5 +1,7 @@
 import { JobState, Segment, SystemStatus } from '@/types';
 
+export const USE_MOCK = (import.meta as any).env?.VITE_DEMO_MODE === 'true';
+
 export const MOCK_SYSTEM_STATUS: SystemStatus = {
   gpu_name: 'NVIDIA GeForce RTX 2070 SUPER (8GB VRAM)',
   gpu_vram_used_bytes: 4124966912, // 3.84 GB
@@ -9,7 +11,7 @@ export const MOCK_SYSTEM_STATUS: SystemStatus = {
   active_jobs_count: 1,
   webgpt_connected: true,
   webgpt_model: 'chatgpt-web/gpt-5.6-sol',
-  webgpt_port: 17842,
+  webgpt_port: 17850,
   server_uptime_seconds: 14280,
   websocket_connected: true,
 };

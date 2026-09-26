@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -265,6 +266,155 @@ def test_cuda_engine_init_failure_falls_back_to_cpu_onnx(
     assert rendered[0][1].exists()
 
 
+def test_synthesize_segments_reuses_preloaded_engine_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    durations: dict[str, float] = {}
+    infer_calls: list[str] = []
+
+    class ReadyEngine:
+        def infer(self, text, **_kwargs):
+            infer_calls.append(str(text))
+            return text
+
+        def save(self, audio, target):
+            path = Path(target)
+            path.write_bytes(str(audio).encode("utf-8") + b"x" * 2048)
+            durations[str(path)] = 1.0
+            if path.stem.endswith(".partial"):
+                final = path.with_name(f"{path.stem.removesuffix('.partial')}{path.suffix}")
+                durations[str(final)] = 1.0
+
+    runtime = tts.TTSEngineRuntime(
+        engine=ReadyEngine(),
+        allow_cpu_fallback=False,
+        engine_is_cpu_fallback=False,
+    )
+    monkeypatch.setattr(
+        tts,
+        "load_tts_engine",
+        lambda _config: (_ for _ in ()).throw(AssertionError("lazy loader should not run")),
+    )
+    monkeypatch.setattr(tts, "audio_duration", lambda path: durations[str(path)])
+
+    def fake_fit(raw_path, fitted_path, *, target_duration, max_speedup):
+        fitted_path.write_bytes(raw_path.read_bytes())
+        generated = durations[str(raw_path)]
+        return fitted_path, generated, min(max_speedup, generated / target_duration)
+
+    monkeypatch.setattr(tts, "fit_audio_to_window", fake_fit)
+    segment = Segment(id=1, start=0.0, end=3.0, text="source", vi="xin chao", speaker="A")
+
+    rendered, _stats = tts.synthesize_segments(
+        [segment],
+        tmp_path / "tts",
+        {"backend": "pytorch", "device": "cuda", "precision": "fp16"},
+        {"segment_pad_ms": 0, "rewrite_threshold": 1.25, "max_speedup": 1.25},
+        _Translator(),
+        {},
+        {},
+        engine_runtime=runtime,
+    )
+
+    assert infer_calls == ["xin chao"]
+    assert rendered[0][1].exists()
+
+
+def test_preload_gpu_init_failure_does_not_lock_job_into_cpu_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_calls: list[dict] = []
+
+    class FakeVieneu:
+        def __init__(self, **kwargs):
+            init_calls.append(dict(kwargs))
+            raise RuntimeError("synthetic cuda init failure")
+
+    monkeypatch.setitem(sys.modules, "vieneu", SimpleNamespace(Vieneu=FakeVieneu))
+
+    preload = tts.TTSEnginePreload(
+        {"backend": "pytorch", "device": "cuda", "precision": "fp16"}
+    )
+    with pytest.raises(RuntimeError, match="synthetic cuda init failure"):
+        preload.result()
+    preload.release()
+
+    assert len(init_calls) == 1
+    assert init_calls[0]["backend"] == "pytorch"
+    assert init_calls[0]["device"] == "cuda"
+
+
+def test_lazy_cuda_load_waits_for_existing_preload_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    init_calls: list[str] = []
+    lazy_started = threading.Event()
+    lazy_loaded = threading.Event()
+    lazy_runtime: list[tts.TTSEngineRuntime] = []
+
+    class FakeVieneu:
+        def __init__(self, **_kwargs):
+            init_calls.append(threading.current_thread().name)
+
+        def close(self):
+            return None
+
+    monkeypatch.setitem(sys.modules, "vieneu", SimpleNamespace(Vieneu=FakeVieneu))
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False, empty_cache=lambda: None)),
+    )
+    config = {"backend": "pytorch", "device": "cuda", "precision": "fp16"}
+
+    preload = tts.TTSEnginePreload(config)
+    assert preload.result().engine is not None
+
+    def lazy_load() -> None:
+        lazy_started.set()
+        runtime = tts.load_tts_engine(config)
+        lazy_runtime.append(runtime)
+        lazy_loaded.set()
+
+    worker = threading.Thread(target=lazy_load, name="second-job-lazy-tts", daemon=True)
+    worker.start()
+    assert lazy_started.wait(timeout=1.0)
+    assert not lazy_loaded.wait(timeout=0.1)
+    assert len(init_calls) == 1
+
+    preload.release()
+    assert lazy_loaded.wait(timeout=1.0)
+    assert len(init_calls) == 2
+    lazy_runtime[0].release()
+    worker.join(timeout=1.0)
+
+
+def test_tts_engine_runtime_release_closes_engines_once() -> None:
+    close_calls: list[str] = []
+
+    class Engine:
+        def __init__(self, name: str):
+            self.name = name
+
+        def close(self):
+            close_calls.append(self.name)
+
+    runtime = tts.TTSEngineRuntime(
+        engine=Engine("gpu"),
+        allow_cpu_fallback=True,
+        engine_is_cpu_fallback=False,
+        cpu_fallback_engine=Engine("cpu"),
+    )
+
+    runtime.release()
+    runtime.release()
+
+    assert sorted(close_calls) == ["cpu", "gpu"]
+    assert runtime.engine is None
+    assert runtime.cpu_fallback_engine is None
+
+
 def test_raw_checkpoint_reuses_matching_text_and_invalidates_changed_text(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -307,6 +457,18 @@ def test_raw_checkpoint_reuses_matching_text_and_invalidates_changed_text(
 
     same = Segment(id=1, start=0.0, end=3.0, text="source", vi="xin chao", speaker="A")
     tts.synthesize_segments([same], output_dir, config, timing, _Translator(), {}, {})
+    assert infer_calls == ["xin chao"]
+
+    preload_only = Segment(id=1, start=0.0, end=3.0, text="source", vi="xin chao", speaker="A")
+    tts.synthesize_segments(
+        [preload_only],
+        output_dir,
+        {**config, "async_preload_enabled": True},
+        timing,
+        _Translator(),
+        {},
+        {},
+    )
     assert infer_calls == ["xin chao"]
 
     changed = Segment(id=1, start=0.0, end=3.0, text="source", vi="xin chao moi", speaker="A")

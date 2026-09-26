@@ -15,7 +15,12 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .artifacts import atomic_write_json, fingerprint_file, load_stage_manifest
+from .artifacts import (
+    atomic_write_json,
+    fingerprint_file,
+    load_stage_manifest,
+    resolve_artifact_path,
+)
 from .jobs import (
     clear_control,
     list_job_states,
@@ -26,6 +31,7 @@ from .jobs import (
     update_job_state,
 )
 from .pipeline import load_config, run_pipeline
+from .longform_state import invalidate_chunk_from
 from .preflight import raise_for_preflight, run_preflight
 from .profiles import DEFAULT_PROFILE, resolve_profile
 from .review import (
@@ -40,10 +46,31 @@ from .translate import (
     translation_model_catalog,
     webgpt_route_info,
 )
+from .webgpt_runtime import DUBBER_WEBGPT_PORT, runtime_status, start_runtime
 from .youtube import download_youtube, is_youtube_url
 
 _START_TIME = time.time()
 _active_threads: dict[str, threading.Thread] = {}
+
+
+def _ensure_webgpt_runtime_ready() -> dict[str, Any]:
+    """Self-heal the dedicated translation runtime before accepting a job."""
+    current = runtime_status(timeout=0.5)
+    if bool(current.get("ready")):
+        return current
+    try:
+        started = start_runtime(wait_seconds=15.0)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dedicated Dubber-WebGPT chưa sẵn sàng: {exc}",
+        ) from exc
+    if not bool(started.get("ready")):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Dedicated Dubber-WebGPT không sẵn sàng sau khi tự khởi động.",
+        )
+    return started
 
 
 def _read_json_any(path: Path) -> Any:
@@ -66,6 +93,112 @@ def _resolve_job_dir(job_id: str) -> Path:
             detail=f"Job not found: {job_id}",
         )
     return candidate
+
+
+def _list_chunk_previews(job_dir: Path) -> list[dict[str, Any]]:
+    previews: list[dict[str, Any]] = []
+    chunks_dir = job_dir / "chunks"
+    if not chunks_dir.is_dir():
+        return previews
+    for chunk_dir in sorted(path for path in chunks_dir.glob("chunk_*") if path.is_dir()):
+        manifest_path = chunk_dir / "manifests" / "preview.json"
+        manifest = load_stage_manifest(
+            manifest_path,
+            job_dir=job_dir,
+            expected_stage="chunk_preview",
+            verify_artifacts=True,
+        )
+        if manifest is None:
+            continue
+        meta_path = chunk_dir / "preview.json"
+        meta = load_json(meta_path)
+        artifact = meta.get("artifact")
+        if not isinstance(artifact, str):
+            continue
+        artifact_paths = {
+            str(item.get("path"))
+            for item in manifest.get("artifacts", [])
+            if isinstance(item, dict)
+        }
+        if artifact not in artifact_paths:
+            continue
+        try:
+            preview_path = resolve_artifact_path(job_dir, artifact)
+        except ValueError:
+            continue
+        if not preview_path.is_file():
+            continue
+        chunk_id = chunk_dir.name
+        previews.append(
+            {
+                **meta,
+                "chunk_id": chunk_id,
+                "label": "PREVIEW",
+                "final": False,
+                "stale": False,
+                "manifest_fingerprint": manifest.get("fingerprint"),
+                "play_url": f"/api/jobs/{job_dir.name}/previews/{chunk_id}",
+                "download_url": f"/api/jobs/{job_dir.name}/previews/{chunk_id}?download=true",
+            }
+        )
+    return previews
+
+
+def _invalidate_longform_chunk_for_segment(job_dir: Path, segment_id: int) -> str | None:
+    plan = load_json(job_dir / "chunks" / "plan.json")
+    raw_chunks = plan.get("chunks")
+    raw_segments = _read_json_any(job_dir / "segments_vi.json")
+    if not isinstance(raw_chunks, list) or not isinstance(raw_segments, list):
+        return None
+    segment = next(
+        (
+            item
+            for item in raw_segments
+            if isinstance(item, dict) and int(item.get("id", -1)) == int(segment_id)
+        ),
+        None,
+    )
+    if segment is None:
+        return None
+    midpoint = (float(segment["start"]) + float(segment["end"])) / 2.0
+    for raw_chunk in raw_chunks:
+        if not isinstance(raw_chunk, dict):
+            continue
+        start = float(raw_chunk.get("source_start", 0.0))
+        end = float(raw_chunk.get("source_end", 0.0))
+        if start <= midpoint < end:
+            chunk_id = str(raw_chunk.get("chunk_id") or "")
+            if chunk_id:
+                invalidate_chunk_from(job_dir, chunk_id, "tts")
+                return chunk_id
+    return None
+
+
+def _mark_chunk_preview_stale(job_dir: Path, chunk_id: str) -> None:
+    state = load_job_state(job_dir)
+    metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+    longform = metadata.get("longform") if isinstance(metadata.get("longform"), dict) else {}
+    ready = [
+        value
+        for value in longform.get("preview_ready_chunks", [])
+        if isinstance(value, str) and value != chunk_id
+    ]
+    stale = {
+        value
+        for value in longform.get("preview_stale_chunks", [])
+        if isinstance(value, str)
+    }
+    stale.add(chunk_id)
+    update_job_state(
+        job_dir,
+        metadata={
+            "longform": {
+                **longform,
+                "preview_ready_chunks": ready,
+                "preview_stale_chunks": sorted(stale),
+            }
+        },
+    )
 
 
 def _run_job_worker(
@@ -186,7 +319,7 @@ class SegmentUpdateRequest(BaseModel):
 class DubRequest(BaseModel):
     input_path: str | None = None
     youtube_url: str | None = None
-    profile: str = "balanced_best"
+    profile: str = "balanced_fast"
     provider: str = "webgpt"
     translation_model: str | None = None
     translation_effort: str | None = None
@@ -249,13 +382,13 @@ def create_app() -> FastAPI:
 
         webgpt_connected = False
         webgpt_model = DEFAULT_WEBGPT_MODEL
-        webgpt_port = 17842
+        webgpt_port = DUBBER_WEBGPT_PORT
         webgpt_status_dict: dict[str, Any] = {}
         try:
             webgpt_status_dict = webgpt_route_info()
             webgpt_connected = bool(webgpt_status_dict.get("ready"))
             webgpt_model = str(webgpt_status_dict.get("model") or DEFAULT_WEBGPT_MODEL)
-            webgpt_port = int(webgpt_status_dict.get("port") or 17842)
+            webgpt_port = int(webgpt_status_dict.get("port") or DUBBER_WEBGPT_PORT)
         except Exception:
             pass
 
@@ -377,9 +510,48 @@ def create_app() -> FastAPI:
             "result": result or state.get("result"),
             "metrics": metrics_data or state.get("metrics"),
             "qa": qa_data,
+            "previews": _list_chunk_previews(job_dir),
             "segments": segments,
             "job_dir": str(job_dir),
         }
+
+    @app.get("/api/jobs/{job_id}/previews")
+    def list_job_previews(job_id: str) -> list[dict[str, Any]]:
+        job_dir = _resolve_job_dir(job_id)
+        return _list_chunk_previews(job_dir)
+
+    @app.get("/api/jobs/{job_id}/previews/{chunk_id}")
+    def get_job_preview(job_id: str, chunk_id: str, download: bool = False) -> FileResponse:
+        job_dir = _resolve_job_dir(job_id)
+        clean_chunk_id = Path(chunk_id).name
+        preview = next(
+            (
+                item
+                for item in _list_chunk_previews(job_dir)
+                if item.get("chunk_id") == clean_chunk_id
+            ),
+            None,
+        )
+        if preview is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preview not found or stale: {chunk_id}",
+            )
+        preview_path = resolve_artifact_path(job_dir, str(preview["artifact"]))
+        headers = {
+            "Cache-Control": "no-store",
+            "X-VI-Dubber-Artifact": "PREVIEW",
+        }
+        if download:
+            filename = f"PREVIEW_{clean_chunk_id}.mp4"
+            headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return FileResponse(
+                preview_path,
+                media_type="video/mp4",
+                filename=filename,
+                headers=headers,
+            )
+        return FileResponse(preview_path, media_type="video/mp4", headers=headers)
 
     @app.post("/api/jobs/{job_id}/control")
     def job_control(job_id: str, payload: JobControlRequest) -> dict[str, Any]:
@@ -432,6 +604,10 @@ def create_app() -> FastAPI:
                 review_status=payload.review_status,
             )
             if receipt.get("kind") == "content_edit":
+                stale_chunk_id = _invalidate_longform_chunk_for_segment(job_dir, segment_id)
+                if stale_chunk_id is not None:
+                    _mark_chunk_preview_stale(job_dir, stale_chunk_id)
+                    receipt = {**receipt, "longform_chunk_id": stale_chunk_id}
                 update_job_state(
                     job_dir,
                     status="paused",
@@ -453,6 +629,14 @@ def create_app() -> FastAPI:
                             if payload.review_status is not None:
                                 item["review_status"] = payload.review_status
                             atomic_write_json(vi_path, segments)
+                            content_changed = text_update is not None or payload.speaker is not None
+                            stale_chunk_id = (
+                                _invalidate_longform_chunk_for_segment(job_dir, segment_id)
+                                if content_changed
+                                else None
+                            )
+                            if stale_chunk_id is not None:
+                                _mark_chunk_preview_stale(job_dir, stale_chunk_id)
                             update_job_state(
                                 job_dir,
                                 status="paused",
@@ -462,9 +646,10 @@ def create_app() -> FastAPI:
                             return {
                                 "status": "ok",
                                 "receipt": {
-                                    "kind": "content_edit" if text_update else "status_update",
+                                    "kind": "content_edit" if content_changed else "status_update",
                                     "segment_id": segment_id,
                                     "after": item,
+                                    "longform_chunk_id": stale_chunk_id,
                                 },
                             }
             raise HTTPException(
@@ -476,6 +661,59 @@ def create_app() -> FastAPI:
     def rerender_job(job_id: str) -> dict[str, Any]:
         job_dir = _resolve_job_dir(job_id)
         return _trigger_job_resume(job_dir)
+
+    @app.get("/api/jobs/{job_id}/download")
+    def download_job_output(job_id: str, type: str = "video") -> FileResponse:
+        job_dir = _resolve_job_dir(job_id)
+        state = reconcile_job_state(job_dir)
+        metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        input_name = metadata.get("input_name", job_id)
+        stem = Path(input_name).stem if input_name else job_id
+
+        if type in {"subtitles", "srt"}:
+            for s_name in ("source_turns.srt", "source_en.srt", "subtitles.srt"):
+                candidate = job_dir / s_name
+                if candidate.is_file():
+                    return FileResponse(
+                        candidate,
+                        media_type="application/x-subrip",
+                        filename=f"{stem}.vi.srt",
+                        headers={"Content-Disposition": f'attachment; filename="{stem}.vi.srt"'},
+                    )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subtitle file not found")
+
+        # Video format download
+        candidates: list[Path] = []
+        for candidate_key in [result.get("output"), metadata.get("output")]:
+            if candidate_key:
+                p = Path(candidate_key)
+                if p.is_file():
+                    candidates.append(p)
+
+        for name in ("dubbed.mp4", f"{stem}.vi.mp4", "output.mp4", "final.mp4"):
+            p = job_dir / name
+            if p.is_file() and p not in candidates:
+                candidates.append(p)
+
+        for p in sorted(job_dir.glob("*.mp4")):
+            if p.is_file() and p not in candidates:
+                candidates.append(p)
+
+        if not candidates:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No output video found for job {job_id}.",
+            )
+
+        target_file = candidates[0]
+        download_name = f"{stem}.vi.mp4"
+        return FileResponse(
+            target_file,
+            media_type="video/mp4",
+            filename=download_name,
+            headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+        )
 
     @app.post("/api/upload")
     async def upload_media_file(file: UploadFile = File(...)) -> dict[str, Any]:
@@ -508,17 +746,14 @@ def create_app() -> FastAPI:
                 detail="Either input_path or youtube_url must be provided.",
             )
 
-        if youtube_url:
-            if not is_youtube_url(youtube_url):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid YouTube URL.",
-                )
-            yt_dir = WORK_DIR / "youtube"
-            media_path, _meta = download_youtube(youtube_url, yt_dir)
-            input_path = media_path
-        else:
-            assert input_path_str is not None
+        if youtube_url and not is_youtube_url(youtube_url):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid YouTube URL.",
+            )
+
+        input_path: Path | None = None
+        if input_path_str and not youtube_url:
             input_path = Path(input_path_str).expanduser().resolve()
             if not input_path.is_file():
                 raise HTTPException(
@@ -528,9 +763,32 @@ def create_app() -> FastAPI:
 
         profile = payload.profile or DEFAULT_PROFILE
         config_path = PROJECT_ROOT / "config.yaml"
-        resolved_config = load_config(config_path, profile)
+        try:
+            resolved_config = load_config(config_path, profile)
+            provider = normalize_translation_provider(payload.provider or "webgpt")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
 
-        provider = normalize_translation_provider(payload.provider or "webgpt")
+        # The dedicated WebGPT listener is an owned dependency of the product.
+        # Recover it on demand instead of surfacing a generic 500 to the UI.
+        if provider == "webgpt":
+            _ensure_webgpt_runtime_ready()
+
+        if youtube_url:
+            yt_dir = WORK_DIR / "youtube"
+            try:
+                media_path, _meta = download_youtube(youtube_url, yt_dir)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Không tải được video YouTube: {exc}",
+                ) from exc
+            input_path = media_path
+
+        assert input_path is not None
         voice_ref = Path(payload.voice_ref).resolve() if payload.voice_ref else None
         diarize_bool = (
             True
@@ -545,7 +803,13 @@ def create_app() -> FastAPI:
             voice_ref=voice_ref,
             diarize=(diarize_bool is True),
         )
-        raise_for_preflight(checks)
+        try:
+            raise_for_preflight(checks)
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
 
         source_id = fingerprint_file(input_path)
         job_dir = WORK_DIR / f"job-{source_id['sha256'][:16]}"
@@ -604,6 +868,10 @@ def create_app() -> FastAPI:
             "message": "Dubbing job started",
         }
 
+    # Mount work directory for video/audio playback and artifacts
+    if WORK_DIR.is_dir():
+        app.mount("/work", StaticFiles(directory=str(WORK_DIR)), name="work_files")
+
     # Mount static files from frontend/dist if available
     dist_dir = PROJECT_ROOT / "frontend" / "dist"
     if dist_dir.is_dir() and (dist_dir / "index.html").is_file():
@@ -615,6 +883,8 @@ def create_app() -> FastAPI:
         async def serve_spa_frontend(full_path: str) -> FileResponse:
             if full_path.startswith("api/") or full_path == "api":
                 raise HTTPException(status_code=404, detail="API endpoint not found")
+            if full_path.startswith("work/") or full_path == "work":
+                raise HTTPException(status_code=404, detail="Work asset not found")
             if full_path.startswith("gradio"):
                 raise HTTPException(status_code=404, detail="Gradio route")
             candidate = dist_dir / full_path

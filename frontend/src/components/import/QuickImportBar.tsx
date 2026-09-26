@@ -34,7 +34,7 @@ export const QuickImportBar: React.FC = () => {
         const jobId = await createNewJob({
           source: 'youtube',
           youtubeUrl: youtubeUrl.trim(),
-          profile: 'balanced_best',
+          profile: 'balanced_fast',
         });
         if (jobId) {
           setYoutubeUrl('');
@@ -56,7 +56,7 @@ export const QuickImportBar: React.FC = () => {
         const jobId = await createNewJob({
           source: 'file',
           file: selectedFile,
-          profile: 'balanced_best',
+          profile: 'balanced_fast',
         });
         if (jobId) {
           setSelectedFile(null);

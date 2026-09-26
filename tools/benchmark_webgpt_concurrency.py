@@ -82,6 +82,7 @@ def run_once(
     glossary: dict[str, str],
     work_root: Path,
     *,
+    transport: str,
     concurrency: int,
     batch_size: int,
     model: str,
@@ -92,10 +93,11 @@ def run_once(
         {
             "codex_segments_per_batch": batch_size,
             "webgpt_concurrency": concurrency,
+            "webgpt_transport": transport,
             "global_context_enabled": True,
         }
     )
-    run_dir = work_root / f"c{concurrency}"
+    run_dir = work_root / transport / f"c{concurrency}"
     run_dir.mkdir(parents=True, exist_ok=True)
     translator = WebGptTranslator(
         run_config,
@@ -112,6 +114,7 @@ def run_once(
     terminology = validate_terminology_segments(segments, glossary)
     critical = _critical_gate(segments)
     return {
+        "transport": transport,
         "concurrency": concurrency,
         "batch_size": batch_size,
         "wall_seconds": round(wall_seconds, 4),
@@ -128,7 +131,13 @@ def run_once(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Benchmark WebGPT translation concurrency 1/2/3.")
+    parser = argparse.ArgumentParser(description="Benchmark WebGPT codex-exec vs direct Responses transport.")
+    parser.add_argument(
+        "--transport",
+        nargs="+",
+        choices=["codex-exec", "direct-responses"],
+        default=["codex-exec", "direct-responses"],
+    )
     parser.add_argument("--concurrency", nargs="+", type=int, default=[1, 2, 3])
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--model", default="chatgpt-web/gpt-5.6-sol")
@@ -153,6 +162,7 @@ def main() -> None:
         "effort": args.effort,
         "batch_size": args.batch_size,
         "global_context_enabled": True,
+        "transports": args.transport,
         "route": route,
         "runs": [],
     }
@@ -161,48 +171,78 @@ def main() -> None:
 
     def save_results() -> None:
         successful = [item for item in results["runs"] if item.get("status") == "passed"]
-        baseline = next((item for item in successful if item["concurrency"] == 1), None)
-        if baseline is not None:
-            for run in successful:
-                run["speedup_vs_c1"] = round(baseline["wall_seconds"] / run["wall_seconds"], 4)
+        for transport in args.transport:
+            baseline = next(
+                (
+                    item
+                    for item in successful
+                    if item["transport"] == transport and item["concurrency"] == 1
+                ),
+                None,
+            )
+            if baseline is not None:
+                for run in successful:
+                    if run["transport"] == transport:
+                        run["speedup_vs_transport_c1"] = round(
+                            baseline["wall_seconds"] / run["wall_seconds"],
+                            4,
+                        )
+        for run in successful:
+            baseline = next(
+                (
+                    item
+                    for item in successful
+                    if item["transport"] == "codex-exec"
+                    and item["concurrency"] == run["concurrency"]
+                ),
+                None,
+            )
+            if baseline is not None:
+                run["speedup_vs_codex_exec_same_concurrency"] = round(
+                    baseline["wall_seconds"] / run["wall_seconds"],
+                    4,
+                )
         output_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    for concurrency in args.concurrency:
-        if concurrency not in {1, 2, 3}:
-            raise ValueError("concurrency must be 1, 2, or 3")
-        print(f"Running concurrency={concurrency} ...", flush=True)
-        try:
-            run = run_once(
-                translation_config,
-                glossary,
-                work_root,
-                concurrency=concurrency,
-                batch_size=args.batch_size,
-                model=args.model,
-                effort=args.effort,
-            )
-        except Exception as exc:
-            failed_run = {
-                "status": "failed",
-                "concurrency": concurrency,
-                "batch_size": args.batch_size,
-                "error_type": type(exc).__name__,
-                "error": str(exc),
-            }
-            results["runs"].append(failed_run)
+    for transport in args.transport:
+        for concurrency in args.concurrency:
+            if concurrency not in {1, 2, 3}:
+                raise ValueError("concurrency must be 1, 2, or 3")
+            print(f"Running transport={transport} concurrency={concurrency} ...", flush=True)
+            try:
+                run = run_once(
+                    translation_config,
+                    glossary,
+                    work_root,
+                    transport=transport,
+                    concurrency=concurrency,
+                    batch_size=args.batch_size,
+                    model=args.model,
+                    effort=args.effort,
+                )
+            except Exception as exc:
+                failed_run = {
+                    "status": "failed",
+                    "transport": transport,
+                    "concurrency": concurrency,
+                    "batch_size": args.batch_size,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+                results["runs"].append(failed_run)
+                save_results()
+                print(f"  failed: {type(exc).__name__}: {exc}", flush=True)
+                break
+            run["status"] = "passed"
+            results["runs"].append(run)
             save_results()
-            print(f"  failed: {type(exc).__name__}: {exc}", flush=True)
-            break
-        run["status"] = "passed"
-        results["runs"].append(run)
-        save_results()
-        print(
-            f"  wall={run['wall_seconds']:.2f}s, segments/min={run['segments_per_minute']:.2f}, "
-            f"p95={run['stats']['request_latency_seconds']['p95']}, "
-            f"retries={run['stats']['webgpt_retry_attempts']}, "
-            f"quality={run['terminology_gate']['passed'] and run['critical_gate']['passed']}",
-            flush=True,
-        )
+            print(
+                f"  wall={run['wall_seconds']:.2f}s, segments/min={run['segments_per_minute']:.2f}, "
+                f"p95={run['stats']['request_latency_seconds']['p95']}, "
+                f"retries={run['stats']['webgpt_retry_attempts']}, "
+                f"quality={run['terminology_gate']['passed'] and run['critical_gate']['passed']}",
+                flush=True,
+            )
     save_results()
     print(f"Saved: {output_path}")
 

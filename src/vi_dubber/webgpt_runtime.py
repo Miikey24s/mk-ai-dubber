@@ -1,0 +1,309 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import signal
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+import requests
+
+from .runtime import PROJECT_ROOT
+
+
+DUBBER_WEBGPT_PORT = 17850
+DUBBER_WEBGPT_BASE_URL = f"http://127.0.0.1:{DUBBER_WEBGPT_PORT}/v1"
+
+
+def default_core_repo() -> Path:
+    configured = os.getenv("VI_DUBBER_WEBGPT_CORE", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return (PROJECT_ROOT.parents[2] / "AI" / "codex-chatgpt-web-cockpit").resolve()
+
+
+def default_runtime_home() -> Path:
+    configured = os.getenv("VI_DUBBER_WEBGPT_HOME", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return (PROJECT_ROOT.parents[1] / ".runtime" / "dubber-webgpt").resolve()
+
+
+def _bun_executable() -> str:
+    bun = shutil.which("bun")
+    if not bun:
+        raise RuntimeError("Không tìm thấy Bun trên PATH; Dedicated Dubber-WebGPT cần Bun để chạy core WebGPT.")
+    return str(Path(bun).resolve())
+
+
+def _core_cli(core_repo: Path) -> Path:
+    cli = core_repo / "src" / "cli.ts"
+    package = core_repo / "package.json"
+    if not cli.is_file() or not package.is_file():
+        raise RuntimeError(f"Không tìm thấy codex-chatgpt-web core hợp lệ tại {core_repo}")
+    return cli
+
+
+def _runtime_env(home: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["CODEX_CHATGPT_WEB_HOME"] = str(home)
+    return env
+
+
+def _default_config_from_core(core_repo: Path, home: Path) -> dict[str, Any]:
+    cli = _core_cli(core_repo)
+    config_module = (cli.parent / "config.ts").resolve().as_uri()
+    code = (
+        f'import {{ defaultConfig }} from {json.dumps(config_module)}; '
+        'console.log(JSON.stringify(defaultConfig("browser-only")));'
+    )
+    result = subprocess.run(
+        [_bun_executable(), "-e", code],
+        cwd=core_repo,
+        env=_runtime_env(home),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"Không tạo được config Dedicated Dubber-WebGPT từ core hiện tại: {detail}")
+    try:
+        payload = json.loads(result.stdout.strip())
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Core WebGPT trả default config không hợp lệ.") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Core WebGPT trả default config không phải JSON object.")
+    return payload
+
+
+def initialize_runtime(
+    *,
+    core_repo: Path | None = None,
+    home: Path | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    core_repo = (core_repo or default_core_repo()).resolve()
+    home = (home or default_runtime_home()).resolve()
+    _core_cli(core_repo)
+    home.mkdir(parents=True, exist_ok=True)
+    config_path = home / "config.json"
+
+    if config_path.exists() and not force:
+        try:
+            existing = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Config Dedicated Dubber-WebGPT hiện có bị lỗi: {config_path}") from exc
+        if not isinstance(existing, dict):
+            raise RuntimeError(f"Config Dedicated Dubber-WebGPT không hợp lệ: {config_path}")
+        if int(existing.get("port") or 0) != DUBBER_WEBGPT_PORT:
+            raise RuntimeError(
+                f"Runtime home đã có config port {existing.get('port')}; "
+                f"dùng --force nếu muốn reset sang {DUBBER_WEBGPT_PORT}."
+            )
+        return existing
+
+    config = _default_config_from_core(core_repo, home)
+    config.update(
+        {
+            "mode": "browser-only",
+            # The current bridge uses this flag to enter provider-only mode. The dedicated
+            # runtime does not register itself as a global Codex route or Cockpit provider.
+            "integrationOwner": "cockpit",
+            "host": "127.0.0.1",
+            "port": DUBBER_WEBGPT_PORT,
+            "browserHost": "managed-chrome",
+            "browserInteractionMode": "automatic",
+            "headed": True,
+            "experimentalBiggerContext": False,
+            "experimentalSkillAttachments": False,
+            "autoApproveToolCalls": False,
+        }
+    )
+    temporary = config_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, config_path)
+    return config
+
+
+def _load_runtime_config(home: Path) -> dict[str, Any]:
+    path = home / "config.json"
+    if not path.is_file():
+        raise RuntimeError("Dedicated Dubber-WebGPT chưa init. Chạy `vi-dubber webgpt-runtime init` trước.")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Không đọc được runtime config: {path}") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Runtime config không hợp lệ: {path}")
+    return data
+
+
+def login_runtime(*, core_repo: Path | None = None, home: Path | None = None) -> int:
+    core_repo = (core_repo or default_core_repo()).resolve()
+    home = (home or default_runtime_home()).resolve()
+    _load_runtime_config(home)
+    cli = _core_cli(core_repo)
+    result = subprocess.run(
+        [_bun_executable(), str(cli), "--home", str(home), "login"],
+        cwd=core_repo,
+        env=_runtime_env(home),
+        check=False,
+    )
+    return int(result.returncode)
+
+
+def runtime_status(*, home: Path | None = None, timeout: float = 1.5) -> dict[str, Any]:
+    home = (home or default_runtime_home()).resolve()
+    result: dict[str, Any] = {
+        "ready": False,
+        "home": str(home),
+        "base_url": DUBBER_WEBGPT_BASE_URL,
+        "port": DUBBER_WEBGPT_PORT,
+        "login_state": False,
+        "models": [],
+    }
+    try:
+        config = _load_runtime_config(home)
+    except RuntimeError as exc:
+        result["reason"] = str(exc)
+        return result
+
+    storage_state = Path(str(config.get("storageStatePath") or ""))
+    result["login_state"] = storage_state.is_file()
+    result["storage_state"] = str(storage_state)
+    try:
+        health = requests.get(f"http://127.0.0.1:{DUBBER_WEBGPT_PORT}/healthz", timeout=timeout)
+        health.raise_for_status()
+        health_payload = health.json()
+        if not isinstance(health_payload, dict):
+            raise RuntimeError("healthz không trả JSON object")
+        result["health"] = health_payload
+        if int(health_payload.get("port") or 0) != DUBBER_WEBGPT_PORT:
+            raise RuntimeError(f"listener port không khớp {DUBBER_WEBGPT_PORT}")
+        if not bool(health_payload.get("accepting_turns", False)):
+            raise RuntimeError("runtime đang không nhận turn mới")
+
+        catalog_response = requests.get(f"{DUBBER_WEBGPT_BASE_URL}/models", timeout=timeout)
+        catalog_response.raise_for_status()
+        catalog = catalog_response.json()
+        raw_models = catalog.get("data", catalog.get("models", [])) if isinstance(catalog, dict) else []
+        result["models"] = [
+            str(item.get("id") if isinstance(item, dict) else item)
+            for item in raw_models
+            if str(item.get("id") if isinstance(item, dict) else item).strip()
+        ]
+        result["ready"] = True
+        result["reason"] = ""
+    except Exception as exc:
+        result["reason"] = str(exc)
+    return result
+
+
+def start_runtime(
+    *,
+    core_repo: Path | None = None,
+    home: Path | None = None,
+    wait_seconds: float = 15.0,
+) -> dict[str, Any]:
+    core_repo = (core_repo or default_core_repo()).resolve()
+    home = (home or default_runtime_home()).resolve()
+    current = runtime_status(home=home)
+    if current.get("ready"):
+        return current
+
+    config = _load_runtime_config(home)
+    storage_state = Path(str(config.get("storageStatePath") or ""))
+    if not storage_state.is_file():
+        raise RuntimeError(
+            "Dedicated Dubber-WebGPT chưa có ChatGPT login riêng. "
+            "Chạy `vi-dubber webgpt-runtime login` và đăng nhập một lần trước khi start."
+        )
+
+    cli = _core_cli(core_repo)
+    logs = home / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    stdout_file = (logs / "provider.stdout.log").open("a", encoding="utf-8")
+    stderr_file = (logs / "provider.stderr.log").open("a", encoding="utf-8")
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+    process = subprocess.Popen(
+        [_bun_executable(), str(cli), "--home", str(home), "serve"],
+        cwd=core_repo,
+        env=_runtime_env(home),
+        stdin=subprocess.DEVNULL,
+        stdout=stdout_file,
+        stderr=stderr_file,
+        creationflags=creationflags,
+        close_fds=True,
+    )
+    stdout_file.close()
+    stderr_file.close()
+    (home / "provider.pid").write_text(str(process.pid), encoding="ascii")
+
+    deadline = time.monotonic() + max(1.0, wait_seconds)
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        status = runtime_status(home=home, timeout=1.0)
+        if status.get("ready"):
+            return status
+        time.sleep(0.25)
+
+    detail = ""
+    stderr_path = logs / "provider.stderr.log"
+    if stderr_path.is_file():
+        try:
+            detail = stderr_path.read_text(encoding="utf-8", errors="replace")[-1600:].strip()
+        except OSError:
+            pass
+    raise RuntimeError(
+        "Dedicated Dubber-WebGPT không lên healthy sau khi start."
+        + (f" Log cuối: {detail}" if detail else "")
+    )
+
+
+def stop_runtime(*, home: Path | None = None, force: bool = False) -> dict[str, Any]:
+    home = (home or default_runtime_home()).resolve()
+    status = runtime_status(home=home)
+    health = status.get("health") if isinstance(status.get("health"), dict) else {}
+    active_http = int(health.get("active_http_turns") or 0)
+    active_browser = int(health.get("active_browser_turns") or 0)
+    if (active_http or active_browser) and not force:
+        raise RuntimeError(
+            f"Runtime còn {active_http} HTTP turn và {active_browser} browser turn; "
+            "không stop giữa job. Dùng --force chỉ khi chủ động hủy."
+        )
+
+    pid_path = home / "provider.pid"
+    pid = int(health.get("pid") or 0)
+    if not pid and pid_path.is_file():
+        try:
+            pid = int(pid_path.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            pid = 0
+    if pid > 0:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        else:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+    try:
+        pid_path.unlink()
+    except FileNotFoundError:
+        pass
+    return runtime_status(home=home, timeout=0.3)
+

@@ -1,4 +1,5 @@
 import json
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,38 @@ import vi_dubber.pipeline as pipeline
 from vi_dubber.artifacts import fingerprint_file
 from vi_dubber.jobs import PipelineCancelled, load_job_state
 from vi_dubber.types import Segment
+
+
+def test_optional_prefit_rewrite_failure_keeps_primary_translation_usable() -> None:
+    class FailingPrefitTranslator:
+        def running(self):
+            return nullcontext(self)
+
+        def rewrite_batch(self, _batch, _glossary):
+            raise RuntimeError("synthetic transient WebGPT failure")
+
+        def stats(self):
+            return {
+                "webgpt_attempts": 3,
+                "webgpt_failures": 3,
+                "webgpt_retries_exhausted": 1,
+            }
+
+    segment = Segment(id=1, start=0.0, end=1.0, text="source", vi="bản dịch đã QA")
+    rewritten, stats, error = pipeline._attempt_optional_prefit_rewrite_batch(
+        FailingPrefitTranslator(),
+        [(segment, 1.0, 1.8, 1.8, 12)],
+        {},
+    )
+
+    assert rewritten == {}
+    assert segment.vi == "bản dịch đã QA"
+    assert stats["webgpt_attempts"] == 3
+    assert stats["webgpt_retries_exhausted"] == 1
+    assert error == {
+        "type": "RuntimeError",
+        "message": "synthetic transient WebGPT failure",
+    }
 
 
 def test_job_dir_is_content_addressed_not_filename_or_size(tmp_path: Path, monkeypatch) -> None:
@@ -370,6 +403,12 @@ def test_cancelled_pipeline_persists_cancelled_state_without_committing_partial_
     config_path.write_text("{}\n", encoding="utf-8")
     identity = fingerprint_file(input_path)
     job_dir = pipeline._job_dir(input_path, identity)
+    cleanup_calls: list[bool] = []
+    monkeypatch.setattr(
+        pipeline,
+        "release_tts_engine_preloads_for_current_thread",
+        lambda: cleanup_calls.append(True),
+    )
 
     def cancel_mid_stage(*args, **kwargs):
         del args, kwargs
@@ -389,6 +428,7 @@ def test_cancelled_pipeline_persists_cancelled_state_without_committing_partial_
     assert not (job_dir / "result.json").exists()
     assert not (job_dir / "manifests" / "tts.json").exists()
     assert not (job_dir / "run.lock").exists()
+    assert cleanup_calls == [True]
 
 
 def test_pipeline_stage_cache_requires_valid_manifest_and_resume(tmp_path: Path) -> None:
@@ -465,6 +505,200 @@ def test_segment_qa_policy_version_round_trips_through_manifest_cache(tmp_path: 
     ) is not None
 
 
+def test_reference_selection_policy_version_round_trips_through_manifest_cache(tmp_path: Path) -> None:
+    job_dir = tmp_path / "job"
+    job_dir.mkdir()
+    artifact = job_dir / "references.json"
+    artifact.write_text('{"version":1,"references":{}}', encoding="utf-8")
+    inputs = {"vocals": "vocals-v1", "source_segments": "segments-v1", "voice_ref": None}
+    config = {"clone_original_voice": True}
+    versions = {"policy": pipeline.REFERENCE_SELECTION_POLICY_VERSION}
+    fingerprint = pipeline.stage_fingerprint(
+        "reference_selection",
+        inputs=inputs,
+        config=config,
+        versions=versions,
+    )
+
+    pipeline._commit_stage(
+        job_dir,
+        "reference_selection",
+        inputs=inputs,
+        artifacts=[artifact],
+        config=config,
+        versions=versions,
+    )
+
+    assert pipeline._stage_cache_hit(
+        job_dir,
+        "reference_selection",
+        fingerprint,
+        resume=True,
+    ) is not None
+
+
+@pytest.mark.parametrize(
+    ("config", "provider", "cache_miss", "expected"),
+    [
+        (
+            {
+                "translation": {"webgpt_transport": "direct-responses"},
+                "tts": {
+                    "async_preload_enabled": True,
+                    "backend": "pytorch",
+                    "device": "cuda",
+                },
+            },
+            "webgpt",
+            True,
+            True,
+        ),
+        (
+            {
+                "translation": {"webgpt_transport": "direct-responses"},
+                "tts": {},
+            },
+            "webgpt",
+            True,
+            False,
+        ),
+        (
+            {
+                "translation": {"webgpt_transport": "codex-exec"},
+                "tts": {
+                    "async_preload_enabled": True,
+                    "backend": "pytorch",
+                    "device": "cuda",
+                },
+            },
+            "webgpt",
+            True,
+            False,
+        ),
+        (
+            {
+                "translation": {"webgpt_transport": "direct-responses"},
+                "tts": {
+                    "async_preload_enabled": True,
+                    "backend": "pytorch",
+                    "device": "cuda",
+                },
+            },
+            "local",
+            True,
+            False,
+        ),
+        (
+            {
+                "translation": {"webgpt_transport": "direct-responses"},
+                "tts": {
+                    "async_preload_enabled": True,
+                    "backend": "pytorch",
+                    "device": "cuda",
+                },
+            },
+            "webgpt",
+            False,
+            False,
+        ),
+        (
+            {
+                "translation": {"webgpt_transport": "direct-responses"},
+                "tts": {
+                    "async_preload_enabled": True,
+                    "backend": "onnx",
+                    "device": "cpu",
+                },
+            },
+            "webgpt",
+            True,
+            False,
+        ),
+    ],
+)
+def test_async_tts_preload_guard_is_bounded_to_direct_webgpt_translation_miss(
+    config: dict,
+    provider: str,
+    cache_miss: bool,
+    expected: bool,
+) -> None:
+    assert pipeline._tts_async_preload_allowed(
+        config,
+        provider,
+        translation_cache_miss=cache_miss,
+    ) is expected
+
+
+def test_async_tts_preload_failures_fall_back_to_lazy_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = {
+        "translation": {"webgpt_transport": "direct-responses"},
+        "tts": {
+            "async_preload_enabled": True,
+            "backend": "pytorch",
+            "device": "cuda",
+        },
+    }
+
+    monkeypatch.setattr(
+        pipeline,
+        "start_tts_engine_preload",
+        lambda _config: (_ for _ in ()).throw(RuntimeError("thread start failed")),
+    )
+    assert pipeline._start_tts_async_preload(
+        config,
+        "webgpt",
+        translation_cache_miss=True,
+    ) is None
+
+    class FailedPreload:
+        def result(self):
+            raise RuntimeError("engine init failed")
+
+    assert pipeline._resolve_tts_async_preload(FailedPreload()) is None
+
+
+def test_async_tts_preload_flag_does_not_change_tts_cache_identity() -> None:
+    baseline = {"backend": "pytorch", "device": "cuda", "batch_size": 4}
+    candidate = {**baseline, "async_preload_enabled": True}
+
+    assert pipeline._tts_cache_config(candidate) == baseline
+
+
+def test_chunk_stage_telemetry_reports_bounded_queue_throughput_and_eta() -> None:
+    telemetry = pipeline._chunk_stage_telemetry(
+        completed_media_seconds=600.0,
+        total_pending_media_seconds=1800.0,
+        elapsed_seconds=120.0,
+        pending_chunks=2,
+        queue_name="tts",
+        concurrency=1,
+    )
+
+    assert telemetry == {
+        "throughput_media_seconds_per_wall_second": 5.0,
+        "eta_seconds": 240.0,
+        "queue": {
+            "tts_pending_chunks": 2,
+            "gpu_tts_concurrency": 1,
+        },
+    }
+
+
+def test_chunk_stage_telemetry_has_no_eta_before_first_completed_chunk() -> None:
+    telemetry = pipeline._chunk_stage_telemetry(
+        completed_media_seconds=0.0,
+        total_pending_media_seconds=1800.0,
+        elapsed_seconds=0.0,
+        pending_chunks=3,
+        queue_name="tts",
+        concurrency=1,
+    )
+
+    assert telemetry["throughput_media_seconds_per_wall_second"] == 0.0
+    assert telemetry["eta_seconds"] is None
+    assert telemetry["queue"]["tts_pending_chunks"] == 3
+
+
 def test_tts_manifest_rejects_final_text_tamper(tmp_path: Path) -> None:
     job_dir = tmp_path / "job"
     tts_dir = job_dir / "tts"
@@ -524,6 +758,23 @@ def test_tts_partial_cache_preserves_only_matching_request(tmp_path: Path) -> No
     _receipt, reused = pipeline._prepare_tts_partial_cache(tts_dir, "request-b", resume=False)
     assert reused is False
     assert not partial.exists()
+
+
+def test_tts_partial_cache_can_preserve_manifest_governed_chunk_artifacts(tmp_path: Path) -> None:
+    tts_dir = tmp_path / "tts"
+    pipeline._prepare_tts_partial_cache(tts_dir, "request-a", resume=True)
+    fitted = tts_dir / "00001.wav"
+    fitted.write_bytes(b"old-fitted-audio")
+
+    _receipt, reused = pipeline._prepare_tts_partial_cache(
+        tts_dir,
+        "request-b",
+        resume=True,
+        preserve_all_on_mismatch=True,
+    )
+
+    assert reused is False
+    assert fitted.is_file()
 
 
 def test_tts_partial_cache_can_preserve_identity_guarded_raw_audio_for_review_rerender(

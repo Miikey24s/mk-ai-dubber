@@ -22,7 +22,7 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
   settings,
   onChange,
 }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
   const update = (key: keyof DeepSettingsState, val: any) => {
@@ -34,7 +34,7 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 text-left transition"
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-left transition cursor-pointer min-h-[40px]"
       >
         <div className="flex items-center gap-2">
           <Sliders className="w-4 h-4 text-orange-500" />
@@ -53,8 +53,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
               <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                 {t('deep.diarization')}
               </span>
-              <span className="text-2xs text-slate-500">
-                PyAnnote 3.1 neural speaker diarization clustering
+              <span className="text-2xs text-slate-500 dark:text-slate-400">
+                {language === 'vi' ? 'Phân tách cụm người nói bằng mô hình PyAnnote 3.1' : 'PyAnnote 3.1 neural speaker diarization clustering'}
               </span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -72,8 +72,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* Target LUFS */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.ducking_lufs')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.targetLufs} LUFS</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.ducking_lufs')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.targetLufs} LUFS</span>
               </div>
               <input
                 type="range"
@@ -89,8 +89,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* True Peak dBTP */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.true_peak')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.truePeak} dBTP</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.true_peak')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.truePeak} dBTP</span>
               </div>
               <input
                 type="range"
@@ -106,8 +106,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* Max Audio Speedup */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.max_speedup')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.maxSpeedup}x</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.max_speedup')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.maxSpeedup}x</span>
               </div>
               <input
                 type="range"
@@ -123,8 +123,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* Rewrite Threshold */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.rewrite_threshold')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.rewriteThreshold}x</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.rewrite_threshold')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.rewriteThreshold}x</span>
               </div>
               <input
                 type="range"
@@ -140,8 +140,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* Retry Budget */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.retry_budget')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.retryBudget} retries</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.retry_budget')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.retryBudget} {language === 'vi' ? 'lần thử' : 'retries'}</span>
               </div>
               <input
                 type="range"
@@ -157,8 +157,8 @@ export const DeepSettingsAccordion: React.FC<DeepSettingsAccordionProps> = ({
             {/* Semantic QA Faithfulness Cutoff */}
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-2xs text-slate-500">{t('deep.semantic_threshold')}</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{settings.semanticThreshold}</span>
+                <span className="text-2xs text-slate-600 dark:text-slate-300">{t('deep.semantic_threshold')}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{settings.semanticThreshold}</span>
               </div>
               <input
                 type="range"

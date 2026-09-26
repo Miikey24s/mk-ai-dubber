@@ -135,7 +135,9 @@ const translations: Record<Language, Record<string, string>> = {
     // Profiles
     'profile.fast': 'Fast (Throughput)',
     'profile.fast_desc': 'Single pass, batch 1, bypass QA, rapid turnaround',
-    'profile.balanced_best': 'Balanced Best (Recommended)',
+    'profile.balanced_fast': 'Balanced Fast (Sweet Spot)',
+    'profile.balanced_fast_desc': 'Risk-based acoustic QA; keeps translation, semantic checks, voice and timing quality',
+    'profile.balanced_best': 'Balanced Best',
     'profile.balanced_best_desc': 'Prefit syllable matching, verify-escalate QA, quality safe',
     'profile.max_quality': 'Max Quality (Production Dub)',
     'profile.max_quality_desc': 'Fanout translation, strict semantic audit, iterative TTS repair',
@@ -150,6 +152,38 @@ const translations: Record<Language, Record<string, string>> = {
     'deep.retry_budget': 'Pipeline Retry Budget',
     'deep.semantic_threshold': 'Faithfulness Cutoff (Semantic QA)',
 
+    // Review & Segments Extra
+    'review.save': 'Save',
+    'review.save_edit': 'Save Edit',
+    'review.saving': 'Saving...',
+    'review.rerender_tts': 'Re-render TTS',
+    'review.accept_segment': 'Accept (Ctrl+Enter)',
+    'review.accept_all': 'Accept All',
+    'review.accepting': 'Accepting...',
+    'review.vi_placeholder': 'Enter dubbed content...',
+    'review.no_results': 'No segments match current filter.',
+    'review.auto_qc': '100% Automated (QC Optional)',
+    'review.approved': 'Approved',
+    'review.target_duration': 'Target Duration',
+    'review.char_expansion': 'chars',
+
+    // SystemBar & Drawer
+    'system.stage_of': 'Stage {current}/{total}',
+    'system.engineer_mode': 'Engineer',
+    'system.ws_live': 'WS LIVE',
+    'system.backend_offline': '⚠ Backend offline',
+    'system.start_hint': 'Start server: cd projects/vi-dubber && uv run vi-dubber web',
+    'telemetry.engineer_telemetry': 'Engineer Telemetry',
+    'telemetry.inspect_modal': 'Inspect Modal',
+
+    // Hotkeys
+    'hotkeys.title': 'Studio Hotkeys',
+    'hotkeys.play_pause': 'Play / Pause',
+    'hotkeys.save_accept_next': 'Save, Accept & Next',
+    'hotkeys.save_edit': 'Save edit',
+    'hotkeys.next_segment': 'Next segment',
+    'hotkeys.prev_segment': 'Previous segment',
+
     // Common
     'common.close': 'Close',
     'common.copy': 'Copy to Clipboard',
@@ -161,6 +195,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.abort': 'Abort Job',
     'common.search': 'Search...',
     'common.sec': 's',
+    'common.download_video': 'Download Video',
+    'common.download_subtitles': 'Download Subtitles (.srt)',
   },
   vi: {
     // Nav & System
@@ -289,7 +325,9 @@ const translations: Record<Language, Record<string, string>> = {
     // Profiles
     'profile.fast': 'Nhanh (Ưu tiên Tốc độ)',
     'profile.fast_desc': 'Chạy 1 lượt, batch 1, bỏ qua kiểm thử QA, tốc độ tối đa',
-    'profile.balanced_best': 'Cân bằng Tốt nhất (Khuyên dùng)',
+    'profile.balanced_fast': 'Cân bằng Nhanh (Sweet Spot)',
+    'profile.balanced_fast_desc': 'QA acoustic theo rủi ro; giữ chất lượng dịch, ngữ nghĩa, giọng và timing',
+    'profile.balanced_best': 'Cân bằng Tốt nhất',
     'profile.balanced_best_desc': 'Tự động khớp âm tiết prefit, kiểm tra ngữ nghĩa nhiều lớp, ổn định',
     'profile.max_quality': 'Chất lượng Cao cấp (Phim & Studio)',
     'profile.max_quality_desc': 'Dịch đa luồng fanout, kiểm định ngữ nghĩa nghiêm ngặt, tự động sửa lỗi',
@@ -304,6 +342,38 @@ const translations: Record<Language, Record<string, string>> = {
     'deep.retry_budget': 'Số lần thử lại khi gặp lỗi',
     'deep.semantic_threshold': 'Ngưỡng độ tin cậy ngữ nghĩa (Semantic QA)',
 
+    // Review & Segments Extra
+    'review.save': 'Lưu',
+    'review.save_edit': 'Lưu chỉnh sửa',
+    'review.saving': 'Đang lưu...',
+    'review.rerender_tts': 'Render lại TTS',
+    'review.accept_segment': 'Duyệt (Ctrl+Enter)',
+    'review.accept_all': 'Duyệt tất cả',
+    'review.accepting': 'Đang duyệt...',
+    'review.vi_placeholder': 'Nhập nội dung lồng tiếng...',
+    'review.no_results': 'Không tìm thấy đoạn nào phù hợp với bộ lọc.',
+    'review.auto_qc': 'Tự động 100% (QC tùy chọn)',
+    'review.approved': 'Đã duyệt',
+    'review.target_duration': 'Thời lượng mục tiêu',
+    'review.char_expansion': 'ký tự',
+
+    // SystemBar & Drawer
+    'system.stage_of': 'Bước {current}/{total}',
+    'system.engineer_mode': 'Kỹ thuật',
+    'system.ws_live': 'WS LIVE',
+    'system.backend_offline': '⚠ Mất kết nối backend',
+    'system.start_hint': 'Khởi động server: cd projects/vi-dubber && uv run vi-dubber web',
+    'telemetry.engineer_telemetry': 'Bảng kỹ thuật',
+    'telemetry.inspect_modal': 'Mở cửa sổ chi tiết',
+
+    // Hotkeys
+    'hotkeys.title': 'Phím tắt Studio',
+    'hotkeys.play_pause': 'Phát / Tạm dừng video',
+    'hotkeys.save_accept_next': 'Lưu, Duyệt & Chuyển đoạn',
+    'hotkeys.save_edit': 'Lưu chỉnh sửa đoạn',
+    'hotkeys.next_segment': 'Chuyển sang đoạn sau',
+    'hotkeys.prev_segment': 'Quay lại đoạn trước',
+
     // Common
     'common.close': 'Đóng',
     'common.copy': 'Sao chép JSON',
@@ -315,6 +385,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.abort': 'Hủy tác vụ',
     'common.search': 'Tìm kiếm...',
     'common.sec': 'giây',
+    'common.download_video': 'Tải Video',
+    'common.download_subtitles': 'Tải Phụ đề (.srt)',
   },
 };
 
