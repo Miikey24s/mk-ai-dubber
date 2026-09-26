@@ -17,6 +17,8 @@ Live evidence:
 
 - `uv run python scripts/verify_p22_live.py` passed against Dedicated Dubber-WebGPT `127.0.0.1:17850`, model `chatgpt-web/gpt-5.6-sol`, effort `high`, wall `24.573s`, terminology gate pass and critical-token gate pass.
 - A fresh short A/B baseline run then completed BS-RoFormer + WhisperX (53 source segments) but failed in production direct Responses translation with `RuntimeError: Direct WebGPT Responses trả kết quả JSON không hợp lệ.`
+- A translation-only diagnostic reused those 53 source segments with `codex_segments_per_batch=16` to remove separator/ASR noise. It still failed after `8` WebGPT attempts: `6` malformed-output failures, `2` exhausted batches, `0` pressure failures. Smaller batches therefore do not explain or fix the live failure.
+- The local Dedicated bridge supports strict Responses JSON-schema controls. A temporary strict-schema probe made the failure explicit as `structured_output_validation_failed`, but did not improve completion. That experiment was reverted rather than making production stricter in a way that could reject output the existing `_extract_json()` repair path can safely recover.
 - The pipeline remained fail-closed. No short-overhead PASS is claimed and no tuning/default is promoted.
 
 Receipt: `work/benchmarks/p23-short-overhead-current-v2-20260926/results.json`.
