@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-27",
+  "reviewer_id": "owner",
+  "owner_override": {
+    "minimum_ballots": 1,
+    "reason": "Owner explicitly waived the previous >=3 independent ballot requirement and designated the owner's single ballot as sufficient for this human gate."
+  },
+  "blind_process": {
+    "mapping_disclosed_before_vote": false,
+    "mapping_opened_after_votes_received": true
+  },
+  "p07": {
+    "study_id": "p07-reference-selector-20260925",
+    "votes": [
+      {"display_index": 1, "preference": "B", "unblinded_candidate": "smart-acoustic-delivery"},
+      {"display_index": 2, "preference": "A", "unblinded_candidate": "smart-acoustic-delivery"},
+      {"display_index": 3, "preference": "B", "unblinded_candidate": "smart-acoustic-delivery"},
+      {"display_index": 4, "preference": "B", "unblinded_candidate": "smart-acoustic-delivery"}
+    ],
+    "result": "pass",
+    "summary": "Owner preferred the current smart acoustic + delivery reference selector in all 4/4 blinded trials."
+  },
+  "p11": {
+    "study_id": "p11-controlled-mix-master-20260925-v2",
+    "votes": [
+      {"display_index": 1, "preference": "B", "unblinded_candidate": "current-two-pass-loudnorm-limiter"}
+    ],
+    "result": "pass",
+    "summary": "Owner preferred the current two-pass loudnorm + limiter policy over the single-pass/no-limiter baseline."
+  },
+  "limitations": [
+    "This owner decision records overall A/B preference only; no 1-5 rubric scores are inferred or fabricated.",
+    "P12 segment-QA listening labels are separate and remain open.",
+    "P14 real multi-speaker/crosstalk listening is separate and remains open."
+  ]
+}

@@ -42,9 +42,11 @@ Current two-pass + limiter candidate:
 
 The generated packet passes media-integrity verification and intentionally remains `pending_human_votes`. The harness never selects a subjective winner automatically.
 
-## Human gate still open
+## Human gate decision — 27/09/2026
 
-P11 cannot be marked fully closed yet because the acceptance criteria also require subjective evidence that dialogue clarity improves without audible pumping, background discontinuity, clipping or distracting level jumps. The blind packet requires 3 completed votes plus an explicit human-attested decision.
+P11 is **ACCEPTED** under the owner's 27/09/2026 override that one owner ballot is sufficient for this human gate. The owner selected blinded candidate `B` before the mapping was opened. After unblinding, `B` maps to the current `two-pass loudnorm + limiter` policy, so the current production policy wins the controlled A/B.
+
+Decision receipt: `work/checkpoints/owner-human-listening-2026-09-27.json`. No 1-5 rubric ratings were inferred from the owner's overall choice.
 
 This fixture uses the production `duck_background=false` path, so it does not prove a benefit for optional sidechain ducking. It validates the currently used two-pass loudnorm + limiter policy against the previous single-pass/no-limiter baseline.
 

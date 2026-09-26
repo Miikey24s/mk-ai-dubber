@@ -1,6 +1,6 @@
 # P07 smart voice reference isolated blind A/B - 2026-09-25
 
-Status: **BLIND PACKAGE READY / HUMAN LISTENING STILL REQUIRED**
+Status: **ACCEPTED / OWNER HUMAN LISTENING PASS (27/09/2026)**
 
 ## Scope
 
@@ -107,8 +107,12 @@ audio did not need to be regenerated.
 
 ## P07 closure decision
 
-P07 **cannot be marked accepted yet** because its PLAN acceptance explicitly
-requires blind human listening for speaker similarity, stability, pronunciation
-clarity and noise bleed. Machine-side evidence and a causal blind packet are now
-complete. Closure requires at least three valid independent ballots and an
-explicit human pass decision through the existing `tools/listening_ab.py` gate.
+P07 is **ACCEPTED** under the owner's 27/09/2026 override that one owner ballot is
+sufficient for this human gate. The owner completed all four blinded overall
+preferences before the A/B mapping was opened: `001 B`, `002 A`, `003 B`,
+`004 B`. After unblinding, all four choices map to the current
+`smart-acoustic-delivery` candidate, so the current selector wins `4/4` trials.
+
+The decision receipt is
+`work/checkpoints/owner-human-listening-2026-09-27.json`. No 1-5 rubric ratings
+were inferred from the owner's overall choices.
