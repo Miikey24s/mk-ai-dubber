@@ -343,9 +343,14 @@ def _webgpt_response_output_text(payload: dict[str, Any]) -> str:
     if not isinstance(output, list):
         return ""
     parts: list[str] = []
+    final_parts: list[str] = []
+    has_final_answer_phase = False
     for item in output:
         if not isinstance(item, dict) or item.get("type") != "message":
             continue
+        item_phase = str(item.get("phase") or "").strip().lower()
+        if item_phase == "final_answer":
+            has_final_answer_phase = True
         content = item.get("content")
         if not isinstance(content, list):
             continue
@@ -357,7 +362,13 @@ def _webgpt_response_output_text(payload: dict[str, Any]) -> str:
             text = block.get("text")
             if isinstance(text, str) and text:
                 parts.append(text)
-    return "\n".join(parts).strip()
+                block_phase = str(block.get("phase") or "").strip().lower()
+                effective_phase = block_phase or item_phase
+                if effective_phase == "final_answer":
+                    has_final_answer_phase = True
+                    final_parts.append(text)
+    selected_parts = final_parts if has_final_answer_phase else parts
+    return "\n".join(selected_parts).strip()
 
 
 def _sanitize_webgpt_diagnostic_preview(text: str) -> str:

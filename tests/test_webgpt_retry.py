@@ -37,6 +37,33 @@ def _direct_completed(output_text: str) -> dict:
     }
 
 
+def test_webgpt_response_output_text_prefers_final_answer_over_commentary() -> None:
+    payload = {
+        "status": "completed",
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "phase": "commentary",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "> **Local tools unavailable** This is transport commentary.",
+                    }
+                ],
+            },
+            {
+                "type": "message",
+                "role": "assistant",
+                "phase": "final_answer",
+                "content": [{"type": "output_text", "text": '{"ok": true}'}],
+            },
+        ],
+    }
+
+    assert translate_module._webgpt_response_output_text(payload) == '{"ok": true}'
+
+
 def test_build_translator_wires_retry_budget(tmp_path: Path) -> None:
     webgpt = build_translator(
         {},
