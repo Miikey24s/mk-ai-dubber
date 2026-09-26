@@ -54,6 +54,8 @@ WEBGPT_PRESSURE_MARKERS = (
 )
 WEBGPT_TRANSPORT_CODEX_EXEC = "codex-exec"
 WEBGPT_TRANSPORT_DIRECT_RESPONSES = "direct-responses"
+WEBGPT_DIAGNOSTIC_PREVIEW_CHARS = 240
+WEBGPT_DIAGNOSTIC_METADATA_CHARS = 160
 
 
 def load_glossary(path: Path | None) -> dict[str, str]:
@@ -356,6 +358,98 @@ def _webgpt_response_output_text(payload: dict[str, Any]) -> str:
             if isinstance(text, str) and text:
                 parts.append(text)
     return "\n".join(parts).strip()
+
+
+def _sanitize_webgpt_diagnostic_preview(text: str) -> str:
+    preview = re.sub(r"\s+", " ", str(text or "")).strip()
+    redactions = (
+        (r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]"),
+        (r"(?i)\b(sk-[A-Za-z0-9_-]{8,})\b", "sk-[REDACTED]"),
+        (
+            r"(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|secret|password)"
+            r"\s*[:=]\s*[^\s,;]+",
+            r"\1=[REDACTED]",
+        ),
+    )
+    for pattern, replacement in redactions:
+        preview = re.sub(pattern, replacement, preview)
+    return preview[:WEBGPT_DIAGNOSTIC_PREVIEW_CHARS]
+
+
+def _bounded_webgpt_diagnostic_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value[:WEBGPT_DIAGNOSTIC_METADATA_CHARS]
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return None
+
+
+def _webgpt_response_output_shape(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return []
+    shape: list[dict[str, Any]] = []
+    for item in output[:16]:
+        if not isinstance(item, dict):
+            shape.append({"type": type(item).__name__})
+            continue
+        item_shape: dict[str, Any] = {}
+        for key in ("type", "role", "phase", "status"):
+            item_shape[key] = _bounded_webgpt_diagnostic_value(item.get(key))
+        content = item.get("content")
+        if isinstance(content, list):
+            block_shapes: list[dict[str, Any]] = []
+            for block in content[:32]:
+                if not isinstance(block, dict):
+                    block_shapes.append({"type": type(block).__name__})
+                    continue
+                block_shape: dict[str, Any] = {}
+                for key in ("type", "role", "phase", "status"):
+                    block_shape[key] = _bounded_webgpt_diagnostic_value(block.get(key))
+                block_shapes.append(block_shape)
+            item_shape["content"] = block_shapes
+        shape.append(item_shape)
+    return shape
+
+
+def _write_webgpt_malformed_diagnostic(
+    webgpt_dir: Path,
+    *,
+    stamp: str,
+    label: str,
+    attempt_index: int,
+    attempt_number: int,
+    transport: str,
+    selected_model: str,
+    envelope: dict[str, Any],
+    output_text: str,
+) -> Path:
+    response_id = envelope.get("id")
+    response_status = envelope.get("status")
+    response_model = envelope.get("model")
+    receipt = {
+        "schema_version": 1,
+        "kind": "webgpt-malformed-output-diagnostic",
+        "label": label,
+        "transport": transport,
+        "attempt_index": attempt_index,
+        "attempt_number": attempt_number,
+        "selected_model": _bounded_webgpt_diagnostic_value(selected_model),
+        "response": {
+            "id": _bounded_webgpt_diagnostic_value(response_id),
+            "status": _bounded_webgpt_diagnostic_value(response_status),
+            "model": _bounded_webgpt_diagnostic_value(response_model),
+        },
+        "output_shape": _webgpt_response_output_shape(envelope),
+        "malformed_text": {
+            "sha256": hashlib.sha256(output_text.encode("utf-8")).hexdigest(),
+            "length": len(output_text),
+            "preview": _sanitize_webgpt_diagnostic_preview(output_text),
+        },
+    }
+    path = webgpt_dir / f"diagnostic-{label}-{stamp}.json"
+    path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 class LocalTranslator:
@@ -1085,6 +1179,20 @@ class WebGptTranslator:
                                         output_path.write_text(output_text, encoding="utf-8")
                                         return parsed
                                     except (OSError, UnicodeError, ValueError) as exc:
+                                        try:
+                                            _write_webgpt_malformed_diagnostic(
+                                                webgpt_dir,
+                                                stamp=stamp,
+                                                label=label,
+                                                attempt_index=attempt_index + 1,
+                                                attempt_number=attempt_number,
+                                                transport=self.transport,
+                                                selected_model=self.model,
+                                                envelope=envelope,
+                                                output_text=output_text,
+                                            )
+                                        except (OSError, UnicodeError, TypeError, ValueError):
+                                            pass
                                         retryable_error = RuntimeError(
                                             "Direct WebGPT Responses trả kết quả JSON không hợp lệ."
                                         )

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -607,8 +608,22 @@ def test_webgpt_direct_responses_malformed_output_is_retried(
         tmp_path,
         retry_budget=1,
     )
+    malformed = (
+        "Local tools unavailable. "
+        "Bearer top-secret-token api_key=also-secret "
+        + ("x" * 400)
+    )
+    malformed_envelope = _direct_completed(malformed)
+    malformed_envelope.update(
+        {
+            "id": "resp_diag_123",
+            "model": "chatgpt-web/gpt-5.6-sol",
+        }
+    )
+    malformed_envelope["output"][0]["phase"] = "final_answer"
+    malformed_envelope["output"][0]["content"][0]["phase"] = "final_answer"
     responses = [
-        _DirectResponse(200, _direct_completed("not json")),
+        _DirectResponse(200, malformed_envelope),
         _DirectResponse(200, _direct_completed('{"ok": true}')),
     ]
     calls = 0
@@ -627,6 +642,83 @@ def test_webgpt_direct_responses_malformed_output_is_retried(
     assert calls == 2
     assert stats["webgpt_retry_attempts"] == 1
     assert stats["webgpt_failures"] == 1
+
+    receipts = list((tmp_path / "webgpt").glob("diagnostic-translate-*.json"))
+    assert len(receipts) == 1
+    receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+    assert receipt["kind"] == "webgpt-malformed-output-diagnostic"
+    assert receipt["label"] == "translate"
+    assert receipt["transport"] == "direct-responses"
+    assert receipt["attempt_index"] == 1
+    assert receipt["attempt_number"] == 1
+    assert receipt["selected_model"] == "chatgpt-web/gpt-5.6-sol"
+    assert receipt["response"] == {
+        "id": "resp_diag_123",
+        "status": "completed",
+        "model": "chatgpt-web/gpt-5.6-sol",
+    }
+    assert receipt["output_shape"] == [
+        {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "status": None,
+            "content": [
+                {
+                    "type": "output_text",
+                    "role": None,
+                    "phase": "final_answer",
+                    "status": None,
+                }
+            ],
+        }
+    ]
+    malformed_receipt = receipt["malformed_text"]
+    assert malformed_receipt["sha256"] == hashlib.sha256(malformed.encode("utf-8")).hexdigest()
+    assert malformed_receipt["length"] == len(malformed)
+    assert len(malformed_receipt["preview"]) <= translate_module.WEBGPT_DIAGNOSTIC_PREVIEW_CHARS
+    assert "top-secret-token" not in malformed_receipt["preview"]
+    assert "also-secret" not in malformed_receipt["preview"]
+    assert "Bearer [REDACTED]" in malformed_receipt["preview"]
+    assert "api_key=[REDACTED]" in malformed_receipt["preview"]
+    encoded_receipt = receipts[0].read_text(encoding="utf-8")
+    assert "Output JSON schema" not in encoded_receipt
+
+
+def test_webgpt_direct_responses_malformed_final_attempt_writes_diagnostic_before_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=0,
+    )
+    malformed_envelope = _direct_completed("still not json")
+    malformed_envelope["id"] = "resp_final_failure"
+
+    monkeypatch.setattr(
+        translate_module.requests,
+        "post",
+        lambda *args, **kwargs: _DirectResponse(200, malformed_envelope),
+    )
+
+    with pytest.raises(RuntimeError, match="JSON không hợp lệ"):
+        translator._run_json("source text must not be persisted", {"type": "object"}, "rewrite")
+
+    receipts = list((tmp_path / "webgpt").glob("diagnostic-rewrite-*.json"))
+    assert len(receipts) == 1
+    encoded_receipt = receipts[0].read_text(encoding="utf-8")
+    receipt = json.loads(encoded_receipt)
+    assert receipt["attempt_index"] == 1
+    assert receipt["response"]["id"] == "resp_final_failure"
+    assert receipt["malformed_text"]["preview"] == "still not json"
+    assert "source text must not be persisted" not in encoded_receipt
+    stats = translator.stats()
+    assert stats["webgpt_attempts"] == 1
+    assert stats["webgpt_retry_attempts"] == 0
+    assert stats["webgpt_failures"] == 1
+    assert stats["webgpt_retries_exhausted"] == 1
 
 
 def test_hybrid_retries_webgpt_before_local_fallback(
