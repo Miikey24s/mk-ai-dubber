@@ -338,6 +338,23 @@ def test_m3_library_watch_review_edit_stale_flow(
     page.set_viewport_size({"width": 1440, "height": 900})
     page.goto(base_url, wait_until="networkidle", timeout=30000)
 
+    shared_control = page.locator("button.ui-button.ui-button--neutral").first
+    expect(shared_control).to_be_visible()
+    shared_control_style = page.evaluate(
+        """(el) => {
+          const style = getComputedStyle(el);
+          return {
+            focus: style.getPropertyValue('--ui-focus').trim(),
+            background: style.backgroundColor,
+            borderStyle: style.borderStyle,
+          };
+        }""",
+        shared_control.element_handle(),
+    )
+    assert shared_control_style["focus"] in {"#2563eb", "#60a5fa"}
+    assert shared_control_style["background"] != "rgba(0, 0, 0, 0)"
+    assert shared_control_style["borderStyle"] == "solid"
+
     # Library-like archive selector: prove the target is chosen from persisted jobs.
     archive_trigger = page.get_by_text("M3 Library Entry", exact=True).first
     expect(archive_trigger).to_be_visible(timeout=10000)

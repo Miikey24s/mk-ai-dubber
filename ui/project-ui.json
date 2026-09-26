@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "status": "partial-migration",
+  "sharedUiPins": [
+    {
+      "system": "annam-productivity",
+      "version": "1.0.0",
+      "sourceSha256": "578f95b7f93be56bd4375bcb71512a90e33528c7213e7d1e346f65c2d55186f9",
+      "snapshot": "frontend/src/ui-system.snapshot.css",
+      "scope": [
+        "header.raw-json-control"
+      ]
+    }
+  ]
+}

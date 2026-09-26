@@ -127,7 +127,7 @@ export const Header: React.FC = () => {
           {/* Raw JSON Inspector */}
           <button
             onClick={() => setIsRawJsonOpen(true)}
-            className="h-8 w-8 min-h-[32px] min-w-[32px] p-1.5 flex items-center justify-center rounded text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-slate-100 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 transition cursor-pointer"
+            className="ui-button ui-button--neutral h-8 w-8 min-h-[32px] min-w-[32px] p-1.5 flex items-center justify-center transition"
             title={t('telemetry.raw_json')}
             aria-label={t('telemetry.raw_json')}
           >
