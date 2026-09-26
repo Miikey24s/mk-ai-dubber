@@ -4,11 +4,13 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 
-DEFAULT_PROFILE = "balanced_best"
+DEFAULT_PROFILE = "balanced_fast"
 
 PROFILE_ALIASES = {
     "fast": "fast",
-    "balanced": "balanced_best",
+    "balanced": "balanced_fast",
+    "balanced_fast": "balanced_fast",
+    "balanced fast": "balanced_fast",
     "balanced_best": "balanced_best",
     "balanced best": "balanced_best",
     "max": "max_quality",
@@ -37,12 +39,31 @@ PROFILE_OVERRIDES: dict[str, dict[str, Any]] = {
             "final_full_qa": False,
         },
     },
+    "balanced_fast": {
+        "qa": {
+            "enabled": True,
+            "segment_enabled": True,
+            "segment_scope": "risk",
+            "risk_sample_ratio": 0.05,
+            "risk_sample_min": 2,
+            "risk_sample_max": 4,
+            "semantic": {
+                "enabled": True,
+            },
+        },
+        "reliability": {
+            "retry_budget": 2,
+            "final_full_qa": False,
+        },
+    },
     "balanced_best": {
         "tts": {
             "batch_size": 1,
         },
         "qa": {
             "enabled": True,
+            "segment_enabled": True,
+            "segment_scope": "all",
             "semantic": {
                 "enabled": True,
             },
@@ -58,6 +79,8 @@ PROFILE_OVERRIDES: dict[str, dict[str, Any]] = {
         },
         "qa": {
             "enabled": True,
+            "segment_enabled": True,
+            "segment_scope": "all",
             "semantic": {
                 "enabled": True,
                 "review_faithful_below": 0.72,
@@ -85,6 +108,17 @@ PROFILE_POLICIES: dict[str, dict[str, Any]] = {
         "typesafe_policy": "critical_gate",
         "tts_batch_policy": "throughput",
         "qa_depth": "minimal",
+        "optional_lip_sync": False,
+        "overlap_assembly_policy": "equal_power",
+        "hard_case_review": "overlap_or_multi_speaker",
+    },
+    "balanced_fast": {
+        "translation_fanout": 1,
+        "translation_fanout_scope": "single",
+        "translation_prefit": True,
+        "typesafe_policy": "verify_escalate",
+        "tts_batch_policy": "quality_safe",
+        "qa_depth": "risk",
         "optional_lip_sync": False,
         "overlap_assembly_policy": "equal_power",
         "hard_case_review": "overlap_or_multi_speaker",
@@ -149,6 +183,7 @@ def resolve_profile(config: Mapping[str, Any], profile: str | None = None) -> di
             "semantic_qa_enabled": bool(
                 resolved.get("qa", {}).get("semantic", {}).get("enabled", False)
             ),
+            "segment_qa_scope": str(resolved.get("qa", {}).get("segment_scope", "all")),
             "final_full_qa": bool(resolved.get("reliability", {}).get("final_full_qa", True)),
             "retry_budget": int(resolved.get("reliability", {}).get("retry_budget", 3)),
         }

@@ -33,14 +33,28 @@ def test_profile_resolution_is_deterministic_and_does_not_mutate_source() -> Non
     before = deepcopy(source)
 
     fast = resolve_profile(source, "fast")
+    sweet = resolve_profile(source, "balanced")
     maximum = resolve_profile(source, "max")
 
     assert source == before
     assert fast["profile"] == "fast"
     assert fast["qa"]["enabled"] is False
     assert fast["profile_policy"]["retry_budget"] == 1
+    assert sweet["profile"] == "balanced_fast"
+    assert sweet["qa"]["segment_scope"] == "risk"
+    assert sweet["reliability"]["final_full_qa"] is False
     assert maximum["profile"] == "max_quality"
     assert maximum["qa"]["semantic"]["review_critical_below"] == pytest.approx(0.82)
+
+
+def test_balanced_fast_keeps_benchmarked_tts_batch_from_base_config() -> None:
+    source = _base_config()
+    source["tts"]["batch_size"] = 4
+
+    resolved = resolve_profile(source, "balanced_fast")
+
+    assert resolved["tts"]["batch_size"] == 4
+    assert resolved["profile_policy"]["tts_batch_size"] == 4
 
 
 def test_resolved_profile_behavior_contract_is_explicit_and_deterministic() -> None:
@@ -55,7 +69,21 @@ def test_resolved_profile_behavior_contract_is_explicit_and_deterministic() -> N
             "tts_batch_size": 1,
             "qa_depth": "minimal",
             "semantic_qa_enabled": False,
+            "segment_qa_scope": "all",
             "retry_budget": 1,
+            "final_full_qa": False,
+        },
+        "balanced_fast": {
+            "translation_fanout": 1,
+            "translation_fanout_scope": "single",
+            "translation_prefit": True,
+            "typesafe_policy": "verify_escalate",
+            "tts_batch_policy": "quality_safe",
+            "tts_batch_size": 1,
+            "qa_depth": "risk",
+            "semantic_qa_enabled": True,
+            "segment_qa_scope": "risk",
+            "retry_budget": 2,
             "final_full_qa": False,
         },
         "balanced_best": {
@@ -67,6 +95,7 @@ def test_resolved_profile_behavior_contract_is_explicit_and_deterministic() -> N
             "tts_batch_size": 1,
             "qa_depth": "standard",
             "semantic_qa_enabled": True,
+            "segment_qa_scope": "all",
             "retry_budget": 3,
             "final_full_qa": True,
         },
@@ -79,12 +108,13 @@ def test_resolved_profile_behavior_contract_is_explicit_and_deterministic() -> N
             "tts_batch_size": 1,
             "qa_depth": "strict",
             "semantic_qa_enabled": True,
+            "segment_qa_scope": "all",
             "retry_budget": 4,
             "final_full_qa": True,
         },
     }
 
-    assert DEFAULT_PROFILE == "balanced_best"
+    assert DEFAULT_PROFILE == "balanced_fast"
     for profile, contract in expected.items():
         first = resolve_profile(source, profile)["profile_policy"]
         second = resolve_profile(source, profile)["profile_policy"]
