@@ -246,6 +246,11 @@ def _summarize(runs: list[dict[str, Any]], max_slowdown_ratio: float) -> dict[st
     candidate = [item for item in runs if item.get("label") == "candidate" and item.get("status") == "passed"]
     if not baseline or not candidate:
         return {"gate": "BLOCKED", "reason": "missing_successful_ab_run"}
+    baseline_by_trial = {int(item.get("trial") or index + 1): item for index, item in enumerate(baseline)}
+    candidate_by_trial = {int(item.get("trial") or index + 1): item for index, item in enumerate(candidate)}
+    paired_trials = sorted(set(baseline_by_trial) & set(candidate_by_trial))
+    if len(paired_trials) != len(baseline) or len(paired_trials) != len(candidate):
+        return {"gate": "BLOCKED", "reason": "incomplete_paired_ab_trials"}
     baseline_axes = dict(baseline[0].get("resolved_axes") or {})
     candidate_axes = dict(candidate[0].get("resolved_axes") or {})
     baseline_longform = dict(baseline_axes.pop("longform", {}) or {})
@@ -253,14 +258,26 @@ def _summarize(runs: list[dict[str, Any]], max_slowdown_ratio: float) -> dict[st
     axes_equal = baseline_axes == candidate_axes
     base_wall = statistics.median(float(item["wall_seconds"]) for item in baseline)
     cand_wall = statistics.median(float(item["wall_seconds"]) for item in candidate)
-    slowdown_ratio = cand_wall / max(0.001, base_wall)
+    paired_slowdown_ratios = [
+        float(candidate_by_trial[trial]["wall_seconds"])
+        / max(0.001, float(baseline_by_trial[trial]["wall_seconds"]))
+        for trial in paired_trials
+    ]
+    slowdown_ratio = statistics.median(paired_slowdown_ratios)
+    unpaired_median_ratio = cand_wall / max(0.001, base_wall)
     source_similarity = min(
-        _similarity(str(left.get("source_script") or ""), str(right.get("source_script") or ""))
-        for left, right in zip(baseline, candidate)
+        _similarity(
+            str(baseline_by_trial[trial].get("source_script") or ""),
+            str(candidate_by_trial[trial].get("source_script") or ""),
+        )
+        for trial in paired_trials
     )
     translated_similarity = min(
-        _similarity(str(left.get("translated_script") or ""), str(right.get("translated_script") or ""))
-        for left, right in zip(baseline, candidate)
+        _similarity(
+            str(baseline_by_trial[trial].get("translated_script") or ""),
+            str(candidate_by_trial[trial].get("translated_script") or ""),
+        )
+        for trial in paired_trials
     )
     baseline_quality = all(
         item.get("output_exists")
@@ -322,6 +339,11 @@ def _summarize(runs: list[dict[str, Any]], max_slowdown_ratio: float) -> dict[st
         "candidate_median_wall_seconds": cand_wall,
         "candidate_slowdown_ratio": slowdown_ratio,
         "candidate_overhead_percent": (slowdown_ratio - 1.0) * 100.0,
+        "candidate_slowdown_ratio_method": "median_paired_trial_ratio",
+        "paired_trial_slowdown_ratios": paired_slowdown_ratios,
+        "paired_trial_slowdown_ratio_min": min(paired_slowdown_ratios),
+        "paired_trial_slowdown_ratio_max": max(paired_slowdown_ratios),
+        "unpaired_median_ratio_diagnostic": unpaired_median_ratio,
         "resolved_axes_equal": axes_equal,
         "baseline_longform_enabled": baseline_longform.get("enabled"),
         "candidate_longform_enabled": candidate_longform.get("enabled"),
@@ -428,6 +450,7 @@ def main() -> int:
         "notes": [
             "The 5% slowdown threshold is a harness-local operationalization of PLAN wording 'không làm short fixture chậm đáng kể'; PLAN itself does not specify a numeric percentage.",
             "Both sides use the same current code, profile, models and Dedicated WebGPT runtime. The only intentional config difference is longform.enabled.",
+            "Because each trial is an A/B block and run order alternates, the overhead gate uses the median of per-trial candidate/baseline ratios. Separate arm medians remain diagnostic only because they discard the intended pairing under runtime/provider variance.",
             "Independent WebGPT generations are not required to be literal-text matches. Cross-arm translated-text similarity is diagnostic only; each arm must clear its own product QA and terminology gates.",
             "The fixture is shorter than single_chunk_threshold_seconds, so the enabled side must bypass macro-chunk planning and stay on the ordinary short path.",
             "This receipt is a P23 short-path benchmark gate only and is not whole-product acceptance.",

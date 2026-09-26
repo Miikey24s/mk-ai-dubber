@@ -15,9 +15,18 @@ sys.modules[SPEC.name] = bench
 SPEC.loader.exec_module(bench)
 
 
-def _run(label: str, *, wall: float, enabled: bool, vi: str = "cung ban dich", qa_passed: bool = True) -> dict:
+def _run(
+    label: str,
+    *,
+    wall: float,
+    enabled: bool,
+    trial: int = 1,
+    vi: str = "cung ban dich",
+    qa_passed: bool = True,
+) -> dict:
     return {
         "label": label,
+        "trial": trial,
         "status": "passed",
         "wall_seconds": wall,
         "output_exists": True,
@@ -80,12 +89,12 @@ def test_benchmark_configs_only_toggle_longform_and_keep_glossary_absolute(tmp_p
 
 def test_summary_passes_when_short_path_is_equivalent_and_under_overhead_gate() -> None:
     runs = [
-        _run("baseline", wall=100.0, enabled=False),
-        _run("candidate", wall=102.0, enabled=True),
-        _run("candidate", wall=101.0, enabled=True),
-        _run("baseline", wall=100.5, enabled=False),
-        _run("baseline", wall=99.5, enabled=False),
-        _run("candidate", wall=103.0, enabled=True),
+        _run("baseline", wall=100.0, enabled=False, trial=1),
+        _run("candidate", wall=102.0, enabled=True, trial=1),
+        _run("candidate", wall=101.0, enabled=True, trial=2),
+        _run("baseline", wall=100.5, enabled=False, trial=2),
+        _run("baseline", wall=99.5, enabled=False, trial=3),
+        _run("candidate", wall=103.0, enabled=True, trial=3),
     ]
 
     result = bench._summarize(runs, 1.05)
@@ -96,6 +105,39 @@ def test_summary_passes_when_short_path_is_equivalent_and_under_overhead_gate() 
     assert result["baseline_longform_enabled"] is False
     assert result["candidate_longform_enabled"] is True
     assert result["candidate_short_path_bypassed_chunking"] is True
+    assert result["candidate_slowdown_ratio_method"] == "median_paired_trial_ratio"
+
+
+def test_summary_preserves_rotated_trial_pairing_under_runtime_variance() -> None:
+    runs = [
+        _run("baseline", wall=334.34, enabled=False, trial=1),
+        _run("candidate", wall=329.34, enabled=True, trial=1),
+        _run("candidate", wall=318.05, enabled=True, trial=2),
+        _run("baseline", wall=277.38, enabled=False, trial=2),
+        _run("baseline", wall=281.99, enabled=False, trial=3),
+        _run("candidate", wall=222.63, enabled=True, trial=3),
+    ]
+
+    result = bench._summarize(runs, 1.05)
+
+    assert result["gate"] == "PASS"
+    assert result["overhead_passed"] is True
+    assert result["candidate_slowdown_ratio"] < 1.0
+    assert result["unpaired_median_ratio_diagnostic"] > 1.12
+    assert len(result["paired_trial_slowdown_ratios"]) == 3
+
+
+def test_summary_blocks_when_a_rotated_trial_pair_is_incomplete() -> None:
+    result = bench._summarize(
+        [
+            _run("baseline", wall=100.0, enabled=False, trial=1),
+            _run("candidate", wall=101.0, enabled=True, trial=1),
+            _run("baseline", wall=100.0, enabled=False, trial=2),
+        ],
+        1.05,
+    )
+
+    assert result == {"gate": "BLOCKED", "reason": "incomplete_paired_ab_trials"}
 
 
 def test_summary_does_not_require_literal_match_between_independent_translations() -> None:
