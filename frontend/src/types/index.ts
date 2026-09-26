@@ -119,6 +119,7 @@ export interface PreviewArtifact {
   manifest_fingerprint: string;
   play_url: string;
   download_url: string;
+  download_available: boolean;
 }
 
 export interface MixTelemetry {

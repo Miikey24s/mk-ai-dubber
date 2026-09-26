@@ -46,11 +46,11 @@ def _write_valid_preview(path: Path) -> None:
             "-f",
             "lavfi",
             "-i",
-            "color=c=navy:s=640x360:d=3",
+            "color=c=navy:s=640x360:d=10",
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=440:duration=3",
+            "sine=frequency=440:duration=10",
             "-shortest",
             "-c:v",
             "libx264",
@@ -106,6 +106,15 @@ def _seed_m3_fixture(work: Path) -> tuple[str, str]:
         },
         {
             "id": 1,
+            "start": 4.0,
+            "end": 5.0,
+            "text": "The second ready sentence.",
+            "vi": "Câu dịch thứ hai vẫn tua được.",
+            "speaker": "SPEAKER_00",
+            "review_status": "unreviewed",
+        },
+        {
+            "id": 2,
             "start": 11.0,
             "end": 12.0,
             "text": "The blocked chunk stays unavailable.",
@@ -114,7 +123,7 @@ def _seed_m3_fixture(work: Path) -> tuple[str, str]:
             "review_status": "needs_review",
         },
         {
-            "id": 2,
+            "id": 3,
             "start": 21.0,
             "end": 22.0,
             "text": "The current chunk is still processing.",
@@ -304,6 +313,28 @@ def test_m3_library_watch_review_edit_stale_flow(
         else None,
     )
     page.add_init_script("localStorage.clear()")
+    page.route(
+        "**/api/system",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "gpu_name": "M3 isolated fixture",
+                    "gpu_vram_used_bytes": 0,
+                    "gpu_vram_total_bytes": 0,
+                    "gpu_utilization_pct": 0,
+                    "cpu_utilization_pct": 0,
+                    "active_jobs_count": 0,
+                    "webgpt_connected": False,
+                    "webgpt_model": "fixture",
+                    "webgpt_port": 17850,
+                    "server_uptime_seconds": 0,
+                    "websocket_connected": True,
+                }
+            ),
+        ),
+    )
     page.set_viewport_size({"width": 1440, "height": 900})
     page.goto(base_url, wait_until="networkidle", timeout=30000)
 
@@ -330,6 +361,56 @@ def test_m3_library_watch_review_edit_stale_flow(
         "el => el.readyState >= 1",
         arg=video.element_handle(),
         timeout=10000,
+    )
+    download_link = page.get_by_title("Tải preview chunk")
+    expect(download_link).to_be_visible()
+    assert download_link.get_attribute("href") == (
+        f"/api/jobs/{target_id}/previews/chunk_0001?download=true"
+    )
+
+    # Native fullscreen -> Import must await fullscreen exit before the dialog
+    # takes focus, then keep keyboard focus contained and restore it on close.
+    fullscreen_button = page.get_by_title("Fullscreen")
+    fullscreen_button.click()
+    page.wait_for_function("document.fullscreenElement !== null", timeout=5000)
+    import_button = page.locator('button[title="Import Video / YouTube"]').first
+    import_button.click()
+    page.wait_for_function("document.fullscreenElement === null", timeout=5000)
+    dialog = page.locator('[role="dialog"][aria-modal="true"]')
+    expect(dialog).to_be_visible()
+    assert page.evaluate(
+        "(el) => el.contains(document.activeElement)",
+        dialog.element_handle(),
+    )
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        "(el) => el.contains(document.activeElement)",
+        dialog.element_handle(),
+    )
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(
+        "(el) => el.contains(document.activeElement)",
+        dialog.element_handle(),
+    )
+    page.keyboard.press("Escape")
+    expect(dialog).to_have_count(0)
+    assert page.evaluate(
+        "(el) => document.activeElement === el",
+        import_button.element_handle(),
+    )
+
+    # Intentional segment navigation must seek even while media is playing.
+    page.evaluate("(el) => el.play()", video.element_handle())
+    page.wait_for_function(
+        "el => !el.paused && el.currentTime > 0.2",
+        arg=video.element_handle(),
+        timeout=5000,
+    )
+    page.get_by_text("The second ready sentence.", exact=True).click()
+    page.wait_for_function(
+        "el => Math.abs(el.currentTime - 4.0) < 0.75 && !el.paused",
+        arg=video.element_handle(),
+        timeout=5000,
     )
     page.screenshot(path=str(artifact_dir / "01-1440-watch-ready.png"), full_page=True)
 

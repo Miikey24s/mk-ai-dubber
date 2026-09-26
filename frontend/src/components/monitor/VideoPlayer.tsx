@@ -26,6 +26,8 @@ export const VideoPlayer: React.FC = () => {
     setActiveSegmentIndex,
     currentTime,
     setCurrentTime,
+    seekRequest,
+    requestSeek,
     isPlaying,
     setIsPlaying,
     selectedPreview,
@@ -90,13 +92,10 @@ export const VideoPlayer: React.FC = () => {
   }, [isPlaying, playbackSpeed, isLoopingSegment, activeSegment, totalDuration, setCurrentTime, setIsPlaying, videoSrc]);
 
   useEffect(() => {
-    if (videoRef.current) {
-      const localTime = Math.max(0, currentTime - timelineStart);
-      if (Math.abs(videoRef.current.currentTime - localTime) > 0.5) {
-        videoRef.current.currentTime = Math.min(localTime, totalDuration);
-      }
-    }
-  }, [currentTime, timelineStart, totalDuration, videoSrc]);
+    if (!videoRef.current || !seekRequest) return;
+    const localTime = Math.max(0, seekRequest.time - timelineStart);
+    videoRef.current.currentTime = Math.min(localTime, totalDuration);
+  }, [seekRequest, timelineStart, totalDuration, videoSrc]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -118,7 +117,7 @@ export const VideoPlayer: React.FC = () => {
     if (activeSegmentIndex > 0) {
       const prevIdx = activeSegmentIndex - 1;
       setActiveSegmentIndex(prevIdx);
-      setCurrentTime(segments[prevIdx].start);
+      requestSeek(segments[prevIdx].start);
     }
   };
 
@@ -126,7 +125,7 @@ export const VideoPlayer: React.FC = () => {
     if (activeSegmentIndex < segments.length - 1) {
       const nextIdx = activeSegmentIndex + 1;
       setActiveSegmentIndex(nextIdx);
-      setCurrentTime(segments[nextIdx].start);
+      requestSeek(segments[nextIdx].start);
     }
   };
 
@@ -137,6 +136,18 @@ export const VideoPlayer: React.FC = () => {
     } else {
       document.exitFullscreen?.();
     }
+  };
+
+  const openCreator = async () => {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch (error) {
+        console.error('Unable to exit fullscreen before opening import dialog:', error);
+        return;
+      }
+    }
+    setIsCreatorOpen(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -212,7 +223,13 @@ export const VideoPlayer: React.FC = () => {
             className="absolute inset-0 w-full h-full object-contain bg-black"
             muted={isMuted}
             playsInline
-            onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration)}
+            onLoadedMetadata={(e) => {
+              setVideoDuration(e.currentTarget.duration);
+              if (seekRequest) {
+                const localTime = Math.max(0, seekRequest.time - timelineStart);
+                e.currentTarget.currentTime = Math.min(localTime, e.currentTarget.duration);
+              }
+            }}
             onTimeUpdate={() => {
               if (videoRef.current) {
                 setCurrentTime(timelineStart + videoRef.current.currentTime);
@@ -265,7 +282,7 @@ export const VideoPlayer: React.FC = () => {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setIsCreatorOpen(true);
+                void openCreator();
               }}
               className="flex items-center gap-1 px-2.5 py-1 rounded bg-orange-600 hover:bg-orange-500 backdrop-blur-md border border-orange-400 text-[11px] text-white font-bold shadow-md shadow-orange-600/30 hover:scale-105 transition cursor-pointer"
               title={t('import.import_video')}
@@ -282,7 +299,7 @@ export const VideoPlayer: React.FC = () => {
                     window.localStorage.removeItem(`vi_dubber_preview_${activeJob.id}`);
                   }
                   setSelectedPreview(null);
-                  setCurrentTime(0);
+                  requestSeek(0);
                   setIsPlaying(false);
                 }}
                 className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 backdrop-blur-md border border-emerald-400 text-[11px] text-white font-bold shadow-md shadow-emerald-600/30 transition cursor-pointer"
@@ -348,10 +365,7 @@ export const VideoPlayer: React.FC = () => {
             const rect = e.currentTarget.getBoundingClientRect();
             const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             const newTime = timelineStart + pct * totalDuration;
-            setCurrentTime(newTime);
-            if (videoRef.current) {
-              videoRef.current.currentTime = newTime - timelineStart;
-            }
+            requestSeek(newTime);
           }}
         >
           {/* Segment Markers on Seek Bar */}
@@ -367,7 +381,7 @@ export const VideoPlayer: React.FC = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveSegmentIndex(seg.id);
-                  setCurrentTime(seg.start);
+                  requestSeek(seg.start);
                 }}
                 className={`absolute top-0 bottom-0 rounded-full transition-opacity ${
                   isSegActive ? 'bg-orange-500/90' : 'bg-slate-700 hover:bg-slate-600'

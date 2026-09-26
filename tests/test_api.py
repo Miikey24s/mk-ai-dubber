@@ -163,6 +163,7 @@ def test_api_lists_and_serves_only_verified_chunk_previews(
     assert len(previews) == 1
     assert previews[0]["label"] == "PREVIEW"
     assert previews[0]["final"] is False
+    assert previews[0]["download_available"] is True
     assert previews[0]["play_url"].endswith("/previews/chunk_0001")
 
     played = client.get("/api/jobs/job-preview01/previews/chunk_0001")
@@ -428,5 +429,4 @@ def test_api_spa_fallback_or_redirect(client: TestClient) -> None:
     # Non-existent API path returns 404
     res_api_404 = client.get("/api/unknown_route")
     assert res_api_404.status_code == 404
-
 

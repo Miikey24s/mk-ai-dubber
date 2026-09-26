@@ -11,7 +11,7 @@ export const LongformPreviewRail: React.FC = () => {
     refreshJobs,
     selectedPreview,
     setSelectedPreview,
-    setCurrentTime,
+    requestSeek,
     setIsPlaying,
   } = useJob();
   const [previews, setPreviews] = useState<PreviewArtifact[]>([]);
@@ -145,7 +145,7 @@ export const LongformPreviewRail: React.FC = () => {
                 if (!preview) return;
                 setSelectedChunkId(chunkId);
                 setSelectedPreview(preview);
-                setCurrentTime(preview.start);
+                requestSeek(preview.start);
                 setIsPlaying(false);
                 window.localStorage.setItem(`vi_dubber_preview_${activeJob.id}`, chunkId);
               }}
@@ -182,14 +182,23 @@ export const LongformPreviewRail: React.FC = () => {
           <span className="hidden whitespace-nowrap text-[9px] text-slate-500 xl:inline">
             {formatSeconds(selected.start)}–{formatSeconds(selected.end)}
           </span>
-          <a
-            href={selected.download_url}
-            download
-            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
-            title="Tải preview chunk"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </a>
+          {selected.download_available === true ? (
+            <a
+              href={selected.download_url}
+              download
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
+              title="Tải preview chunk"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <span
+              className="rounded px-1 py-0.5 text-[9px] font-semibold text-slate-400"
+              title="Artifact chưa được máy chủ xác minh"
+            >
+              Chưa thể tải
+            </span>
+          )}
         </div>
       )}
 

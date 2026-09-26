@@ -11,7 +11,7 @@ export const SegmentReviewer: React.FC = () => {
     segments,
     activeSegmentIndex,
     setActiveSegmentIndex,
-    setCurrentTime,
+    requestSeek,
     isPlaying,
     setIsPlaying,
     updateSegment,
@@ -101,7 +101,7 @@ export const SegmentReviewer: React.FC = () => {
         if (activeSegmentIndex < segments.length - 1) {
           const nextIdx = activeSegmentIndex + 1;
           setActiveSegmentIndex(nextIdx);
-          setCurrentTime(segments[nextIdx].start);
+          requestSeek(segments[nextIdx].start);
         }
         return;
       }
@@ -112,7 +112,7 @@ export const SegmentReviewer: React.FC = () => {
         if (activeSegmentIndex > 0) {
           const prevIdx = activeSegmentIndex - 1;
           setActiveSegmentIndex(prevIdx);
-          setCurrentTime(segments[prevIdx].start);
+          requestSeek(segments[prevIdx].start);
         }
         return;
       }
@@ -127,7 +127,7 @@ export const SegmentReviewer: React.FC = () => {
             if (activeSegmentIndex < segments.length - 1) {
               const nextIdx = activeSegmentIndex + 1;
               setActiveSegmentIndex(nextIdx);
-              setCurrentTime(segments[nextIdx].start);
+              requestSeek(segments[nextIdx].start);
             }
           }
         }
@@ -148,7 +148,7 @@ export const SegmentReviewer: React.FC = () => {
     segments,
     setIsPlaying,
     setActiveSegmentIndex,
-    setCurrentTime,
+    requestSeek,
     acceptSegment,
   ]);
 
@@ -161,7 +161,7 @@ export const SegmentReviewer: React.FC = () => {
     if (curIdx !== -1 && curIdx < segments.length - 1) {
       const nextIdx = curIdx + 1;
       setActiveSegmentIndex(nextIdx);
-      setCurrentTime(segments[nextIdx].start);
+      requestSeek(segments[nextIdx].start);
     }
   };
 
@@ -323,7 +323,7 @@ export const SegmentReviewer: React.FC = () => {
                   const idx = segments.findIndex(s => s.id === seg.id);
                   if (idx !== -1) {
                     setActiveSegmentIndex(idx);
-                    setCurrentTime(seg.start);
+                    requestSeek(seg.start);
                   }
                 }}
                 onSave={async (id, text, speaker) => {

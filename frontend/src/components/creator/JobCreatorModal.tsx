@@ -3,6 +3,7 @@ import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { ProfileType } from '@/types';
 import { DeepSettingsAccordion } from './DeepSettingsAccordion';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 import {
   X,
   Youtube,
@@ -42,6 +43,7 @@ export const JobCreatorModal: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dialogRef = useFocusTrap<HTMLDivElement>(isCreatorOpen);
 
   useEffect(() => {
     if (droppedFile) {
@@ -102,7 +104,13 @@ export const JobCreatorModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100 font-mono my-8">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('creator.new_job')}
+        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100 font-mono my-8 outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5">

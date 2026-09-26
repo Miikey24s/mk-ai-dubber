@@ -139,6 +139,7 @@ def _list_chunk_previews(job_dir: Path) -> list[dict[str, Any]]:
                 "manifest_fingerprint": manifest.get("fingerprint"),
                 "play_url": f"/api/jobs/{job_dir.name}/previews/{chunk_id}",
                 "download_url": f"/api/jobs/{job_dir.name}/previews/{chunk_id}?download=true",
+                "download_available": True,
             }
         )
     return previews

@@ -22,6 +22,11 @@ interface CreateJobOptions {
   deepSettings?: any;
 }
 
+interface SeekRequest {
+  time: number;
+  sequence: number;
+}
+
 interface JobContextType {
   jobs: JobState[];
   activeJob: JobState | null;
@@ -32,6 +37,8 @@ interface JobContextType {
   setActiveSegmentIndex: (index: number) => void;
   currentTime: number;
   setCurrentTime: React.Dispatch<React.SetStateAction<number>>;
+  seekRequest: SeekRequest | null;
+  requestSeek: (time: number) => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   selectedPreview: PreviewArtifact | null;
@@ -64,6 +71,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [segments, setSegments] = useState<Segment[]>([]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [seekRequest, setSeekRequest] = useState<SeekRequest | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [selectedPreview, setSelectedPreview] = useState<PreviewArtifact | null>(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<'a' | 'b' | 'bgm'>('b');
@@ -75,6 +83,15 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0] || null;
+
+  const requestSeek = useCallback((time: number) => {
+    const target = Math.max(0, time);
+    setCurrentTime(target);
+    setSeekRequest(previous => ({
+      time: target,
+      sequence: (previous?.sequence || 0) + 1,
+    }));
+  }, []);
 
   // Jobs, backend heartbeat and expensive telemetry have separate failure domains.
   const refreshJobs = useCallback(async () => {
@@ -246,7 +263,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         setJobs(prev => [newJobState, ...prev.filter(j => j.id !== res.jobId)]);
         setActiveJobId(res.jobId);
-        setCurrentTime(0);
+        requestSeek(0);
         setIsPlaying(true);
         setTimeout(refreshJobs, 1000);
         return res.jobId;
@@ -272,6 +289,8 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveSegmentIndex,
         currentTime,
         setCurrentTime,
+        seekRequest,
+        requestSeek,
         isPlaying,
         setIsPlaying,
         selectedPreview,
