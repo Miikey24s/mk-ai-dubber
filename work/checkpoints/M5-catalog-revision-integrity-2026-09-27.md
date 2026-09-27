@@ -17,6 +17,8 @@ or close the real-media/restart/restore acceptance gates.
   different item revision, before mutating the target database.
 - Read/export paths detect a manually corrupted SQLite state row and fail
   closed with `CatalogIntegrityError`.
+- Rebuild validates persisted user state before replacing the projection, so a
+  corrupt row aborts the transaction instead of causing a partial wipe.
 
 The media/source contract is unchanged: catalog operations still store only
 portable metadata and content fingerprints, never media blobs.
@@ -29,7 +31,8 @@ uv run pytest -q tests/test_catalog_store.py tests/test_catalog_projection.py te
 ```
 
 The added cases cover revision change during rebuild, write-time mismatch,
-digest-valid restore mismatch with no target mutation, and direct SQLite
-tampering detected on read/export. This is local integrity evidence only; M5
-still requires the authorized application startup/restart/restore workflow and
-real media availability evidence before acceptance.
+digest-valid restore mismatch with no target mutation, direct SQLite tampering
+detected on read/export, and corrupt persisted state rejected before rebuild
+mutation. This is local integrity evidence only; M5 still requires the
+authorized application startup/restart/restore workflow and real media
+availability evidence before acceptance.
