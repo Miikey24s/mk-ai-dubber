@@ -33,7 +33,7 @@ Current persisted lifecycle after reconciliation:
 - status: `paused`
 - stage: `separation`
 - displayed progress: `8%`
-- `run.lock`: absent
+- `run.lock`: present but stale (`pid=1832`; no matching process). The supported resume path removes it atomically during `claim_job()`; do not delete it manually.
 
 ## Windows lease bug found and fixed
 
@@ -60,7 +60,7 @@ The same retained job was resumed with `--resume` after the lease fix.
 - `original.wav` kept its original size and modification time; it was not extracted again.
 - The run metrics recorded `cache_hits=1` and advanced into BS-Roformer separation.
 - `uv run vi-dubber jobs --limit 1` was executed while the runner was live and reported the job as `running` without terminating it.
-- The smoke run was then interrupted intentionally and reconciled back to `paused`; no live `run.lock` remains.
+- The smoke run was then interrupted intentionally and reconciled back to `paused`; no live runner remains. A stale persisted `run.lock` may remain until the supported resume path claims the job and removes it atomically.
 
 The smoke-run `metrics.json` has `status=failed` because the separation process was interrupted deliberately. This does not invalidate the committed `extract_audio` manifest.
 
