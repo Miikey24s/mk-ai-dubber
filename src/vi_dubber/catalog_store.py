@@ -316,7 +316,7 @@ class CatalogStore:
             connection.commit()
 
     def rebuild(self, items: Iterable[CatalogItem]) -> int:
-        """Atomically replace the manifest projection; user state is retained."""
+        """Atomically replace the projection; state survives only its revision."""
         materialized = [_validate_item(item) for item in items]
         seen: set[str] = set()
         for item in materialized:
@@ -344,6 +344,7 @@ class CatalogStore:
                 [self._item_params(item, now) for item in materialized],
             )
             valid_ids = {item.item_id for item in materialized}
+            revisions = {item.item_id: item.revision for item in materialized}
             connection.executemany(
                 """
                 INSERT INTO user_state (
@@ -361,7 +362,11 @@ class CatalogStore:
                         now,
                     )
                     for row in preserved_states
-                    if row["item_id"] in valid_ids
+                    # Review/bookmark state is scoped to the exact catalog
+                    # revision.  A rebuild may discover a newer job lineage;
+                    # carrying state across that boundary would make an old
+                    # segment index or review decision look current.
+                    if row["item_id"] in valid_ids and row["revision"] == revisions[row["item_id"]]
                 ],
             )
             connection.commit()
@@ -425,8 +430,16 @@ class CatalogStore:
         self._ensure_initialized()
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            if connection.execute("SELECT 1 FROM catalog_items WHERE item_id = ?", (state.item_id,)).fetchone() is None:
+            row = connection.execute(
+                "SELECT revision FROM catalog_items WHERE item_id = ?",
+                (state.item_id,),
+            ).fetchone()
+            if row is None:
                 raise CatalogError(f"cannot persist state for unknown item: {state.item_id}")
+            if row["revision"] != state.revision:
+                raise CatalogError(
+                    f"user state revision {state.revision!r} does not match catalog revision {row['revision']!r}"
+                )
             connection.execute(
                 """
                 INSERT INTO user_state (
@@ -455,8 +468,21 @@ class CatalogStore:
         item_id = _validate_item_id(item_id)
         self._ensure_initialized()
         with self._connect() as connection:
-            row = connection.execute("SELECT * FROM user_state WHERE item_id = ?", (item_id,)).fetchone()
-        return _state_from_row(row) if row is not None else None
+            row = connection.execute(
+                """
+                SELECT user_state.*, catalog_items.revision AS catalog_revision
+                FROM user_state
+                JOIN catalog_items ON catalog_items.item_id = user_state.item_id
+                WHERE user_state.item_id = ?
+                """,
+                (item_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        state = _state_from_row(row)
+        if state.revision != row["catalog_revision"]:
+            raise CatalogIntegrityError("user state revision does not match catalog item revision")
+        return state
 
     def export_metadata(self) -> dict[str, Any]:
         """Return a deterministic, blob-free snapshot of catalog and user state."""
@@ -464,7 +490,19 @@ class CatalogStore:
         with self._connect() as connection:
             connection.execute("BEGIN")
             items = [_item_from_row(row) for row in connection.execute("SELECT * FROM catalog_items ORDER BY item_id")]
-            states = [_state_from_row(row) for row in connection.execute("SELECT * FROM user_state ORDER BY item_id")]
+            states = []
+            for row in connection.execute(
+                """
+                SELECT user_state.*, catalog_items.revision AS catalog_revision
+                FROM user_state
+                JOIN catalog_items ON catalog_items.item_id = user_state.item_id
+                ORDER BY user_state.item_id
+                """
+            ):
+                state = _state_from_row(row)
+                if state.revision != row["catalog_revision"]:
+                    raise CatalogIntegrityError("user state revision does not match catalog item revision")
+                states.append(state)
             connection.commit()
         core = {
             "format": BACKUP_FORMAT,
@@ -658,6 +696,7 @@ def _parse_backup(payload: Mapping[str, Any]) -> tuple[list[CatalogItem], list[U
         seen.add(item.item_id)
         items.append(item)
     states: list[UserState] = []
+    item_revisions = {item.item_id: item.revision for item in items}
     state_fields = {"item_id", "revision", "bookmarks", "review_state", "watch_position_seconds"}
     state_ids: set[str] = set()
     for raw in state_raw:
@@ -671,6 +710,8 @@ def _parse_backup(payload: Mapping[str, Any]) -> tuple[list[CatalogItem], list[U
             raise CatalogIntegrityError("user state backup failed validation") from exc
         if state.item_id not in seen:
             raise CatalogIntegrityError(f"user state references unknown item: {state.item_id}")
+        if state.revision != item_revisions[state.item_id]:
+            raise CatalogIntegrityError("user state revision does not match catalog item revision")
         if state.item_id in state_ids:
             raise CatalogIntegrityError(f"duplicate user state backup item: {state.item_id}")
         state_ids.add(state.item_id)

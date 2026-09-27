@@ -15,6 +15,7 @@ from vi_dubber.catalog_store import (
     CatalogItem,
     CatalogStore,
     UserState,
+    _digest_payload,
 )
 
 
@@ -76,6 +77,33 @@ def test_rebuild_is_atomic_and_retains_state_for_surviving_items(tmp_path: Path)
     assert store.get_item("job-0003") is not None
 
 
+def test_rebuild_drops_user_state_when_surviving_item_revision_changes(tmp_path: Path) -> None:
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    store.rebuild([_item()])
+    store.set_user_state(UserState("job-0001", "r1", (), "reviewed", 18.0))
+
+    revised = CatalogItem(
+        item_id="job-0001",
+        title="Fixture video 0001",
+        source_fingerprint="a" * 64,
+        revision="r2",
+        availability="available",
+        segment_count=4,
+        source_ref="sources/job-0001/source.mp4",
+    )
+    store.rebuild([revised])
+    assert store.get_item("job-0001") == revised
+    assert store.get_user_state("job-0001") is None
+
+
+def test_user_state_revision_must_match_catalog_item(tmp_path: Path) -> None:
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    store.rebuild([_item()])
+    with pytest.raises(CatalogError, match="revision"):
+        store.set_user_state(UserState("job-0001", "r2", (), "reviewed", 0.0))
+    assert store.get_user_state("job-0001") is None
+
+
 def test_search_uses_literal_casefold_and_availability_filter(tmp_path: Path) -> None:
     store = CatalogStore(tmp_path / "catalog.sqlite3")
     store.rebuild(
@@ -125,6 +153,37 @@ def test_metadata_backup_round_trip_verifies_digest_and_excludes_blobs(tmp_path:
     extra_field["api_key"] = "must-not-be-persisted"
     with pytest.raises(CatalogIntegrityError, match="unsupported fields"):
         CatalogStore(tmp_path / "extra.sqlite3").restore_metadata(extra_field)
+
+
+def test_restore_rejects_digest_valid_revision_mismatch_before_mutation(tmp_path: Path) -> None:
+    source = CatalogStore(tmp_path / "source.sqlite3")
+    source.rebuild([_item()])
+    source.set_user_state(UserState("job-0001", "r1", (), "reviewed", 1.0))
+    payload = source.export_metadata()
+    payload["user_state"][0]["revision"] = "r2"
+    core = {key: payload[key] for key in ("format", "schema_version", "catalog", "user_state")}
+    payload["payload_digest"] = _digest_payload(core)
+
+    target = CatalogStore(tmp_path / "target.sqlite3")
+    target.rebuild([_item("existing", title="Keep this")])
+    with pytest.raises(CatalogIntegrityError, match="revision"):
+        target.restore_metadata(payload)
+    assert target.get_item("existing") is not None
+    assert target.get_item("job-0001") is None
+
+
+def test_export_fails_closed_if_sqlite_user_state_is_tampered(tmp_path: Path) -> None:
+    db_path = tmp_path / "catalog.sqlite3"
+    store = CatalogStore(db_path)
+    store.rebuild([_item()])
+    store.set_user_state(UserState("job-0001", "r1", (), "reviewed", 1.0))
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("UPDATE user_state SET revision = 'r2' WHERE item_id = 'job-0001'")
+        connection.commit()
+    with pytest.raises(CatalogIntegrityError, match="revision"):
+        CatalogStore(db_path).export_metadata()
+    with pytest.raises(CatalogIntegrityError, match="revision"):
+        CatalogStore(db_path).get_user_state("job-0001")
 
 
 def test_probe_and_relink_require_exact_fingerprint_and_explicit_mapping(tmp_path: Path) -> None:
