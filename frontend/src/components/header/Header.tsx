@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@/context/I18nContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useJob } from '@/context/JobContext';
@@ -17,8 +17,28 @@ export const Header: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { jobs, activeJobId, setActiveJobId, setIsRawJsonOpen, setIsCreatorOpen } = useJob();
+  const [isJobMenuOpen, setIsJobMenuOpen] = useState(false);
+  const jobMenuRef = useRef<HTMLDivElement>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0];
+
+  useEffect(() => {
+    if (!isJobMenuOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (jobMenuRef.current && !jobMenuRef.current.contains(event.target as Node)) {
+        setIsJobMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsJobMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isJobMenuOpen]);
 
   return (
     <header className="h-[46px] shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#090d16] text-slate-900 dark:text-slate-100 sticky top-0 z-40 select-none transition-colors">
@@ -45,8 +65,20 @@ export const Header: React.FC = () => {
           <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden md:block" />
 
           {/* Job Dropdown */}
-          <div className="relative group">
-            <button className="flex items-center gap-2 h-8 px-2.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-xs font-mono text-slate-800 dark:text-slate-200 transition cursor-pointer">
+          <div
+            ref={jobMenuRef}
+            className="relative group"
+            onMouseEnter={() => setIsJobMenuOpen(true)}
+            onMouseLeave={() => setIsJobMenuOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setIsJobMenuOpen(open => !open)}
+              aria-haspopup="menu"
+              aria-expanded={isJobMenuOpen}
+              aria-controls="header-job-menu"
+              className="flex items-center gap-2 h-8 px-2.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-xs font-mono text-slate-800 dark:text-slate-200 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
+            >
               <span className="max-w-[150px] truncate">
                 {activeJob?.metadata?.input_name || activeJob?.id || t('common.active_job')}
               </span>
@@ -63,7 +95,12 @@ export const Header: React.FC = () => {
             </button>
 
             {/* Dropdown Menu */}
-            <div className="absolute left-0 mt-1 w-72 py-1 bg-white dark:bg-slate-900 rounded-md shadow-xl border border-slate-200 dark:border-slate-700 hidden group-hover:block z-50">
+            <div
+              id="header-job-menu"
+              role="menu"
+              aria-label={t('common.all_jobs')}
+              className={`absolute left-0 mt-1 w-72 py-1 bg-white dark:bg-slate-900 rounded-md shadow-xl border border-slate-200 dark:border-slate-700 ${isJobMenuOpen ? 'block' : 'hidden'} z-50`}
+            >
               <div className="px-3 py-1.5 text-xs font-mono text-slate-600 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
                 {t('common.all_jobs')} ({jobs.length})
               </div>
@@ -71,7 +108,12 @@ export const Header: React.FC = () => {
                 {jobs.map(job => (
                   <button
                     key={job.id}
-                    onClick={() => setActiveJobId(job.id)}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setActiveJobId(job.id);
+                      setIsJobMenuOpen(false);
+                    }}
                     className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer ${
                       job.id === activeJobId ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 font-semibold' : 'text-slate-700 dark:text-slate-300'
                     }`}
