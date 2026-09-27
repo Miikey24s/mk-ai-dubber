@@ -78,7 +78,9 @@ def test_reference_requires_explicit_utc_provenance_and_key_id() -> None:
     ("field", "value", "error"),
     [
         ("account_ref", "account-guess", "request.destination.account_ref_user_selected"),
+        ("account_ref", "user-selected:", "request.destination.account_ref_user_selected"),
         ("parent_ref", "folder-guess", "request.destination.parent_ref_picker_selected"),
+        ("parent_ref", "picker:", "request.destination.parent_ref_picker_selected"),
     ],
 )
 def test_export_authorization_is_fail_closed_to_user_selected_destination(
@@ -132,10 +134,23 @@ def test_cancelled_timeout_cannot_be_reopened_by_reconcile_or_dispatch() -> None
     assert cancelled["status"] == "cancelled"
 
     assert adapter.mark_timeout(request["request_id"])["status"] == "cancelled"
+    assert adapter.revoke(request["request_id"], "connection_revoked")["status"] == "cancelled"
     assert (
         adapter.reconcile(request["request_id"], {"status": "not_found"})["action"]
         == "no_lookup_needed"
     )
+
+
+def test_failed_retry_exhaustion_is_terminal_against_stale_dispatch() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+    for _ in range(3):
+        adapter.mark_timeout(request["request_id"])
+        result = adapter.reconcile(request["request_id"], {"status": "not_found"})
+    assert result["receipt"]["status"] == "failed"
+    assert benchmark.apply_event(result["receipt"], "dispatch_started") == result["receipt"]
 
 
 def test_probe_receipt_records_uri_and_provenance_hardening() -> None:

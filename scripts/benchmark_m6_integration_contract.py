@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = PROJECT_ROOT / "tests" / "fixtures" / "m6_integration_contract.json"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EXPORT_STATUSES = {"pending", "succeeded", "failed", "unknown", "revoked", "cancelled"}
-TERMINAL_STATUSES = {"succeeded", "revoked", "cancelled"}
+TERMINAL_STATUSES = {"succeeded", "failed", "revoked", "cancelled"}
 DEFAULT_RETRY_POLICY = {
     "timeout_seconds": 30,
     "max_attempts": 3,
@@ -174,6 +174,13 @@ def _required_text(payload: dict[str, Any], fields: tuple[str, ...], prefix: str
     return [f"{prefix}.{field}" for field in fields if not str(payload.get(field) or "").strip()]
 
 
+def _has_selected_ref(value: Any, marker: str) -> bool:
+    if not isinstance(value, str) or not value.startswith(marker):
+        return False
+    suffix = value[len(marker) :].strip()
+    return bool(suffix) and not any(ord(char) < 0x20 or ord(char) == 0x7F for char in suffix)
+
+
 def validate_export_request(request: dict[str, Any]) -> list[str]:
     errors = _required_text(request, ("request_id", "idempotency_key"), "request")
     if request.get("schema_version") != "workspace-export-request-v1":
@@ -200,9 +207,9 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
             errors.append("request.destination.scope")
         if destination.get("mode") != "copy":
             errors.append("request.destination.mode")
-        if not str(destination.get("account_ref") or "").startswith("user-selected:"):
+        if not _has_selected_ref(destination.get("account_ref"), "user-selected:"):
             errors.append("request.destination.account_ref_user_selected")
-        if not str(destination.get("parent_ref") or "").startswith("picker:"):
+        if not _has_selected_ref(destination.get("parent_ref"), "picker:"):
             errors.append("request.destination.parent_ref_picker_selected")
     retry_policy = request.get("retry_policy")
     if not isinstance(retry_policy, dict):
@@ -224,7 +231,7 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
     consent = request.get("consent")
     if not isinstance(consent, dict) or consent.get("user_selected") is not True:
         errors.append("request.consent.user_selected")
-    if isinstance(consent, dict) and consent.get("revoked") is True:
+    if not isinstance(consent, dict) or consent.get("revoked") is not False:
         errors.append("request.consent.revoked")
     if _secret_keys(request):
         errors.append("request.secret_fields")
@@ -324,7 +331,13 @@ def reconcile_unknown(
     if remote_status == "not_found":
         policy = retry_policy or DEFAULT_RETRY_POLICY
         max_attempts = policy.get("max_attempts", DEFAULT_RETRY_POLICY["max_attempts"])
-        if int(receipt.get("attempt", 1)) >= max_attempts:
+        try:
+            attempt = int(receipt.get("attempt", 1))
+        except (TypeError, ValueError):
+            return {"action": "manual_reconciliation", "reason": "invalid_attempt"}
+        if not isinstance(max_attempts, int) or max_attempts < 1:
+            return {"action": "manual_reconciliation", "reason": "invalid_retry_policy"}
+        if attempt >= max_attempts:
             return {
                 "action": "retry_exhausted",
                 "status": "failed",
@@ -464,6 +477,8 @@ class OfflineExportAdapter:
         if not str(reason).strip():
             raise ValueError("revocation reason is required")
         entry = self._entry(request_id)
+        if entry["receipt"].get("status") == "cancelled":
+            return deepcopy(entry["receipt"])
         entry["receipt"] = {
             **entry["receipt"],
             "status": "revoked",
