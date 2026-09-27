@@ -121,6 +121,11 @@ def test_metadata_backup_round_trip_verifies_digest_and_excludes_blobs(tmp_path:
         CatalogStore(tmp_path / "tampered.sqlite3").restore_metadata(tampered)
     assert not (tmp_path / "tampered.sqlite3").exists() or CatalogStore(tmp_path / "tampered.sqlite3").search() == []
 
+    extra_field = json.loads(json.dumps(payload))
+    extra_field["api_key"] = "must-not-be-persisted"
+    with pytest.raises(CatalogIntegrityError, match="unsupported fields"):
+        CatalogStore(tmp_path / "extra.sqlite3").restore_metadata(extra_field)
+
 
 def test_probe_and_relink_require_exact_fingerprint_and_explicit_mapping(tmp_path: Path) -> None:
     root = tmp_path / "media-root"

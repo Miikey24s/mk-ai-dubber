@@ -620,6 +620,8 @@ def _digest_payload(payload: Mapping[str, Any]) -> str:
 def _parse_backup(payload: Mapping[str, Any]) -> tuple[list[CatalogItem], list[UserState], dict[str, Any]]:
     if not isinstance(payload, Mapping):
         raise CatalogIntegrityError("catalog backup must be an object")
+    if set(payload) != {"format", "schema_version", "catalog", "user_state", "payload_digest"}:
+        raise CatalogIntegrityError("catalog backup contains unsupported fields")
     if payload.get("format") != BACKUP_FORMAT or payload.get("schema_version") != CATALOG_SCHEMA_VERSION:
         raise CatalogIntegrityError("unsupported catalog backup format or schema")
     catalog_raw = payload.get("catalog")
@@ -628,21 +630,37 @@ def _parse_backup(payload: Mapping[str, Any]) -> tuple[list[CatalogItem], list[U
         raise CatalogIntegrityError("catalog backup lists are invalid")
     items: list[CatalogItem] = []
     seen: set[str] = set()
+    item_fields = {"item_id", "title", "source_fingerprint", "revision", "availability", "segment_count", "source_ref", "metadata"}
     for raw in catalog_raw:
         if not isinstance(raw, Mapping):
             raise CatalogIntegrityError("catalog backup item is invalid")
-        item = _validate_item(CatalogItem(**dict(raw)))
+        if set(raw) != item_fields:
+            raise CatalogIntegrityError("catalog backup item contains unsupported fields")
+        try:
+            item = _validate_item(CatalogItem(**dict(raw)))
+        except (CatalogError, TypeError) as exc:
+            raise CatalogIntegrityError("catalog backup item failed validation") from exc
         if item.item_id in seen:
             raise CatalogIntegrityError(f"duplicate catalog backup item: {item.item_id}")
         seen.add(item.item_id)
         items.append(item)
     states: list[UserState] = []
+    state_fields = {"item_id", "revision", "bookmarks", "review_state", "watch_position_seconds"}
+    state_ids: set[str] = set()
     for raw in state_raw:
         if not isinstance(raw, Mapping):
             raise CatalogIntegrityError("user state backup is invalid")
-        state = _validate_user_state(UserState(**dict(raw)))
+        if set(raw) != state_fields:
+            raise CatalogIntegrityError("user state backup contains unsupported fields")
+        try:
+            state = _validate_user_state(UserState(**dict(raw)))
+        except (CatalogError, TypeError) as exc:
+            raise CatalogIntegrityError("user state backup failed validation") from exc
         if state.item_id not in seen:
             raise CatalogIntegrityError(f"user state references unknown item: {state.item_id}")
+        if state.item_id in state_ids:
+            raise CatalogIntegrityError(f"duplicate user state backup item: {state.item_id}")
+        state_ids.add(state.item_id)
         states.append(state)
     core = {
         "format": BACKUP_FORMAT,
