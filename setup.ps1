@@ -179,7 +179,9 @@ Ensure-FFmpeg
 
 Push-Location $Root
 try {
-    uv sync --dev
+    # Keep clean installs reproducible: the tracked lockfile is the setup contract.
+    # A stale lock must fail loudly instead of silently resolving a new dependency graph.
+    uv sync --dev --locked
     uv run python -m compileall -q src
     if ($ProvisionLocalModel) {
         Install-LocalModel
