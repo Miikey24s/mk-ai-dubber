@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+
 import pytest
 
 from vi_dubber.jobs import (
@@ -88,12 +92,36 @@ def test_running_state_reconciliation_blocks_live_lease_and_recovers_missing_or_
     assert discovered[str(stale_job)]["metadata"]["recovered_from_stale_running"] is True
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific PID probe regression")
+def test_listing_jobs_does_not_terminate_external_live_windows_lease(tmp_path) -> None:
+    job = tmp_path / "job-external-live"
+    job.mkdir()
+    update_job_state(job, status="running", stage="separation", progress=0.08)
+
+    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (job / "run.lock").write_text(
+            json.dumps({"version": 1, "pid": process.pid}) + "\n",
+            encoding="utf-8",
+        )
+
+        discovered = {state["job_dir"]: state for state in list_job_states(tmp_path)}
+
+        assert discovered[str(job)]["status"] == "running"
+        assert process.poll() is None
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        process.wait(timeout=5)
+
+
 def test_job_claim_treats_permission_denied_pid_probe_as_alive(tmp_path, monkeypatch) -> None:
     import vi_dubber.jobs as jobs
 
     job = tmp_path / "job-permission"
     job.mkdir()
     (job / "run.lock").write_text('{"version": 1, "pid": 424242}\n', encoding="utf-8")
+    monkeypatch.setattr(jobs.sys, "platform", "linux")
     monkeypatch.setattr(jobs.os, "kill", lambda *_args: (_ for _ in ()).throw(PermissionError()))
 
     with pytest.raises(JobAlreadyRunning, match="không tạo duplicate run"):
