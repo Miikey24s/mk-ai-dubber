@@ -262,6 +262,97 @@ def apply_event(state: dict[str, Any], event: str) -> dict[str, Any]:
     return next_state
 
 
+class OfflineExportAdapter:
+    """In-memory adapter skeleton for contract tests; it never performs I/O.
+
+    A production connector can replace this boundary with a durable intent and
+    receipt store.  Keeping this object side-effect free makes permission,
+    dedupe, unknown-outcome, and revoke behavior testable before OAuth or a
+    cloud destination is introduced.
+    """
+
+    def __init__(self) -> None:
+        self._intents: dict[str, dict[str, Any]] = {}
+        self._keys: dict[str, str] = {}
+
+    def submit(self, request: dict[str, Any]) -> dict[str, Any]:
+        errors = validate_export_request(request)
+        if errors:
+            raise ValueError("invalid export request: " + ", ".join(errors))
+        key = str(request["idempotency_key"])
+        fingerprint = request_intent_fingerprint(request)
+        previous_fingerprint = self._keys.get(key)
+        if previous_fingerprint is not None and previous_fingerprint != fingerprint:
+            raise ValueError("idempotency key conflicts with an existing export intent")
+        if previous_fingerprint is not None:
+            return deepcopy(self._intents[key]["receipt"])
+
+        receipt = {
+            "schema_version": "workspace-export-receipt-v1",
+            "request_id": request["request_id"],
+            "idempotency_key": key,
+            "destination_provider": request["destination"]["provider"],
+            "status": "pending",
+            "attempt": 1,
+            "reconcile_required": False,
+            "external_id": None,
+            "remote_revision": None,
+            "remote_sha256": None,
+        }
+        self._keys[key] = fingerprint
+        self._intents[key] = {"request": deepcopy(request), "receipt": receipt}
+        return deepcopy(receipt)
+
+    def _entry(self, request_id: str) -> dict[str, Any]:
+        for entry in self._intents.values():
+            if entry["request"]["request_id"] == request_id:
+                return entry
+        raise KeyError(f"unknown request_id: {request_id}")
+
+    def mark_unknown(self, request_id: str) -> dict[str, Any]:
+        entry = self._entry(request_id)
+        entry["receipt"] = apply_event(entry["receipt"], "outcome_unknown")
+        return deepcopy(entry["receipt"])
+
+    def reconcile(self, request_id: str, lookup: dict[str, Any] | None) -> dict[str, Any]:
+        entry = self._entry(request_id)
+        receipt = entry["receipt"]
+        plan = reconcile_unknown(receipt, lookup)
+        if plan["action"] == "adopt_existing":
+            if not isinstance(lookup, dict) or not str(lookup.get("external_id") or "").strip():
+                return {**plan, "action": "manual_reconciliation", "reason": "missing_external_id"}
+            if not _is_sha256(lookup.get("remote_sha256")):
+                return {**plan, "action": "manual_reconciliation", "reason": "missing_remote_sha256"}
+            entry["receipt"] = {
+                **receipt,
+                "status": "succeeded",
+                "reconcile_required": False,
+                "external_id": lookup["external_id"],
+                "remote_revision": str(lookup.get("remote_revision") or "unknown"),
+                "remote_sha256": lookup["remote_sha256"],
+            }
+        elif plan["action"] == "retry_allowed":
+            entry["receipt"] = {**receipt, "status": "pending", "reconcile_required": False}
+        return {**plan, "receipt": deepcopy(entry["receipt"])}
+
+    def revoke(self, request_id: str, reason: str) -> dict[str, Any]:
+        if not str(reason).strip():
+            raise ValueError("revocation reason is required")
+        entry = self._entry(request_id)
+        entry["receipt"] = {
+            **entry["receipt"],
+            "status": "revoked",
+            "reconcile_required": False,
+            "revocation_reason": reason,
+        }
+        return deepcopy(entry["receipt"])
+
+    def cancel(self, request_id: str) -> dict[str, Any]:
+        entry = self._entry(request_id)
+        entry["receipt"] = apply_event(entry["receipt"], "cancel_requested")
+        return deepcopy(entry["receipt"])
+
+
 def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     reference = contract["learn_reference"]
     request = contract["export_request"]
@@ -286,6 +377,20 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     state = {"status": "pending", "reconcile_required": False}
     for event in ("outcome_unknown", "lookup_succeeded", "dispatch_started"):
         state = apply_event(state, event)
+    adapter = OfflineExportAdapter()
+    adapter_initial = adapter.submit(request)
+    adapter_duplicate = adapter.submit(duplicate_request)
+    adapter_unknown = adapter.mark_unknown(request["request_id"])
+    adapter_reconciled = adapter.reconcile(
+        request["request_id"],
+        {
+            "status": "succeeded",
+            "external_id": "drive-file-fixture-0001",
+            "remote_revision": "remote-r7",
+            "remote_sha256": "c" * 64,
+        },
+    )
+    adapter_revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
     return {
         "status": "PREP_ONLY",
         "contract": str(CONTRACT_PATH.relative_to(PROJECT_ROOT)).replace("\\", "/"),
@@ -298,6 +403,13 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
         "idempotency": dedupe,
         "reconciliation": recovery,
         "stale_event_state": state,
+        "offline_adapter": {
+            "initial": adapter_initial,
+            "duplicate_same_intent": adapter_duplicate,
+            "unknown": adapter_unknown,
+            "reconciled": adapter_reconciled,
+            "revoked": adapter_revoked,
+        },
         "claims_excluded": [
             "actual VI-to-Learn or Drive connector behavior",
             "OAuth, account consent, token storage, network, or cloud permissions",

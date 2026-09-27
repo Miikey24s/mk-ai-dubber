@@ -7,6 +7,7 @@ Status: **PREP_ONLY**. This checkpoint prepares a software-only boundary; it doe
 - **VI → Learn reference:** a VI-owned artifact reference keeps artifact ID, revision, source fingerprint, SHA-256, language, source timestamp, QA status, visible resource URI, and a trusted-fixture identity marker. The fixture explicitly denies answer-key exposure and auto-completion.
 - **Export request/receipt:** a user-selected Drive-style destination is represented by `drive.file`, picker destination, data class, source revision/hash, and an idempotency key. Receipts distinguish `unknown`, `succeeded`, and `revoked` and keep external identity/checksum only when known.
 - **Failure semantics:** same-intent retries dedupe; reuse of an idempotency key with a different intent is rejected; an unknown outcome is looked up before retry; a successful lookup is adopted without resend; a not-found lookup is retryable; revoke/cancel and stale events cannot reopen a terminal state.
+- **Offline adapter skeleton:** `OfflineExportAdapter` provides the future connector seam for submit, unknown, reconcile, revoke, and cancel. It is an in-memory contract harness only; it performs no external I/O and is deliberately not a production store.
 
 ## Evidence
 

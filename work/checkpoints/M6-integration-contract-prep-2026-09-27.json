@@ -1,0 +1,124 @@
+{
+  "status": "PREP_ONLY",
+  "contract": "tests/fixtures/m6_integration_contract.json",
+  "validation": {
+    "learn_reference_errors": [],
+    "export_request_errors": [],
+    "receipt_errors": {
+      "unknown": [],
+      "succeeded": [],
+      "revoked": []
+    },
+    "passed": true
+  },
+  "idempotency": [
+    {
+      "request_id": "export-request-fixture-0001",
+      "action": "send_once"
+    },
+    {
+      "request_id": "export-request-fixture-duplicate",
+      "action": "dedupe"
+    },
+    {
+      "request_id": "export-request-fixture-conflict",
+      "action": "reject_conflict"
+    }
+  ],
+  "reconciliation": {
+    "lookup_unavailable": {
+      "action": "manual_reconciliation",
+      "reason": "lookup_unavailable"
+    },
+    "lookup_succeeded": {
+      "action": "adopt_existing",
+      "status": "succeeded",
+      "resend": false
+    },
+    "lookup_not_found": {
+      "action": "retry_allowed",
+      "status": "pending",
+      "resend": true
+    }
+  },
+  "stale_event_state": {
+    "status": "succeeded",
+    "reconcile_required": false
+  },
+  "offline_adapter": {
+    "initial": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "duplicate_same_intent": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "unknown": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "unknown",
+      "attempt": 1,
+      "reconcile_required": true,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "reconciled": {
+      "action": "adopt_existing",
+      "status": "succeeded",
+      "resend": false,
+      "receipt": {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "status": "succeeded",
+        "attempt": 1,
+        "reconcile_required": false,
+        "external_id": "drive-file-fixture-0001",
+        "remote_revision": "remote-r7",
+        "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    },
+    "revoked": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "revoked",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": "drive-file-fixture-0001",
+      "remote_revision": "remote-r7",
+      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "revocation_reason": "user_revoked_connection"
+    }
+  },
+  "claims_excluded": [
+    "actual VI-to-Learn or Drive connector behavior",
+    "OAuth, account consent, token storage, network, or cloud permissions",
+    "cryptographic signature verification beyond the trusted fixture marker",
+    "media bytes upload or remote deletion",
+    "exactly-once delivery; unknown outcomes require lookup/manual reconciliation",
+    "production schema/API implementation"
+  ]
+}

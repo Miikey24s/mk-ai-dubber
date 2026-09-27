@@ -81,6 +81,51 @@ def test_revoke_and_stale_events_cannot_reopen_terminal_export() -> None:
     assert stale == state
 
 
+def test_offline_adapter_is_idempotent_and_never_performs_connector_io() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    duplicate = copy.deepcopy(request)
+    duplicate["request_id"] = "second-request-id"
+
+    first = adapter.submit(request)
+    second = adapter.submit(duplicate)
+    assert first == second
+    assert first["status"] == "pending"
+    assert benchmark.validate_export_receipt(first, request) == []
+
+    conflict = copy.deepcopy(request)
+    conflict["source"]["revision"] = 99
+    with pytest.raises(ValueError, match="idempotency key conflicts"):
+        adapter.submit(conflict)
+
+
+def test_offline_adapter_reconciles_unknown_then_revoke_blocks_reopen() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+    unknown = adapter.mark_unknown(request["request_id"])
+    assert unknown["status"] == "unknown"
+
+    adopted = adapter.reconcile(
+        request["request_id"],
+        {
+            "status": "succeeded",
+            "external_id": "remote-1",
+            "remote_revision": "r2",
+            "remote_sha256": "d" * 64,
+        },
+    )
+    assert adopted["action"] == "adopt_existing"
+    assert adopted["receipt"]["status"] == "succeeded"
+    assert adopted["receipt"]["external_id"] == "remote-1"
+
+    revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
+    assert revoked["status"] == "revoked"
+    assert benchmark.apply_event(revoked, "dispatch_started") == revoked
+
+
 @pytest.mark.parametrize("status", ["unknown", "succeeded", "revoked"])
 def test_receipt_validator_keeps_request_identity(status: str) -> None:
     contract = benchmark.load_contract()
