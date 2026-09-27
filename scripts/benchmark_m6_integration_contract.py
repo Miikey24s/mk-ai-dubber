@@ -12,18 +12,18 @@ import argparse
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = PROJECT_ROOT / "tests" / "fixtures" / "m6_integration_contract.json"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EXPORT_STATUSES = {"pending", "succeeded", "failed", "unknown", "revoked", "cancelled"}
 TERMINAL_STATUSES = {"succeeded", "failed", "revoked", "cancelled"}
+CAPABILITY_STATUSES = {"active", "revoked", "expired"}
 DEFAULT_RETRY_POLICY = {
     "timeout_seconds": 30,
     "max_attempts": 3,
@@ -233,8 +233,71 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
         errors.append("request.consent.user_selected")
     if not isinstance(consent, dict) or consent.get("revoked") is not False:
         errors.append("request.consent.revoked")
+    connection = request.get("connection")
+    if not isinstance(connection, dict):
+        errors.append("request.connection")
+    else:
+        if not str(connection.get("connection_id") or "").strip():
+            errors.append("request.connection.connection_id")
+        if not isinstance(connection.get("epoch"), int) or isinstance(connection.get("epoch"), bool) or connection["epoch"] < 1:
+            errors.append("request.connection.epoch")
     if _secret_keys(request):
         errors.append("request.secret_fields")
+    return errors
+
+
+def validate_connection_capability(
+    capability: dict[str, Any], request: dict[str, Any] | None = None
+) -> list[str]:
+    """Validate the local capability binding without contacting a provider.
+
+    ``epoch`` is intentionally explicit: revoking a connection invalidates all
+    intents bound to its prior epoch, so a later connector cannot silently
+    reuse stale permission state.
+    """
+    errors: list[str] = []
+    if not isinstance(capability, dict):
+        return ["capability"]
+    if capability.get("schema_version") != "workspace-connection-capability-v1":
+        errors.append("capability.schema_version")
+    for field in ("connection_id", "provider", "account_ref", "scope"):
+        if not str(capability.get(field) or "").strip():
+            errors.append(f"capability.{field}")
+    if capability.get("provider") != "drive":
+        errors.append("capability.provider")
+    if capability.get("scope") != "drive.file":
+        errors.append("capability.scope")
+    epoch = capability.get("epoch")
+    if not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 1:
+        errors.append("capability.epoch")
+    if capability.get("status") not in CAPABILITY_STATUSES:
+        errors.append("capability.status")
+    if capability.get("user_selected") is not True:
+        errors.append("capability.user_selected")
+    if capability.get("revoked") is not False and capability.get("status") == "active":
+        errors.append("capability.revoked")
+    if _secret_keys(capability):
+        errors.append("capability.secret_fields")
+
+    if isinstance(request, dict):
+        destination = request.get("destination")
+        binding = request.get("connection")
+        if not isinstance(destination, dict):
+            errors.append("request.destination")
+        else:
+            if destination.get("provider") != capability.get("provider"):
+                errors.append("request.capability.provider_match")
+            if destination.get("account_ref") != capability.get("account_ref"):
+                errors.append("request.capability.account_match")
+            if destination.get("scope") != capability.get("scope"):
+                errors.append("request.capability.scope_match")
+        if not isinstance(binding, dict):
+            errors.append("request.connection")
+        else:
+            if binding.get("connection_id") != capability.get("connection_id"):
+                errors.append("request.capability.connection_id_match")
+            if binding.get("epoch") != capability.get("epoch"):
+                errors.append("request.capability.epoch_match")
     return errors
 
 
@@ -390,9 +453,10 @@ class OfflineExportAdapter:
     cloud destination is introduced.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, capability: dict[str, Any] | None = None) -> None:
         self._intents: dict[str, dict[str, Any]] = {}
         self._keys: dict[str, str] = {}
+        self._capability = deepcopy(capability) if capability is not None else None
 
     def submit(self, request: dict[str, Any]) -> dict[str, Any]:
         errors = validate_export_request(request)
@@ -403,8 +467,16 @@ class OfflineExportAdapter:
         previous_fingerprint = self._keys.get(key)
         if previous_fingerprint is not None and previous_fingerprint != fingerprint:
             raise ValueError("idempotency key conflicts with an existing export intent")
+        # A repeat of an already-recorded intent is a read/dedupe path.  It must
+        # remain safe to inspect after revoke without opening a new dispatch.
         if previous_fingerprint is not None:
             return deepcopy(self._intents[key]["receipt"])
+        if self._capability is not None:
+            capability_errors = validate_connection_capability(self._capability, request)
+            if capability_errors:
+                raise ValueError("invalid connection capability: " + ", ".join(capability_errors))
+            if self._capability.get("status") != "active" or self._capability.get("revoked") is True:
+                raise ValueError("connection capability is not active")
 
         receipt = {
             "schema_version": "workspace-export-receipt-v1",
@@ -427,6 +499,10 @@ class OfflineExportAdapter:
             if entry["request"]["request_id"] == request_id:
                 return entry
         raise KeyError(f"unknown request_id: {request_id}")
+
+    def receipt(self, request_id: str) -> dict[str, Any]:
+        """Read a local receipt without exposing mutable adapter state."""
+        return deepcopy(self._entry(request_id)["receipt"])
 
     def mark_unknown(self, request_id: str) -> dict[str, Any]:
         entry = self._entry(request_id)
@@ -487,6 +563,29 @@ class OfflineExportAdapter:
         }
         return deepcopy(entry["receipt"])
 
+    def revoke_connection(self, reason: str) -> dict[str, Any]:
+        """Revoke a connection epoch and fence non-terminal local intents."""
+        if self._capability is None:
+            raise ValueError("connection capability is required")
+        if not str(reason).strip():
+            raise ValueError("revocation reason is required")
+        self._capability = {
+            **self._capability,
+            "status": "revoked",
+            "revoked": True,
+            "revocation_reason": reason,
+        }
+        for entry in self._intents.values():
+            receipt = entry["receipt"]
+            if receipt.get("status") not in TERMINAL_STATUSES:
+                entry["receipt"] = {
+                    **receipt,
+                    "status": "revoked",
+                    "reconcile_required": False,
+                    "revocation_reason": reason,
+                }
+        return deepcopy(self._capability)
+
     def cancel(self, request_id: str) -> dict[str, Any]:
         entry = self._entry(request_id)
         entry["receipt"] = apply_event(entry["receipt"], "cancel_requested")
@@ -496,9 +595,11 @@ class OfflineExportAdapter:
 def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     reference = contract["learn_reference"]
     request = contract["export_request"]
+    capability = contract["connection_capability"]
     receipts = contract["receipt_examples"]
     reference_errors = validate_learn_reference(reference, contract)
     request_errors = validate_export_request(request)
+    capability_errors = validate_connection_capability(capability, request)
     receipt_errors = {
         name: validate_export_receipt(receipt, request) for name, receipt in receipts.items()
     }
@@ -524,6 +625,13 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
         ),
         "unselected_parent": validate_export_request(
             {**request, "destination": {**request["destination"], "parent_ref": "folder-guess"}}
+        ),
+        "capability_epoch_mismatch": validate_connection_capability(
+            capability,
+            {**request, "connection": {**request["connection"], "epoch": 2}},
+        ),
+        "capability_scope_mismatch": validate_connection_capability(
+            {**capability, "scope": "drive.readonly"}, request
         ),
     }
     duplicate_request = deepcopy(request)
@@ -555,6 +663,18 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
         },
     )
     adapter_revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
+    capability_adapter = OfflineExportAdapter(capability)
+    capability_initial = capability_adapter.submit(request)
+    capability_revoked = capability_adapter.revoke_connection("connection_revoked")
+    capability_fenced_receipt = capability_adapter.receipt(request["request_id"])
+    blocked_request = deepcopy(request)
+    blocked_request["request_id"] = "export-request-fixture-new-after-revoke"
+    blocked_request["idempotency_key"] = "idem-fixture-new-after-revoke"
+    capability_submit_blocked = False
+    try:
+        capability_adapter.submit(blocked_request)
+    except ValueError as error:
+        capability_submit_blocked = str(error) == "connection capability is not active"
     retry_adapter = OfflineExportAdapter()
     retry_adapter.submit(request)
     timeout_receipts = [retry_adapter.mark_timeout(request["request_id"])]
@@ -575,8 +695,12 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
         "validation": {
             "learn_reference_errors": reference_errors,
             "export_request_errors": request_errors,
+            "capability_errors": capability_errors,
             "receipt_errors": receipt_errors,
-            "passed": not reference_errors and not request_errors and not any(receipt_errors.values()),
+            "passed": not reference_errors
+            and not request_errors
+            and not capability_errors
+            and not any(receipt_errors.values()),
         },
         "hardening": {
             "status": "passed" if all(hardening_cases.values()) else "failed",
@@ -587,6 +711,8 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
                 "artifact source timestamp must be explicit UTC with Z suffix",
                 "trusted identity must include a non-empty key_id",
                 "export destination account and parent must carry explicit user-selection markers",
+                "export request must bind to the active connection capability id and epoch",
+                "connection revoke fences pending intents and blocks later dispatch",
                 "export timeout becomes unknown and bounded retry exhaustion becomes terminal failure",
             ],
         },
@@ -607,6 +733,13 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "unknown": adapter_unknown,
             "reconciled": adapter_reconciled,
             "revoked": adapter_revoked,
+        },
+        "connection_capability": {
+            "validation_errors": capability_errors,
+            "initial_receipt": capability_initial,
+            "revoked": capability_revoked,
+            "fenced_receipt": capability_fenced_receipt,
+            "new_dispatch_blocked": capability_submit_blocked,
         },
         "claims_excluded": [
             "actual VI-to-Learn or Drive connector behavior",

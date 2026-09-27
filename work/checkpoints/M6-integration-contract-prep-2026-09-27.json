@@ -4,6 +4,7 @@
   "validation": {
     "learn_reference_errors": [],
     "export_request_errors": [],
+    "capability_errors": [],
     "receipt_errors": {
       "unknown": [],
       "succeeded": [],
@@ -32,6 +33,13 @@
       ],
       "unselected_parent": [
         "request.destination.parent_ref_picker_selected"
+      ],
+      "capability_epoch_mismatch": [
+        "request.capability.epoch_match"
+      ],
+      "capability_scope_mismatch": [
+        "capability.scope",
+        "request.capability.scope_match"
       ]
     },
     "policy": [
@@ -40,6 +48,8 @@
       "artifact source timestamp must be explicit UTC with Z suffix",
       "trusted identity must include a non-empty key_id",
       "export destination account and parent must carry explicit user-selection markers",
+      "export request must bind to the active connection capability id and epoch",
+      "connection revoke fences pending intents and blocks later dispatch",
       "export timeout becomes unknown and bounded retry exhaustion becomes terminal failure"
     ]
   },
@@ -272,6 +282,47 @@
       "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "revocation_reason": "user_revoked_connection"
     }
+  },
+  "connection_capability": {
+    "validation_errors": [],
+    "initial_receipt": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "revoked": {
+      "schema_version": "workspace-connection-capability-v1",
+      "connection_id": "connection-fixture-0001",
+      "provider": "drive",
+      "account_ref": "user-selected:fixture-account",
+      "scope": "drive.file",
+      "epoch": 1,
+      "status": "revoked",
+      "user_selected": true,
+      "revoked": true,
+      "revocation_reason": "connection_revoked"
+    },
+    "fenced_receipt": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "revoked",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "revocation_reason": "connection_revoked"
+    },
+    "new_dispatch_blocked": true
   },
   "claims_excluded": [
     "actual VI-to-Learn or Drive connector behavior",

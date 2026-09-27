@@ -5,6 +5,17 @@
   "runtime_scope": "No connector, OAuth, account, provider, network, media upload, or production code is used by this fixture.",
   "trusted_fixture_issuers": ["vi-dubber-local"],
   "resource_allowlist": ["learn://authorized/"],
+  "connection_capability": {
+    "schema_version": "workspace-connection-capability-v1",
+    "connection_id": "connection-fixture-0001",
+    "provider": "drive",
+    "account_ref": "user-selected:fixture-account",
+    "scope": "drive.file",
+    "epoch": 1,
+    "status": "active",
+    "user_selected": true,
+    "revoked": false
+  },
   "learn_reference": {
     "schema_version": "workspace-learn-reference-v1",
     "reference_id": "learn-ref-fixture-0001",
@@ -49,6 +60,10 @@
       "parent_ref": "picker:fixture-folder",
       "scope": "drive.file",
       "mode": "copy"
+    },
+    "connection": {
+      "connection_id": "connection-fixture-0001",
+      "epoch": 1
     },
     "retry_policy": {
       "timeout_seconds": 30,

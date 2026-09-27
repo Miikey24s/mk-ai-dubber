@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "benchmark_m6_integration_contract.py"
 SPEC = importlib.util.spec_from_file_location("benchmark_m6_integration_contract", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
@@ -91,6 +90,50 @@ def test_export_authorization_is_fail_closed_to_user_selected_destination(
     request["destination"][field] = value
 
     assert error in benchmark.validate_export_request(request)
+
+
+def test_connection_capability_binds_destination_and_epoch() -> None:
+    contract = benchmark.load_contract()
+    capability = contract["connection_capability"]
+    request = contract["export_request"]
+
+    assert benchmark.validate_connection_capability(capability, request) == []
+
+    stale = copy.deepcopy(request)
+    stale["connection"]["epoch"] = 2
+    assert "request.capability.epoch_match" in benchmark.validate_connection_capability(
+        capability, stale
+    )
+
+    wrong_scope = copy.deepcopy(capability)
+    wrong_scope["scope"] = "drive.readonly"
+    assert "capability.scope" in benchmark.validate_connection_capability(
+        wrong_scope, request
+    )
+
+
+def test_connection_revoke_fences_pending_intents_and_blocks_new_dispatch() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter(contract["connection_capability"])
+    request = copy.deepcopy(contract["export_request"])
+
+    pending = adapter.submit(request)
+    assert pending["status"] == "pending"
+    capability = adapter.revoke_connection("user_revoked_connection")
+    assert capability["status"] == "revoked"
+    assert capability["revoked"] is True
+    fenced = adapter.receipt(request["request_id"])
+    assert fenced["status"] == "revoked"
+    assert benchmark.apply_event(fenced, "dispatch_started") == fenced
+
+    # Replaying the same idempotency key is a read/dedupe path, not a new send.
+    assert adapter.submit(copy.deepcopy(request))["status"] == "revoked"
+
+    blocked = copy.deepcopy(request)
+    blocked["request_id"] = "new-request-after-revoke"
+    blocked["idempotency_key"] = "new-idempotency-after-revoke"
+    with pytest.raises(ValueError, match="connection capability is not active"):
+        adapter.submit(blocked)
 
 
 def test_timeout_is_ambiguous_and_bounded_retry_exhaustion_is_terminal() -> None:
