@@ -18,7 +18,8 @@ provider behavior, OAuth, Drive or job12 completion.
   persisted segments without copying transcript text, and reports invalid jobs
   as skipped instead of poisoning the projection.
 - Manifest projection rebuild is atomic and preserves user state for surviving
-  item IDs; duplicate IDs and invalid metadata fail before mutation.
+  item IDs only when the catalog revision is unchanged; stale revision state
+  is dropped, while duplicate IDs and invalid metadata fail before mutation.
 - Search is bounded, deterministic, casefolded and literal (SQL wildcards are
   escaped). Availability is an explicit state, including safe `unknown`.
 - User bookmarks/review state/watch position live in a separate table and are
