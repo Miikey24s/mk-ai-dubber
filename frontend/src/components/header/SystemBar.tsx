@@ -6,6 +6,7 @@ import {
   resolveActiveStageIndex,
   PIPELINE_STAGES,
 } from '@/lib/utils';
+import { deriveEtaTelemetry, finiteNumber } from '@/lib/telemetry';
 import { StageDefinition } from '@/types';
 import { StageDetailModal } from '@/components/pipeline/StageDetailModal';
 import {
@@ -22,46 +23,43 @@ export const SystemBar: React.FC = () => {
   const { activeJob, systemStatus, controlJob } = useJob();
   const { language, t } = useTranslation();
 
-  const [liveElapsed, setLiveElapsed] = useState<number>(0);
+  const [liveElapsed, setLiveElapsed] = useState<number | null>(null);
   const [selectedStage, setSelectedStage] = useState<StageDefinition | null>(null);
 
   const isJobComplete = activeJob?.status === 'completed';
-  const progress = activeJob?.progress || 0;
-  const rtfValue = activeJob?.result?.real_time_factor || 0.77;
-  const audioDuration = activeJob?.result?.duration_seconds || 184.5;
+  const persistedElapsed = activeJob?.result?.elapsed_seconds ?? activeJob?.metrics?.total_wall_seconds;
 
-  // Live timer simulation / sync
   useEffect(() => {
-    if (!activeJob) return;
-    const initialElapsed =
-      activeJob.result?.elapsed_seconds ||
-      activeJob.metrics?.total_wall_seconds ||
-      Math.max(1, Math.floor((Date.now() - new Date(activeJob.created_at).getTime()) / 1000));
-    setLiveElapsed(initialElapsed);
+    if (!activeJob || !finiteNumber(persistedElapsed) || persistedElapsed < 0) {
+      setLiveElapsed(null);
+      return;
+    }
+    setLiveElapsed(persistedElapsed);
 
-    if (activeJob.status === 'running') {
+    if (activeJob.status === 'running' && persistedElapsed >= 0) {
       const timer = setInterval(() => {
-        setLiveElapsed(prev => prev + 1);
+        setLiveElapsed(prev => (prev === null ? prev : prev + 1));
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [activeJob]);
+  }, [activeJob, persistedElapsed]);
 
-  // ETA calculation
-  let remainingSeconds = 0;
-  if (!isJobComplete && progress > 0 && progress < 1) {
-    const estimatedTotal = liveElapsed / progress;
-    remainingSeconds = Math.max(0, estimatedTotal - liveElapsed);
-  } else if (!isJobComplete && progress === 0) {
-    remainingSeconds = audioDuration * rtfValue;
-  }
+  const eta = deriveEtaTelemetry({
+    status: activeJob?.status,
+    progress: activeJob?.progress,
+    elapsedSeconds: liveElapsed,
+    durationSeconds: activeJob?.result?.duration_seconds,
+    realTimeFactor: activeJob?.result?.real_time_factor,
+  });
+  const progress = eta.progress;
 
-  const activeIndex = activeJob
-    ? resolveActiveStageIndex(activeJob.stage, activeJob.progress)
-    : 0;
+  const activeIndex = activeJob && activeJob.stage && progress !== null
+    ? resolveActiveStageIndex(activeJob.stage, progress)
+    : -1;
 
-  const activeStage = PIPELINE_STAGES[activeIndex];
+  const activeStage = activeIndex >= 0 ? PIPELINE_STAGES[activeIndex] ?? null : null;
   const stageName = activeStage ? (language === 'vi' ? activeStage.labelVi : activeStage.labelEn) : '';
+  const unavailable = t('common.unavailable');
 
   return (
     <div className="h-[36px] shrink-0 bg-white dark:bg-[#090d16] border-b border-slate-200 dark:border-slate-800 px-3 flex items-center justify-between text-xs font-mono select-none overflow-x-auto no-scrollbar gap-4 w-full">
@@ -72,7 +70,7 @@ export const SystemBar: React.FC = () => {
           className="font-bold text-slate-800 dark:text-slate-200 hover:text-orange-500 dark:hover:text-orange-400 transition cursor-pointer whitespace-nowrap"
           title={language === 'vi' ? 'Xem chi tiết bước xử lý' : 'Click to view stage details'}
         >
-          {t('system.stage_of', { current: activeIndex + 1, total: 7 })}: {stageName} · {Math.round(progress * 100)}%
+          {activeStage ? t('system.stage_of', { current: activeIndex + 1, total: 7 }) : unavailable}: {stageName || unavailable} · {progress === null ? unavailable : `${Math.round(progress * 100)}%`}
         </button>
         <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full relative mx-2 cursor-pointer" onClick={() => setSelectedStage(activeStage)}>
           {/* 7 stage marker dots */}
@@ -84,7 +82,7 @@ export const SystemBar: React.FC = () => {
           ))}
           {/* Progress fill */}
           <div className="h-full bg-orange-500 rounded-full transition-all duration-500"
-            style={{ width: `${progress * 100}%` }} />
+            style={{ width: progress === null ? '0%' : `${progress * 100}%` }} />
         </div>
       </div>
 
@@ -92,15 +90,15 @@ export const SystemBar: React.FC = () => {
       <div className="flex items-center gap-2 shrink-0">
         <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
           <Timer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-          <span className="text-slate-800 dark:text-slate-100 font-bold tabular-nums">
-            {formatSeconds(liveElapsed)}
+            <span className="text-slate-800 dark:text-slate-100 font-bold tabular-nums">
+            {eta.elapsedSeconds === null ? unavailable : formatSeconds(eta.elapsedSeconds)}
           </span>
         </div>
         <span className="text-slate-300 dark:text-slate-700">/</span>
         <div className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-sky-500" />
           <span className="text-sky-600 dark:text-sky-400 font-bold tabular-nums">
-            {isJobComplete ? t('stepper.completed') : `ETA ${formatSeconds(remainingSeconds)}`}
+            {isJobComplete ? t('stepper.completed') : eta.remainingSeconds === null ? unavailable : `ETA ${formatSeconds(eta.remainingSeconds)}`}
           </span>
         </div>
       </div>

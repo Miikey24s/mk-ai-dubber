@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StageDefinition, JobState } from '@/types';
 import { useTranslation } from '@/context/I18nContext';
 import { X, FileCode2 } from 'lucide-react';
 import { Badge } from '@/components/common/Badge';
+import { nonNegativeFinite } from '@/lib/telemetry';
 
 interface StageDetailModalProps {
   stage: StageDefinition | null;
@@ -11,7 +12,18 @@ interface StageDetailModalProps {
 }
 
 export const StageDetailModal: React.FC<StageDetailModalProps> = ({ stage, job, onClose }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!stage || !job) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    dialogRef.current?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [stage, job, onClose]);
 
   if (!stage || !job) return null;
 
@@ -28,21 +40,40 @@ export const StageDetailModal: React.FC<StageDetailModalProps> = ({ stage, job, 
     }
   }
 
+  const unavailable = t('common.unavailable');
+  const duration = matchingTelemetry && nonNegativeFinite(matchingTelemetry.wall_seconds)
+    ? `${matchingTelemetry.wall_seconds.toFixed(2)}s`
+    : unavailable;
+  const calls = matchingTelemetry && nonNegativeFinite(matchingTelemetry.calls)
+    ? Math.round(matchingTelemetry.calls)
+    : unavailable;
+  const failures = matchingTelemetry && nonNegativeFinite(matchingTelemetry.failed_calls)
+    ? Math.round(matchingTelemetry.failed_calls)
+    : unavailable;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-lg shadow-2xl overflow-hidden text-slate-100 font-mono">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stage-detail-title"
+        tabIndex={-1}
+        className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-lg shadow-2xl overflow-hidden text-slate-100 font-mono focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 bg-slate-950 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded bg-orange-500/20 text-orange-400 border border-orange-500/40 flex items-center justify-center text-xs font-bold">
               0{stage.index + 1}
             </span>
-            <h3 className="text-sm font-semibold text-slate-200">
+            <h3 id="stage-detail-title" className="text-sm font-semibold text-slate-200">
               {language === 'vi' ? stage.labelVi : stage.labelEn}
             </h3>
           </div>
           <button
             onClick={onClose}
+            aria-label={language === 'vi' ? 'Đóng chi tiết bước' : 'Close stage details'}
             className="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition"
           >
             <X className="w-4 h-4" />
@@ -64,19 +95,19 @@ export const StageDetailModal: React.FC<StageDetailModalProps> = ({ stage, job, 
               <div>
                 <span className="text-slate-500 text-2xs block">Duration</span>
                 <span className="text-sky-400 font-bold text-sm">
-                  {matchingTelemetry ? `${matchingTelemetry.wall_seconds.toFixed(2)}s` : '18.40s'}
+                  {duration}
                 </span>
               </div>
               <div>
                 <span className="text-slate-500 text-2xs block">Calls</span>
                 <span className="text-slate-200 font-bold text-sm">
-                  {matchingTelemetry?.calls ?? 1}
+                  {calls}
                 </span>
               </div>
               <div>
                 <span className="text-slate-500 text-2xs block">Failures / Retries</span>
                 <span className="text-emerald-400 font-bold text-sm">
-                  {matchingTelemetry?.failed_calls ?? 0}
+                  {failures}
                 </span>
               </div>
             </div>

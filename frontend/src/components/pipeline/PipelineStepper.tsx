@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { PIPELINE_STAGES, resolveActiveStageIndex } from '@/lib/utils';
+import { nonNegativeFinite, normalizeProgress } from '@/lib/telemetry';
 import { StageDefinition } from '@/types';
 import { StageDetailModal } from './StageDetailModal';
 import { Check, Loader2, Clock } from 'lucide-react';
@@ -13,7 +14,8 @@ export const PipelineStepper: React.FC = () => {
 
   const activeIndex = activeJob
     ? resolveActiveStageIndex(activeJob.stage, activeJob.progress)
-    : 0;
+    : -1;
+  const activeProgress = normalizeProgress(activeJob?.progress);
   const isJobComplete = activeJob?.status === 'completed';
 
   return (
@@ -44,11 +46,12 @@ export const PipelineStepper: React.FC = () => {
 
           // Look up simulated or real stage elapsed duration
           const stageTelemetry = activeJob?.metrics?.stages;
-          let stageSeconds = 0;
+          let stageSeconds: number | null = null;
           if (stageTelemetry) {
             for (const key of Object.keys(stageTelemetry)) {
               if (stage.internalStageNames.some(name => key.includes(name))) {
-                stageSeconds = stageTelemetry[key]?.wall_seconds || 0;
+                const observedSeconds = stageTelemetry[key]?.wall_seconds;
+                stageSeconds = nonNegativeFinite(observedSeconds) ? observedSeconds : null;
                 break;
               }
             }
@@ -58,7 +61,16 @@ export const PipelineStepper: React.FC = () => {
             <div
               key={stage.id}
               onClick={() => setSelectedStage(stage)}
-              className={`relative flex flex-col justify-between p-2.5 rounded-md border text-left cursor-pointer transition-all duration-200 group ${
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setSelectedStage(stage);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`${language === 'vi' ? stage.labelVi : stage.labelEn} ${isDone ? t('stepper.completed') : isCurrent ? (language === 'vi' ? 'Đang chạy' : 'Running') : (language === 'vi' ? 'Đang chờ' : 'Pending')}`}
+              className={`relative flex flex-col justify-between p-2.5 rounded-md border text-left cursor-pointer transition-all duration-200 group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 ${
                 isCurrent
                   ? 'bg-orange-500/10 dark:bg-orange-950/20 border-orange-500/60 shadow-md shadow-orange-500/10'
                   : isDone
@@ -118,7 +130,7 @@ export const PipelineStepper: React.FC = () => {
               <div className="flex items-center justify-between text-2xs font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
                 <span className="text-slate-400 flex items-center gap-1">
                   <Clock className="w-2.5 h-2.5" />
-                  {isDone ? `${stageSeconds > 0 ? stageSeconds.toFixed(1) : '18.4'}s` : isCurrent ? 'RUNNING' : 'WAIT'}
+                  {isDone ? (stageSeconds === null ? t('common.unavailable') : `${stageSeconds.toFixed(1)}s`) : isCurrent ? 'RUNNING' : 'WAIT'}
                 </span>
                 <span
                   className={`font-semibold ${
@@ -129,7 +141,7 @@ export const PipelineStepper: React.FC = () => {
                       : 'text-slate-400'
                   }`}
                 >
-                  {isDone ? 'DONE' : isCurrent ? `${Math.round((activeJob?.progress || 0) * 100)}%` : 'PEND'}
+                  {isDone ? 'DONE' : isCurrent ? (activeProgress === null ? t('common.unavailable') : `${Math.round(activeProgress * 100)}%`) : 'PEND'}
                 </span>
               </div>
             </div>

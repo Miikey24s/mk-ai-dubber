@@ -2,37 +2,39 @@ import React from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { PIPELINE_STAGES } from '@/lib/utils';
+import { nonNegativeFinite, positiveFinite } from '@/lib/telemetry';
 import { Clock } from 'lucide-react';
 
 export const StageLatencyChart: React.FC = () => {
   const { activeJob } = useJob();
   const { language, t } = useTranslation();
 
-  const stagesData = activeJob?.metrics?.stages || {};
-  const totalSeconds = activeJob?.metrics?.total_wall_seconds || 142.8;
+  const stagesData = activeJob?.metrics?.stages;
+  const totalSeconds = activeJob?.metrics?.total_wall_seconds;
+  const unavailable = t('common.unavailable');
 
   // Map the 7 stages to elapsed seconds
   const stageLatencies = PIPELINE_STAGES.map(stg => {
     let sec = 0;
-    for (const key of Object.keys(stagesData)) {
-      if (stg.internalStageNames.some(name => key.includes(name))) {
-        sec += stagesData[key]?.wall_seconds || 0;
+    let hasObservedMetric = false;
+    if (stagesData) {
+      for (const key of Object.keys(stagesData)) {
+        if (stg.internalStageNames.some(name => key.includes(name))) {
+          const value = stagesData[key]?.wall_seconds;
+          if (nonNegativeFinite(value)) {
+            hasObservedMetric = true;
+            sec += value;
+          }
+        }
       }
     }
-    // Fallback baseline for clean display
-    if (sec === 0) {
-      if (stg.id === 'prepare') sec = 2.1;
-      else if (stg.id === 'separation') sec = 18.4;
-      else if (stg.id === 'asr') sec = 24.2;
-      else if (stg.id === 'translation') sec = 46.5;
-      else if (stg.id === 'tts') sec = 28.1;
-      else if (stg.id === 'mix_mux') sec = 6.8;
-      else if (stg.id === 'qa') sec = 16.7;
-    }
-    const percent = Math.min(100, Math.round((sec / totalSeconds) * 100));
+    const seconds = hasObservedMetric ? sec : null;
+    const percent = seconds !== null && positiveFinite(totalSeconds)
+      ? Math.min(100, Math.max(0, Math.round((seconds / totalSeconds) * 100)))
+      : null;
     return {
       stage: stg,
-      seconds: sec,
+      seconds,
       percent,
     };
   });
@@ -47,7 +49,7 @@ export const StageLatencyChart: React.FC = () => {
           </h4>
         </div>
         <span className="text-2xs text-slate-500 font-bold">
-          TOTAL: {totalSeconds.toFixed(1)}s
+          TOTAL: {positiveFinite(totalSeconds) ? `${totalSeconds.toFixed(1)}s` : unavailable}
         </span>
       </div>
 
@@ -60,13 +62,13 @@ export const StageLatencyChart: React.FC = () => {
                 0{stage.index + 1}. {language === 'vi' ? stage.labelVi : stage.labelEn}
               </span>
               <span className="text-slate-500 tabular-nums">
-                {seconds.toFixed(1)}s ({percent}%)
+                {seconds === null ? unavailable : `${seconds.toFixed(1)}s`} {percent === null ? `(${unavailable})` : `(${percent}%)`}
               </span>
             </div>
             <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500/80 rounded-full transition-all duration-300"
-                style={{ width: `${Math.max(4, percent)}%` }}
+                className={`h-full rounded-full transition-all duration-300 ${percent === null ? 'bg-transparent' : 'bg-emerald-500/80'}`}
+                style={{ width: `${percent ?? 0}%` }}
               />
             </div>
           </div>

@@ -244,19 +244,30 @@ export const JobCreatorModal: React.FC = () => {
 
           {/* Quality Profiles */}
           <div className="space-y-2 pt-1">
-            <label className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
+            <span id="quality-profile-label" className="text-2xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">
               {t('creator.quality_profile')}
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+            </span>
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2"
+              role="radiogroup"
+              aria-labelledby="quality-profile-label"
+            >
               {/* Fast */}
-              <div
-                onClick={() => setProfile('fast')}
-                className={`p-3 rounded-md border cursor-pointer transition ${
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="quality-profile"
+                  value="fast"
+                  checked={profile === 'fast'}
+                  onChange={() => setProfile('fast')}
+                  className="sr-only peer"
+                />
+                <span className={`block p-3 rounded-md border transition peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/50 ${
                   profile === 'fast'
                     ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
-              >
+                >
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
                   <Zap className="w-3.5 h-3.5 text-amber-500" />
                   <span>{t('profile.fast')}</span>
@@ -264,17 +275,25 @@ export const JobCreatorModal: React.FC = () => {
                 <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.fast_desc')}
                 </p>
-              </div>
+                </span>
+              </label>
 
               {/* Balanced Fast */}
-              <div
-                onClick={() => setProfile('balanced_fast')}
-                className={`p-3 rounded-md border cursor-pointer transition ${
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="quality-profile"
+                  value="balanced_fast"
+                  checked={profile === 'balanced_fast'}
+                  onChange={() => setProfile('balanced_fast')}
+                  className="sr-only peer"
+                />
+                <span className={`block p-3 rounded-md border transition peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/50 ${
                   profile === 'balanced_fast'
                     ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
-              >
+                >
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
                   <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                   <span>{t('profile.balanced_fast')}</span>
@@ -282,17 +301,25 @@ export const JobCreatorModal: React.FC = () => {
                 <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.balanced_fast_desc')}
                 </p>
-              </div>
+                </span>
+              </label>
 
               {/* Balanced Best */}
-              <div
-                onClick={() => setProfile('balanced_best')}
-                className={`p-3 rounded-md border cursor-pointer transition ${
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="quality-profile"
+                  value="balanced_best"
+                  checked={profile === 'balanced_best'}
+                  onChange={() => setProfile('balanced_best')}
+                  className="sr-only peer"
+                />
+                <span className={`block p-3 rounded-md border transition peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/50 ${
                   profile === 'balanced_best'
                     ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
-              >
+                >
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                   <span>{t('profile.balanced_best')}</span>
@@ -300,17 +327,25 @@ export const JobCreatorModal: React.FC = () => {
                 <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.balanced_best_desc')}
                 </p>
-              </div>
+                </span>
+              </label>
 
               {/* Max Quality */}
-              <div
-                onClick={() => setProfile('max_quality')}
-                className={`p-3 rounded-md border cursor-pointer transition ${
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="quality-profile"
+                  value="max_quality"
+                  checked={profile === 'max_quality'}
+                  onChange={() => setProfile('max_quality')}
+                  className="sr-only peer"
+                />
+                <span className={`block p-3 rounded-md border transition peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/50 ${
                   profile === 'max_quality'
                     ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
                     : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
-              >
+                >
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />
                   <span>{t('profile.max_quality')}</span>
@@ -318,7 +353,8 @@ export const JobCreatorModal: React.FC = () => {
                 <p className="text-3xs text-slate-500 dark:text-slate-400 leading-normal">
                   {t('profile.max_quality_desc')}
                 </p>
-              </div>
+                </span>
+              </label>
             </div>
           </div>
 

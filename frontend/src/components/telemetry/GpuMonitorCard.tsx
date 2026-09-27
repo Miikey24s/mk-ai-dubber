@@ -2,20 +2,34 @@ import React from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { formatBytes } from '@/lib/utils';
+import { nonNegativeFinite, positiveFinite } from '@/lib/telemetry';
 import { Cpu } from 'lucide-react';
 
 export const GpuMonitorCard: React.FC = () => {
-  const { activeJob, systemStatus } = useJob();
+  const { activeJob, systemStatus, isBackendOnline } = useJob();
   const { t } = useTranslation();
 
   const cudaMetrics = activeJob?.metrics?.resources?.torch_cuda_allocator;
-  const allocated = cudaMetrics?.allocated_bytes ?? systemStatus.gpu_vram_used_bytes;
-  const reserved = cudaMetrics?.reserved_bytes ?? 4898947072;
-  const peak = cudaMetrics?.peak_allocated_bytes ?? 5410652160;
-  const total = systemStatus.gpu_vram_total_bytes;
+  const unavailable = t('common.unavailable');
+  const allocated = cudaMetrics && nonNegativeFinite(cudaMetrics.allocated_bytes)
+    ? cudaMetrics.allocated_bytes
+    : null;
+  const reserved = cudaMetrics && nonNegativeFinite(cudaMetrics.reserved_bytes)
+    ? cudaMetrics.reserved_bytes
+    : null;
+  const peak = cudaMetrics && nonNegativeFinite(cudaMetrics.peak_allocated_bytes)
+    ? cudaMetrics.peak_allocated_bytes
+    : null;
+  const total = isBackendOnline === true && positiveFinite(systemStatus.gpu_vram_total_bytes)
+    ? systemStatus.gpu_vram_total_bytes
+    : null;
 
-  const allocatedPct = Math.min(100, Math.round((allocated / total) * 100));
-  const reservedPct = Math.min(100, Math.round((reserved / total) * 100));
+  const allocatedPct = allocated !== null && total !== null
+    ? Math.min(100, Math.max(0, Math.round((allocated / total) * 100)))
+    : null;
+  const reservedPct = reserved !== null && total !== null
+    ? Math.min(100, Math.max(0, Math.round((reserved / total) * 100)))
+    : null;
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 shadow-sm font-mono space-y-3">
@@ -27,7 +41,7 @@ export const GpuMonitorCard: React.FC = () => {
           </h4>
         </div>
         <span className="text-2xs text-slate-500 truncate max-w-[140px]">
-          {cudaMetrics?.device_name || systemStatus.gpu_name.split('(')[0]}
+          {cudaMetrics?.device_name || (isBackendOnline === true && systemStatus.gpu_name ? systemStatus.gpu_name.split('(')[0] : unavailable)}
         </span>
       </div>
 
@@ -36,7 +50,7 @@ export const GpuMonitorCard: React.FC = () => {
         <div className="flex justify-between text-2xs">
           <span className="text-slate-500">Allocated / Reserved / Total:</span>
           <span className="text-slate-700 dark:text-slate-300 font-bold">
-            {formatBytes(allocated)} / {formatBytes(reserved)} / {formatBytes(total)}
+            {allocated === null ? unavailable : formatBytes(allocated)} / {reserved === null ? unavailable : formatBytes(reserved)} / {total === null ? unavailable : formatBytes(total)}
           </span>
         </div>
 
@@ -44,12 +58,12 @@ export const GpuMonitorCard: React.FC = () => {
           {/* Reserved Bar */}
           <div
             className="absolute top-0 bottom-0 bg-sky-900/60 rounded-full"
-            style={{ width: `${reservedPct}%` }}
+            style={{ width: `${reservedPct ?? 0}%` }}
           />
           {/* Active Allocated Bar */}
           <div
             className="absolute top-0 bottom-0 bg-sky-500 rounded-full transition-all duration-500"
-            style={{ width: `${allocatedPct}%` }}
+            style={{ width: `${allocatedPct ?? 0}%` }}
           />
         </div>
       </div>
@@ -58,17 +72,17 @@ export const GpuMonitorCard: React.FC = () => {
       <div className="grid grid-cols-3 gap-2 text-2xs pt-1">
         <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800/80">
           <span className="text-slate-400 block">{t('telemetry.vram_allocated')}</span>
-          <span className="font-bold text-sky-500 text-xs mt-0.5 block">{formatBytes(allocated)}</span>
-          <span className="text-slate-500 text-3xs">{allocatedPct}% utilization</span>
+          <span className="font-bold text-sky-500 text-xs mt-0.5 block">{allocated === null ? unavailable : formatBytes(allocated)}</span>
+          <span className="text-slate-500 text-3xs">{allocatedPct === null ? unavailable : `${allocatedPct}% utilization`}</span>
         </div>
         <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800/80">
           <span className="text-slate-400 block">{t('telemetry.vram_reserved')}</span>
-          <span className="font-bold text-slate-700 dark:text-slate-300 text-xs mt-0.5 block">{formatBytes(reserved)}</span>
-          <span className="text-slate-500 text-3xs">{reservedPct}% pool</span>
+          <span className="font-bold text-slate-700 dark:text-slate-300 text-xs mt-0.5 block">{reserved === null ? unavailable : formatBytes(reserved)}</span>
+          <span className="text-slate-500 text-3xs">{reservedPct === null ? unavailable : `${reservedPct}% pool`}</span>
         </div>
         <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800/80">
           <span className="text-slate-400 block">{t('telemetry.vram_peak')}</span>
-          <span className="font-bold text-amber-500 text-xs mt-0.5 block">{formatBytes(peak)}</span>
+          <span className="font-bold text-amber-500 text-xs mt-0.5 block">{peak === null ? unavailable : formatBytes(peak)}</span>
           <span className="text-slate-500 text-3xs">High watermark</span>
         </div>
       </div>

@@ -16,6 +16,23 @@ export const MOCK_SYSTEM_STATUS: SystemStatus = {
   websocket_connected: true,
 };
 
+// Production starts with an explicit unavailable state until the backend
+// provides telemetry. Demo fixtures opt into MOCK_SYSTEM_STATUS via
+// VITE_DEMO_MODE instead of silently presenting invented runtime values.
+export const EMPTY_SYSTEM_STATUS: SystemStatus = {
+  gpu_name: '',
+  gpu_vram_used_bytes: Number.NaN,
+  gpu_vram_total_bytes: Number.NaN,
+  gpu_utilization_pct: Number.NaN,
+  cpu_utilization_pct: Number.NaN,
+  active_jobs_count: Number.NaN,
+  webgpt_connected: false,
+  webgpt_model: '',
+  webgpt_port: Number.NaN,
+  server_uptime_seconds: Number.NaN,
+  websocket_connected: false,
+};
+
 export const MOCK_SEGMENTS: Segment[] = [
   {
     id: 0,

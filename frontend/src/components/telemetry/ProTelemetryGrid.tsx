@@ -13,74 +13,74 @@ import {
   Check,
 } from 'lucide-react';
 import { Badge } from '@/components/common/Badge';
+import { finiteNumber, nonNegativeFinite, positiveFinite } from '@/lib/telemetry';
 
 export type TelemetryTab = 'cuda' | 'latency' | 'lufs' | 'tokens' | 'raw_json';
 
 export const ProTelemetryGrid: React.FC = () => {
-  const { activeJob, systemStatus, setIsRawJsonOpen } = useJob();
+  const { activeJob, systemStatus, isBackendOnline, setIsRawJsonOpen } = useJob();
   const { language, t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TelemetryTab>('cuda');
   const [copied, setCopied] = useState(false);
 
-  // CUDA Metrics
   const cudaMetrics = activeJob?.metrics?.resources?.torch_cuda_allocator;
-  const allocated = cudaMetrics?.allocated_bytes ?? systemStatus.gpu_vram_used_bytes;
-  const reserved = cudaMetrics?.reserved_bytes ?? 4898947072;
-  const peak = cudaMetrics?.peak_allocated_bytes ?? 5410652160;
-  const total = systemStatus.gpu_vram_total_bytes;
-  const allocatedPct = Math.min(100, Math.round((allocated / total) * 100));
-  const reservedPct = Math.min(100, Math.round((reserved / total) * 100));
+  const unavailable = t('common.unavailable');
+  const hasSystemTelemetry = isBackendOnline === true;
+  const allocated = cudaMetrics && nonNegativeFinite(cudaMetrics.allocated_bytes)
+    ? cudaMetrics.allocated_bytes
+    : null;
+  const reserved = cudaMetrics && nonNegativeFinite(cudaMetrics.reserved_bytes)
+    ? cudaMetrics.reserved_bytes
+    : null;
+  const peak = cudaMetrics && nonNegativeFinite(cudaMetrics.peak_allocated_bytes)
+    ? cudaMetrics.peak_allocated_bytes
+    : null;
+  const total = hasSystemTelemetry && positiveFinite(systemStatus.gpu_vram_total_bytes)
+    ? systemStatus.gpu_vram_total_bytes
+    : null;
+  const allocatedPct = allocated !== null && total !== null
+    ? Math.min(100, Math.max(0, Math.round((allocated / total) * 100)))
+    : null;
+  const reservedPct = reserved !== null && total !== null
+    ? Math.min(100, Math.max(0, Math.round((reserved / total) * 100)))
+    : null;
 
   // Latency Metrics
-  const stagesData = activeJob?.metrics?.stages || {};
-  const totalSeconds = activeJob?.metrics?.total_wall_seconds || 142.8;
+  const stagesData = activeJob?.metrics?.stages;
+  const totalSeconds = activeJob?.metrics?.total_wall_seconds;
   const stageLatencies = PIPELINE_STAGES.map(stg => {
     let sec = 0;
-    for (const key of Object.keys(stagesData)) {
-      if (stg.internalStageNames.some(name => key.includes(name))) {
-        sec += stagesData[key]?.wall_seconds || 0;
+    let hasObservedMetric = false;
+    if (stagesData) {
+      for (const key of Object.keys(stagesData)) {
+        if (stg.internalStageNames.some(name => key.includes(name))) {
+          const value = stagesData[key]?.wall_seconds;
+          if (nonNegativeFinite(value)) {
+            hasObservedMetric = true;
+            sec += value;
+          }
+        }
       }
     }
-    if (sec === 0) {
-      if (stg.id === 'prepare') sec = 2.1;
-      else if (stg.id === 'separation') sec = 18.4;
-      else if (stg.id === 'asr') sec = 24.2;
-      else if (stg.id === 'translation') sec = 46.5;
-      else if (stg.id === 'tts') sec = 28.1;
-      else if (stg.id === 'mix_mux') sec = 6.8;
-      else if (stg.id === 'qa') sec = 16.7;
-    }
-    const percent = Math.min(100, Math.round((sec / totalSeconds) * 100));
-    return { stage: stg, seconds: sec, percent };
+    const seconds = hasObservedMetric ? sec : null;
+    const percent = seconds !== null && positiveFinite(totalSeconds)
+      ? Math.min(100, Math.max(0, Math.round((seconds / totalSeconds) * 100)))
+      : null;
+    return { stage: stg, seconds, percent };
   });
 
-  // Acoustic Mix Metrics
-  const mix = activeJob?.result?.mix || {
-    integrated_lufs: -14.2,
-    true_peak_db: -1.6,
-    loudness_delta_lu: -0.2,
-    loudness_range_lu: 5.4,
-    passes_loudness: true,
-    passes_true_peak: true,
-    target_lufs: -14.0,
-    target_true_peak_db: -1.5,
-  };
+  const mix = activeJob?.result?.mix;
+  const mixStatus = mix && typeof mix.passes_loudness === 'boolean' && typeof mix.passes_true_peak === 'boolean'
+    ? (mix.passes_loudness && mix.passes_true_peak ? 'COMPLIANT' : 'REVIEW')
+    : unavailable;
 
-  // QA & Token Metrics
-  const qa = activeJob?.result?.qa || {
-    similarity: 0.948,
-    threshold: 0.78,
-    passed: true,
-  };
+  const qa = activeJob?.result?.qa;
 
-  const counters = activeJob?.metrics?.counters || {
-    typesafe_tokens: 4120,
-    rewrite_calls: 2,
-    webgpt_batches: 1,
-    qa_repairs: 1,
-    cache_hits: 4,
-    cache_misses: 2,
-  };
+  const counters = activeJob?.metrics?.counters;
+  const formatMetric = (value: unknown, decimals: number, suffix = '') =>
+    finiteNumber(value) ? `${value.toFixed(decimals)}${suffix}` : unavailable;
+  const formatCount = (value: unknown) =>
+    nonNegativeFinite(value) ? Math.round(value).toLocaleString() : unavailable;
 
   const handleCopyJson = () => {
     navigator.clipboard.writeText(JSON.stringify(activeJob || {}, null, 2));
@@ -132,7 +132,7 @@ export const ProTelemetryGrid: React.FC = () => {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
               <span className="text-xs text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">
-                {cudaMetrics?.device_name || systemStatus.gpu_name.split('(')[0]}
+                {cudaMetrics?.device_name || (hasSystemTelemetry && systemStatus.gpu_name ? systemStatus.gpu_name.split('(')[0] : unavailable)}
               </span>
               <Badge variant="info">TORCH CUDA ALLOCATOR</Badge>
             </div>
@@ -141,17 +141,17 @@ export const ProTelemetryGrid: React.FC = () => {
               <div className="flex justify-between text-xs">
                 <span className="text-slate-600 dark:text-slate-300">Allocated / Reserved / Total:</span>
                 <span className="text-slate-900 dark:text-slate-100 font-bold">
-                  {formatBytes(allocated)} / {formatBytes(reserved)} / {formatBytes(total)}
+                  {allocated === null ? unavailable : formatBytes(allocated)} / {reserved === null ? unavailable : formatBytes(reserved)} / {total === null ? unavailable : formatBytes(total)}
                 </span>
               </div>
               <div className="relative w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="absolute top-0 bottom-0 bg-sky-900/60 rounded-full"
-                  style={{ width: `${reservedPct}%` }}
+                  style={{ width: `${reservedPct ?? 0}%` }}
                 />
                 <div
                   className="absolute top-0 bottom-0 bg-sky-500 rounded-full transition-all duration-500"
-                  style={{ width: `${allocatedPct}%` }}
+                  style={{ width: `${allocatedPct ?? 0}%` }}
                 />
               </div>
             </div>
@@ -159,17 +159,17 @@ export const ProTelemetryGrid: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[10px]">{t('telemetry.vram_allocated')}</span>
-                <span className="font-bold text-sky-600 dark:text-sky-400 text-xs sm:text-sm mt-0.5 block">{formatBytes(allocated)}</span>
-                <span className="text-slate-500 dark:text-slate-400 text-[9px]">{allocatedPct}% {language === 'vi' ? 'sử dụng' : 'utilization'}</span>
+                <span className="font-bold text-sky-600 dark:text-sky-400 text-xs sm:text-sm mt-0.5 block">{allocated === null ? unavailable : formatBytes(allocated)}</span>
+                <span className="text-slate-500 dark:text-slate-400 text-[9px]">{allocatedPct === null ? unavailable : `${allocatedPct}% ${language === 'vi' ? 'sử dụng' : 'utilization'}`}</span>
               </div>
               <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[10px]">{t('telemetry.vram_reserved')}</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 block">{formatBytes(reserved)}</span>
-                <span className="text-slate-500 dark:text-slate-400 text-[9px]">{reservedPct}% pool</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm mt-0.5 block">{reserved === null ? unavailable : formatBytes(reserved)}</span>
+                <span className="text-slate-500 dark:text-slate-400 text-[9px]">{reservedPct === null ? unavailable : `${reservedPct}% pool`}</span>
               </div>
               <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[10px]">{t('telemetry.vram_peak')}</span>
-                <span className="font-bold text-amber-600 dark:text-amber-400 text-xs sm:text-sm mt-0.5 block">{formatBytes(peak)}</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400 text-xs sm:text-sm mt-0.5 block">{peak === null ? unavailable : formatBytes(peak)}</span>
                 <span className="text-slate-500 dark:text-slate-400 text-[9px]">{language === 'vi' ? 'Mức đỉnh' : 'High watermark'}</span>
               </div>
             </div>
@@ -184,7 +184,7 @@ export const ProTelemetryGrid: React.FC = () => {
                 {t('telemetry.stage_latency')}
               </span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                WALL TIME: {totalSeconds.toFixed(1)}{t('common.sec')}
+                WALL TIME: {positiveFinite(totalSeconds) ? `${totalSeconds.toFixed(1)}${t('common.sec')}` : unavailable}
               </span>
             </div>
 
@@ -196,13 +196,13 @@ export const ProTelemetryGrid: React.FC = () => {
                       0{stage.index + 1}. {language === 'vi' ? stage.labelVi : stage.labelEn}
                     </span>
                     <span className="text-slate-600 dark:text-slate-300 tabular-nums font-semibold">
-                      {seconds.toFixed(1)}{t('common.sec')} ({percent}%)
+                      {seconds === null ? unavailable : `${seconds.toFixed(1)}${t('common.sec')}`} {percent === null ? `(${unavailable})` : `(${percent}%)`}
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-emerald-500/80 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.max(4, percent)}%` }}
+                      className={`h-full rounded-full transition-all duration-300 ${percent === null ? 'bg-transparent' : 'bg-emerald-500/80'}`}
+                      style={{ width: `${percent ?? 0}%` }}
                     />
                   </div>
                 </div>
@@ -218,30 +218,32 @@ export const ProTelemetryGrid: React.FC = () => {
               <span className="text-xs text-slate-800 dark:text-slate-200 font-bold">
                 ACOUSTIC MASTERING (EBU R128)
               </span>
-              <Badge variant="success">COMPLIANT</Badge>
+              <Badge variant={mixStatus === 'COMPLIANT' ? 'success' : mixStatus === 'REVIEW' ? 'warning' : 'default'}>
+                {mixStatus}
+              </Badge>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{t('telemetry.integrated_lufs')}</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5 block">
-                  {mix.integrated_lufs.toFixed(1)} LUFS
+                  {formatMetric(mix?.integrated_lufs, 1, ' LUFS')}
                 </span>
-                <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Target: {mix.target_lufs.toFixed(1)}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Target: {formatMetric(mix?.target_lufs, 1)}</span>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{t('telemetry.true_peak')}</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5 block">
-                  {mix.true_peak_db.toFixed(2)} dBTP
+                  {formatMetric(mix?.true_peak_db, 2, ' dBTP')}
                 </span>
-                <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Target: {mix.target_true_peak_db.toFixed(1)}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Target: {formatMetric(mix?.target_true_peak_db, 1)}</span>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{t('telemetry.loudness_range')}</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5 block">
-                  {mix.loudness_range_lu.toFixed(1)} LU
+                  {formatMetric(mix?.loudness_range_lu, 1, ' LU')}
                 </span>
                 <span className="text-sky-600 dark:text-sky-400 text-[10px]">Cinema Dynamic</span>
               </div>
@@ -250,7 +252,9 @@ export const ProTelemetryGrid: React.FC = () => {
             <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs space-y-1">
               <div className="flex justify-between text-slate-600 dark:text-slate-300">
                 <span>{language === 'vi' ? 'Tỷ lệ & Nguy cơ Clipping:' : 'Clipping Ratio & Risk:'}</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-bold">0.00% (ZERO CLIPPING)</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  {formatMetric(activeJob?.result?.voice_track?.clipping_ratio, 2, '%')}
+                </span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-300">
                 <span>{language === 'vi' ? 'Tiến trình Mastering Âm thanh:' : 'Acoustic Mastering Pass:'}</span>
@@ -274,28 +278,28 @@ export const ProTelemetryGrid: React.FC = () => {
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{t('telemetry.typesafe_tokens')}</span>
                 <span className="font-bold text-sky-600 dark:text-sky-400 text-sm mt-0.5 block">
-                  {(counters.typesafe_tokens || 4120).toLocaleString()}
+                  {formatCount(counters?.typesafe_tokens)}
                 </span>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{t('telemetry.rewrite_calls')}</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400 text-sm mt-0.5 block">
-                  {counters.rewrite_calls || 2} {language === 'vi' ? 'lần' : 'calls'}
+                  {formatCount(counters?.rewrite_calls)} {language === 'vi' ? 'lần' : 'calls'}
                 </span>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{language === 'vi' ? 'Độ tương đồng QA' : 'QA Similarity'}</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm mt-0.5 block">
-                  {(qa.similarity * 100).toFixed(1)}%
+                  {finiteNumber(qa?.similarity) ? `${(qa.similarity * 100).toFixed(1)}%` : unavailable}
                 </span>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 <span className="text-slate-600 dark:text-slate-300 block text-[11px]">{language === 'vi' ? 'Cache Trúng/Trượt' : 'Cache Hits/Miss'}</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block">
-                  {counters.cache_hits || 4} / {counters.cache_misses || 2}
+                  {formatCount(counters?.cache_hits)} / {formatCount(counters?.cache_misses)}
                 </span>
               </div>
             </div>
@@ -303,7 +307,7 @@ export const ProTelemetryGrid: React.FC = () => {
             <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
               <span className="text-slate-600 dark:text-slate-300">{language === 'vi' ? 'Số lô dịch WebGPT:' : 'WebGPT Sol Batches:'}</span>
               <span className="font-bold text-orange-600 dark:text-orange-400">
-                {counters.webgpt_batches || 1} {language === 'vi' ? 'lô gửi (:8080)' : 'batch dispatched (:8080)'}
+                {formatCount(counters?.webgpt_batches)} {language === 'vi' ? 'lô gửi (:8080)' : 'batch dispatched (:8080)'}
               </span>
             </div>
           </div>

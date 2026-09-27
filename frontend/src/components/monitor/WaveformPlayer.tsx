@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { formatSeconds } from '@/lib/utils';
+import { positiveFinite } from '@/lib/telemetry';
 import { Headphones, Volume2, Mic, Music } from 'lucide-react';
 
 export const WaveformPlayer: React.FC = () => {
@@ -124,8 +125,14 @@ export const WaveformPlayer: React.FC = () => {
           ctx.fill();
         }
 
-        const duration = audioRef.current?.duration || activeJob?.result?.duration_seconds || 1;
-        if (duration > 0 && currentTime !== undefined) {
+        const audioDuration = audioRef.current?.duration;
+        const persistedDuration = activeJob?.result?.duration_seconds;
+        const duration = positiveFinite(audioDuration)
+          ? audioDuration
+          : positiveFinite(persistedDuration)
+            ? persistedDuration
+            : null;
+        if (duration !== null && currentTime !== undefined) {
           const playheadX = (currentTime / duration) * width;
           ctx.fillStyle = '#ef4444';
           ctx.fillRect(playheadX, 0, 2, height);

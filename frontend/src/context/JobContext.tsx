@@ -10,7 +10,7 @@ import {
   uploadMediaFile,
   createDubJob,
 } from '@/lib/api';
-import { MOCK_SYSTEM_STATUS } from '@/lib/mockData';
+import { EMPTY_SYSTEM_STATUS, MOCK_SYSTEM_STATUS, USE_MOCK } from '@/lib/mockData';
 
 interface CreateJobOptions {
   source: 'youtube' | 'file';
@@ -75,7 +75,7 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [selectedPreview, setSelectedPreview] = useState<PreviewArtifact | null>(null);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<'a' | 'b' | 'bgm'>('b');
-  const [systemStatus, setSystemStatus] = useState<SystemStatus>(MOCK_SYSTEM_STATUS);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>(USE_MOCK ? MOCK_SYSTEM_STATUS : EMPTY_SYSTEM_STATUS);
   const [loading, setLoading] = useState<boolean>(false);
   const [isBackendOnline, setIsBackendOnline] = useState<boolean | null>(null);
   const [isRawJsonOpen, setIsRawJsonOpen] = useState<boolean>(false);

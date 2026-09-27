@@ -2,56 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { formatSeconds, formatRtf, resolveActiveStageIndex, PIPELINE_STAGES } from '@/lib/utils';
+import { deriveEtaTelemetry, finiteNumber } from '@/lib/telemetry';
 import { Clock, Zap, Timer, CheckCircle, Activity } from 'lucide-react';
 
 export const DynamicEtaCard: React.FC = () => {
   const { activeJob } = useJob();
   const { language, t } = useTranslation();
 
-  const [liveElapsed, setLiveElapsed] = useState<number>(0);
+  const [liveElapsed, setLiveElapsed] = useState<number | null>(null);
 
   const isCompleted = activeJob?.status === 'completed';
-  const progress = activeJob?.progress || 0;
-  const rtf = activeJob?.result?.real_time_factor || 0.77;
-  const audioDuration = activeJob?.result?.duration_seconds || 184.5;
+  const persistedElapsed = activeJob?.result?.elapsed_seconds ?? activeJob?.metrics?.total_wall_seconds;
 
-  // Running elapsed timer
   useEffect(() => {
-    if (!activeJob) return;
-    const initialElapsed =
-      activeJob.result?.elapsed_seconds ||
-      activeJob.metrics?.total_wall_seconds ||
-      Math.max(1, Math.floor((Date.now() - new Date(activeJob.created_at).getTime()) / 1000));
-    setLiveElapsed(initialElapsed);
+    if (!activeJob || !finiteNumber(persistedElapsed) || persistedElapsed < 0) {
+      setLiveElapsed(null);
+      return;
+    }
+    setLiveElapsed(persistedElapsed);
 
-    if (activeJob.status === 'running') {
+    if (activeJob.status === 'running' && persistedElapsed >= 0) {
       const timer = setInterval(() => {
-        setLiveElapsed(prev => prev + 1);
+        setLiveElapsed(prev => (prev === null ? prev : prev + 1));
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [activeJob]);
+  }, [activeJob, persistedElapsed]);
 
-  // Remaining ETA formula based on running RTF and remaining progress
-  let remainingSeconds = 0;
-  if (!isCompleted && progress > 0 && progress < 1) {
-    const estimatedTotal = liveElapsed / progress;
-    remainingSeconds = Math.max(0, estimatedTotal - liveElapsed);
-  } else if (!isCompleted && progress === 0) {
-    remainingSeconds = audioDuration * rtf;
-  }
-
-  const completionDate = new Date(Date.now() + remainingSeconds * 1000);
-  const completionTimeStr = completionDate.toLocaleTimeString([], {
+  const eta = deriveEtaTelemetry({
+    status: activeJob?.status,
+    progress: activeJob?.progress,
+    elapsedSeconds: liveElapsed,
+    durationSeconds: activeJob?.result?.duration_seconds,
+    realTimeFactor: activeJob?.result?.real_time_factor,
+  });
+  const completionTimeStr = eta.completionAtMs === null ? null : new Date(eta.completionAtMs).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
 
-  const activeStageIdx = activeJob
-    ? resolveActiveStageIndex(activeJob.stage, activeJob.progress)
-    : 0;
-  const currentStageDef = PIPELINE_STAGES[activeStageIdx] || PIPELINE_STAGES[0];
+  const activeStageIdx = activeJob && activeJob.stage
+    ? resolveActiveStageIndex(activeJob.stage, eta.progress ?? 0)
+    : -1;
+  const currentStageDef = activeStageIdx >= 0 ? PIPELINE_STAGES[activeStageIdx] : null;
+  const unavailable = t('common.unavailable');
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 shadow-sm font-mono">
@@ -66,19 +61,21 @@ export const DynamicEtaCard: React.FC = () => {
           className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${
             isCompleted
               ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-              : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+              : eta.remainingSeconds === null
+                ? 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20'
+                : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
           }`}
         >
-          {isCompleted ? 'PIPELINE_COMPLETE' : 'REALTIME_ESTIMATE'}
+          {isCompleted ? 'PIPELINE_COMPLETE' : eta.remainingSeconds === null ? unavailable : 'REALTIME_ESTIMATE'}
         </span>
       </div>
 
       {/* Progress Bar */}
       <div className="space-y-1 mb-4">
         <div className="flex justify-between text-2xs text-slate-500">
-          <span>{language === 'vi' ? currentStageDef.labelVi : currentStageDef.labelEn}</span>
+          <span>{currentStageDef ? (language === 'vi' ? currentStageDef.labelVi : currentStageDef.labelEn) : unavailable}</span>
           <span className="font-bold text-slate-700 dark:text-slate-300">
-            {Math.round(progress * 100)}%
+            {eta.progress === null ? unavailable : `${Math.round(eta.progress * 100)}%`}
           </span>
         </div>
         <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -88,7 +85,7 @@ export const DynamicEtaCard: React.FC = () => {
                 ? 'bg-emerald-500'
                 : 'bg-gradient-to-r from-orange-500 to-amber-500 animate-pulse'
             }`}
-            style={{ width: `${Math.round(progress * 100)}%` }}
+            style={{ width: eta.progress === null ? '0%' : `${Math.round(eta.progress * 100)}%` }}
           />
         </div>
       </div>
@@ -102,7 +99,7 @@ export const DynamicEtaCard: React.FC = () => {
             <span>{t('eta.elapsed')}</span>
           </div>
           <div className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">
-            {formatSeconds(liveElapsed)}
+            {eta.elapsedSeconds === null ? unavailable : formatSeconds(eta.elapsedSeconds)}
           </div>
         </div>
 
@@ -113,7 +110,7 @@ export const DynamicEtaCard: React.FC = () => {
             <span>{t('eta.remaining')}</span>
           </div>
           <div className="text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums">
-            {isCompleted ? '00:00.0' : formatSeconds(remainingSeconds)}
+            {eta.remainingSeconds === null ? unavailable : formatSeconds(eta.remainingSeconds)}
           </div>
         </div>
 
@@ -124,7 +121,7 @@ export const DynamicEtaCard: React.FC = () => {
             <span>{t('eta.speed')}</span>
           </div>
           <div className="text-sm font-bold text-amber-600 dark:text-amber-400">
-            {formatRtf(rtf)}
+            {eta.realTimeFactor === null ? unavailable : formatRtf(eta.realTimeFactor)}
           </div>
         </div>
 
@@ -135,7 +132,7 @@ export const DynamicEtaCard: React.FC = () => {
             <span>{t('eta.completion')}</span>
           </div>
           <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-            {isCompleted ? 'DONE' : completionTimeStr}
+            {isCompleted ? 'DONE' : completionTimeStr ?? unavailable}
           </div>
         </div>
       </div>

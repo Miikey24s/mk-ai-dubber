@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { formatSeconds } from '@/lib/utils';
+import { positiveFinite } from '@/lib/telemetry';
 import {
   Play,
   Pause,
@@ -48,11 +49,20 @@ export const VideoPlayer: React.FC = () => {
 
   const activeSegment = segments[activeSegmentIndex] || segments[0];
   const timelineStart = selectedPreview?.start || 0;
-  const totalDuration = selectedPreview?.duration || videoDuration || activeJob?.result?.duration_seconds || 184.5;
-  const timelineEnd = timelineStart + totalDuration;
+  const previewDuration = selectedPreview?.duration;
+  const persistedDuration = activeJob?.result?.duration_seconds;
+  const totalDuration = positiveFinite(previewDuration)
+    ? previewDuration
+    : positiveFinite(videoDuration)
+      ? videoDuration
+      : positiveFinite(persistedDuration)
+        ? persistedDuration
+        : null;
+  const timelineEnd = totalDuration === null ? null : timelineStart + totalDuration;
   const visibleSegments = selectedPreview
-    ? segments.filter(seg => seg.end > timelineStart && seg.start < timelineEnd)
+    ? timelineEnd === null ? [] : segments.filter(seg => seg.end > timelineStart && seg.start < timelineEnd)
     : segments;
+  const unavailable = t('common.unavailable');
 
   let finalVideoSrc = null;
   if (activeJob && activeJob.status === 'completed') {
@@ -73,14 +83,14 @@ export const VideoPlayer: React.FC = () => {
   // Playback simulation ticker when video file is not an external mp4
   useEffect(() => {
     let interval: any;
-    if (isPlaying && !videoSrc) {
+    if (isPlaying && !videoSrc && totalDuration !== null) {
       interval = setInterval(() => {
         setCurrentTime((prev: number) => {
           const next = prev + 0.1 * playbackSpeed;
           if (isLoopingSegment && activeSegment && next > activeSegment.end) {
             return activeSegment.start;
           }
-          if (next >= totalDuration) {
+           if (next >= totalDuration) {
             setIsPlaying(false);
             return 0;
           }
@@ -92,7 +102,7 @@ export const VideoPlayer: React.FC = () => {
   }, [isPlaying, playbackSpeed, isLoopingSegment, activeSegment, totalDuration, setCurrentTime, setIsPlaying, videoSrc]);
 
   useEffect(() => {
-    if (!videoRef.current || !seekRequest) return;
+    if (!videoRef.current || !seekRequest || totalDuration === null) return;
     const localTime = Math.max(0, seekRequest.time - timelineStart);
     videoRef.current.currentTime = Math.min(localTime, totalDuration);
   }, [seekRequest, timelineStart, totalDuration, videoSrc]);
@@ -362,6 +372,7 @@ export const VideoPlayer: React.FC = () => {
         <div
           className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group"
           onClick={(e) => {
+            if (totalDuration === null) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             const newTime = timelineStart + pct * totalDuration;
@@ -369,7 +380,7 @@ export const VideoPlayer: React.FC = () => {
           }}
         >
           {/* Segment Markers on Seek Bar */}
-          {visibleSegments.map(seg => {
+          {totalDuration !== null && timelineEnd !== null && visibleSegments.map(seg => {
             const clippedStart = Math.max(seg.start, timelineStart);
             const clippedEnd = Math.min(seg.end, timelineEnd);
             const leftPct = ((clippedStart - timelineStart) / totalDuration) * 100;
@@ -395,7 +406,7 @@ export const VideoPlayer: React.FC = () => {
           {/* Current Playhead */}
           <div
             className="absolute top-0 bottom-0 bg-orange-500 rounded-full"
-            style={{ width: `${Math.min(100, Math.max(0, ((currentTime - timelineStart) / totalDuration) * 100))}%` }}
+            style={{ width: totalDuration === null ? '0%' : `${Math.min(100, Math.max(0, ((currentTime - timelineStart) / totalDuration) * 100))}%` }}
           />
         </div>
       </div>
@@ -444,8 +455,8 @@ export const VideoPlayer: React.FC = () => {
           </button>
 
           {/* Timecode */}
-          <span className="text-xs tabular-nums text-slate-300 ml-1">
-            <span className="text-slate-100 font-semibold">{formatSeconds(currentTime)}</span> / {formatSeconds(timelineEnd)}
+            <span className="text-xs tabular-nums text-slate-300 ml-1">
+            <span className="text-slate-100 font-semibold">{formatSeconds(currentTime)}</span> / {timelineEnd === null ? unavailable : formatSeconds(timelineEnd)}
           </span>
         </div>
 

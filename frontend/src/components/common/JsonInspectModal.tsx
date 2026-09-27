@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useJob } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { X, Copy, Check, Download, FileJson } from 'lucide-react';
@@ -8,6 +8,17 @@ export const JsonInspectModal: React.FC = () => {
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState<'state' | 'metrics' | 'segments' | 'result'>('state');
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isRawJsonOpen || !activeJob) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsRawJsonOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    dialogRef.current?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeJob, isRawJsonOpen, setIsRawJsonOpen]);
 
   if (!isRawJsonOpen || !activeJob) return null;
 
@@ -37,12 +48,19 @@ export const JsonInspectModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="flex flex-col w-full max-w-5xl h-[85vh] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl overflow-hidden text-slate-100">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="raw-state-inspector-title"
+        tabIndex={-1}
+        className="flex flex-col w-full max-w-5xl h-[85vh] bg-slate-900 border border-slate-700 rounded-lg shadow-2xl overflow-hidden text-slate-100 focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-slate-950 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <FileJson className="w-5 h-5 text-orange-500" />
-            <h2 className="text-sm font-bold tracking-wide font-mono text-slate-100">
+            <h2 id="raw-state-inspector-title" className="text-sm font-bold tracking-wide font-mono text-slate-100">
               RAW_STATE_INSPECTOR // {activeJob.id}
             </h2>
           </div>
