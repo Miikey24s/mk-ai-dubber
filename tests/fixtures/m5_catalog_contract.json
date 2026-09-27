@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "PREP_ONLY",
+  "purpose": "Deterministic offline contract for the deferred M5 local catalog/search and metadata backup benchmark.",
+  "runtime_scope": "No production catalog, database, provider, OAuth, media blob, or UI behavior is changed by this fixture.",
+  "dataset": {
+    "seed": "m5-catalog-v1",
+    "item_count": 1000,
+    "segment_count": 100000,
+    "segments_per_item": 100,
+    "id_pattern": "job-{index:04d}",
+    "title_pattern": "Fixture video {index:04d}",
+    "availability_cycle": ["available", "missing", "stale", "failed", "pending"]
+  },
+  "search_cases": [
+    {
+      "id": "casefold-title-exact",
+      "query": "FIXTURE VIDEO 0007",
+      "filter": {},
+      "expected_item_ids": ["job-0007"]
+    },
+    {
+      "id": "availability-filter-missing",
+      "query": "",
+      "filter": {"availability": "missing"},
+      "expected_count": 200
+    },
+    {
+      "id": "prefix-title-all",
+      "query": "fixture video 0",
+      "filter": {},
+      "expected_count": 1000
+    }
+  ],
+  "backup_restore": {
+    "backup_schema_version": 1,
+    "include": [
+      "catalog metadata",
+      "manifest identity and revision",
+      "availability state",
+      "user bookmarks and review state"
+    ],
+    "exclude": [
+      "source media bytes",
+      "preview/final media bytes",
+      "provider credentials",
+      "absolute machine paths"
+    ],
+    "required_invariants": [
+      "restored catalog metadata has the same canonical digest",
+      "restored user state is transactionally associated with the same item_id and revision",
+      "missing source remains visibly missing and is never guessed from filename"
+    ]
+  },
+  "budgets": {
+    "list_search_p95_ms": 500,
+    "initial_metadata_view_p95_ms": 2000,
+    "timing_note": "Targets only; this PREP_ONLY harness does not claim product acceptance. Freeze machine, Python, dependency versions, and cold/warm protocol before measuring."
+  }
+}

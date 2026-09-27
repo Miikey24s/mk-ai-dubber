@@ -1,0 +1,31 @@
+{
+  "status": "PREP_ONLY",
+  "contract": "tests/fixtures/m5_catalog_contract.json",
+  "dataset": {
+    "item_count": 1000,
+    "segment_count": 100000,
+    "catalog_digest": "86d056d66253cf240b3bbfad55a410590e1290cfc5e099cd93caaa70eb5ff815"
+  },
+  "search_counts": {
+    "title_exact_casefold": 1,
+    "availability_missing": 200,
+    "title_prefix_all": 1000
+  },
+  "backup": {
+    "metadata_only": true,
+    "digest": "73b02955c9c5eea553c0b9a843ac36e24626e33965dd8d8c29acf7fbaf81d270",
+    "restored_digest": "73b02955c9c5eea553c0b9a843ac36e24626e33965dd8d8c29acf7fbaf81d270"
+  },
+  "timing_seconds": {
+    "catalog_generation": 0.0030906999891158193,
+    "search_cases": 0.0004169000021647662,
+    "segment_iteration": 0.1689409999817144
+  },
+  "claims_excluded": [
+    "product catalog implementation",
+    "SQLite migration/transaction acceptance",
+    "real media availability or relink behavior",
+    "UI rendering or p95 acceptance",
+    "provider, OAuth, cloud export, and blob backup"
+  ]
+}
