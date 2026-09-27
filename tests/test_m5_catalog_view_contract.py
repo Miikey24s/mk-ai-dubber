@@ -28,4 +28,3 @@ def test_m5_catalog_view_probe_is_prep_only_and_fail_closed() -> None:
     }
     assert receipt["scope"]["job12_touched"] is False
     assert "M5 product/UI acceptance" in receipt["claims_excluded"]
-

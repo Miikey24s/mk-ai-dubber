@@ -180,4 +180,3 @@ def catalog_view_from_backup(payload: Mapping[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError) as exc:
         raise CatalogIntegrityError("catalog view backup row is malformed") from exc
     return build_catalog_view(items, states)
-

@@ -126,4 +126,3 @@ def test_catalog_view_from_backup_round_trips_without_mutating_or_exposing_paths
     malformed["user_state"][0]["revision"] = "r2"
     with pytest.raises(CatalogIntegrityError, match="revision"):
         catalog_view_from_backup(malformed)
-

@@ -59,4 +59,3 @@ and it does not wire `CatalogStore` into the application server/frontend. The
 remaining M5 work is owner-approved real-media create/reopen/review/edit/
 rerender/export, app startup/restart persistence, real missing/moved/relink,
 licensed-media and UI/browser acceptance, plus frozen E3 p95/DOM/memory checks.
-
