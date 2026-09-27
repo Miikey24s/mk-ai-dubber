@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import RLock
 from typing import Any, Iterator, Literal
 
 from .artifacts import atomic_write_json
@@ -23,6 +25,16 @@ JobStatus = Literal[
 CONTROL_FILE = "control.json"
 STATE_FILE = "state.json"
 LOCK_FILE = "run.lock"
+EVENTS_FILE = "events.jsonl"
+EVENT_JOURNAL_VERSION = 1
+
+_EVENT_JOURNAL_LOCK = RLock()
+_SENSITIVE_EVENT_KEY = re.compile(
+    r"(?:pass(?:word|phrase)?|secret|token|api[_-]?key|authorization|cookie|"
+    r"storage[_-]?state|access[_-]?token|refresh[_-]?token|credential)",
+    re.IGNORECASE,
+)
+_ABSOLUTE_PATH = re.compile(r"(?:^[A-Za-z]:[\\/]|^\\\\|^/)")
 
 
 class PipelineControl(Exception):
@@ -55,6 +67,134 @@ def load_json(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _redact_event_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
+    """Return a JSON-safe, path/secret-redacted value for the local event journal."""
+    if depth > 8:
+        return "[redacted-depth]"
+    if key and _SENSITIVE_EVENT_KEY.search(key):
+        return "[redacted]"
+    if isinstance(value, dict):
+        return {
+            str(item_key): _redact_event_value(item_value, key=str(item_key), depth=depth + 1)
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_redact_event_value(item, depth=depth + 1) for item in value]
+    if isinstance(value, str):
+        return "[redacted-path]" if _ABSOLUTE_PATH.search(value) else value
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return _redact_event_value(str(value), depth=depth + 1)
+
+
+def _event_lines(path: Path, *, repair_partial: bool = False) -> list[bytes]:
+    """Read complete JSONL lines, optionally dropping an incomplete final line."""
+    try:
+        raw = path.read_bytes()
+    except (OSError, FileNotFoundError):
+        return []
+    if not raw:
+        return []
+    if not raw.endswith(b"\n"):
+        last_newline = raw.rfind(b"\n")
+        if repair_partial:
+            try:
+                with path.open("r+b") as handle:
+                    handle.truncate(max(0, last_newline + 1))
+            except OSError:
+                # The journal is observability only; a read-only or concurrently
+                # replaced file must never prevent the state path from progressing.
+                pass
+        raw = raw[: last_newline + 1]
+    return [line for line in raw.splitlines() if line.strip()]
+
+
+def _valid_event_records(path: Path, *, repair_partial: bool = False) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for line in _event_lines(path, repair_partial=repair_partial):
+        try:
+            value = json.loads(line.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        if value.get("version") != EVENT_JOURNAL_VERSION:
+            continue
+        seq = value.get("seq")
+        event = value.get("event")
+        at = value.get("at")
+        if not isinstance(seq, int) or isinstance(seq, bool) or seq < 1:
+            continue
+        if not isinstance(event, str) or not event.strip() or not isinstance(at, str):
+            continue
+        records.append(value)
+    return records
+
+
+def load_job_events(job_dir: Path, *, limit: int | None = None) -> list[dict[str, Any]]:
+    """Load valid job events while ignoring corrupt or partial trailing records."""
+    if limit is not None and limit <= 0:
+        return []
+    with _EVENT_JOURNAL_LOCK:
+        records = _valid_event_records(job_dir / EVENTS_FILE)
+    if limit is not None:
+        return records[-limit:]
+    return records
+
+
+def append_job_event(
+    job_dir: Path,
+    event: str,
+    *,
+    stage: str | None = None,
+    progress: float | None = None,
+    attempt: int | None = None,
+    payload: Any = None,
+    at: str | None = None,
+) -> dict[str, Any]:
+    """Append one redacted, monotonic event without making it state authority."""
+    if not isinstance(event, str) or not event.strip():
+        raise ValueError("event must be a non-empty string")
+    if attempt is not None and (isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 0):
+        raise ValueError("attempt must be a non-negative integer or None")
+    normalized_progress: float | None = None
+    if progress is not None:
+        normalized_progress = max(0.0, min(1.0, float(progress)))
+    timestamp = at or _now()
+    if not isinstance(timestamp, str) or not timestamp:
+        raise ValueError("at must be a non-empty string")
+    path = job_dir / EVENTS_FILE
+    with _EVENT_JOURNAL_LOCK:
+        job_dir.mkdir(parents=True, exist_ok=True)
+        previous = _valid_event_records(path, repair_partial=True)
+        next_seq = max((int(item["seq"]) for item in previous), default=0) + 1
+        safe_event = _redact_event_value(event.strip())
+        safe_stage = _redact_event_value(stage) if stage is not None else None
+        record: dict[str, Any] = {
+            "version": EVENT_JOURNAL_VERSION,
+            "seq": next_seq,
+            "at": timestamp,
+            "event": safe_event,
+            "stage": safe_stage,
+            "progress": normalized_progress,
+            "attempt": attempt,
+            "payload": _redact_event_value(payload),
+        }
+        encoded = (json.dumps(record, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n").encode(
+            "utf-8"
+        )
+        try:
+            with path.open("ab") as handle:
+                handle.write(encoded)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except OSError:
+            # Preserve the caller's state authority if a best-effort journal is
+            # temporarily unavailable. The state update itself is already durable.
+            raise
+    return record
 
 
 def _pid_is_alive(pid: int) -> bool:
@@ -223,6 +363,26 @@ def update_job_state(
     elif "result" in previous:
         payload["result"] = previous["result"]
     atomic_write_json(path, payload)
+    # state.json remains the source of truth; the journal is a durable,
+    # redacted observability trail and must never make a state transition fail.
+    try:
+        raw_attempt = payload["metadata"].get("attempt")
+        event_attempt = raw_attempt if isinstance(raw_attempt, int) and not isinstance(raw_attempt, bool) else None
+        append_job_event(
+            job_dir,
+            "state.updated",
+            stage=payload.get("stage"),
+            progress=payload.get("progress"),
+            attempt=event_attempt,
+            payload={
+                "status": payload.get("status"),
+                "message": payload.get("message"),
+                "has_error": "error" in payload,
+                "has_result": "result" in payload,
+            },
+        )
+    except (OSError, TypeError, ValueError):
+        pass
     return payload
 
 
