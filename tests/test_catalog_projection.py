@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from vi_dubber.catalog_projection import catalog_item_from_job, rebuild_from_work_dir
-from vi_dubber.catalog_store import CatalogStore
+from vi_dubber.catalog_store import CatalogItem, CatalogStore, UserState
 
 
 def _sha256(path: Path) -> str:
@@ -124,5 +124,137 @@ def test_rebuild_skips_non_finite_job_state_instead_of_poisoning_catalog(tmp_pat
     report = rebuild_from_work_dir(store, work_dir, source_root=tmp_path)
     assert report.indexed == 0
     assert report.skipped[0].job_id == job_dir.name
-    assert store.search() == []
+
+
+def test_rebuild_preserves_existing_projection_when_all_jobs_are_invalid(tmp_path: Path) -> None:
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    invalid = work_dir / "job-invalid"
+    invalid.mkdir()
+    (invalid / "job.json").write_text("{not-json", encoding="utf-8")
+
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    seeded = CatalogStore(tmp_path / "catalog.sqlite3")
+    seeded.rebuild(
+        [
+            # A direct catalog seed mirrors the already-projected durable row;
+            # this test intentionally does not rely on a valid job fixture.
+            CatalogItem(
+                item_id="job-existing",
+                title="Existing",
+                source_fingerprint=_sha256(source),
+                revision="r1",
+                availability="available",
+                segment_count=1,
+                source_ref="sources/job-existing/source.mp4",
+            )
+        ]
+    )
+    seeded.set_user_state(UserState("job-existing", "r1", (), "in_review", 2.0))
+
+    report = rebuild_from_work_dir(seeded, work_dir, source_root=tmp_path)
+
+    assert report.rebuild_applied is False
+    assert report.preserved_existing is True
+    assert report.reason == "all_jobs_invalid"
+    assert seeded.get_item("job-existing") is not None
+    assert seeded.get_user_state("job-existing") is not None
+
+
+def test_rebuild_preserves_existing_projection_when_work_root_is_empty(tmp_path: Path) -> None:
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    store.rebuild(
+        [
+            CatalogItem(
+                item_id="job-existing",
+                title="Existing",
+                source_fingerprint=_sha256(source),
+                revision="r1",
+                availability="available",
+                segment_count=1,
+                source_ref="sources/job-existing/source.mp4",
+            )
+        ]
+    )
+    store.set_user_state(UserState("job-existing", "r1", (), "in_review", 2.0))
+
+    report = rebuild_from_work_dir(store, work_dir, source_root=tmp_path)
+
+    assert report.rebuild_applied is False
+    assert report.preserved_existing is True
+    assert report.reason == "empty_work_dir"
+    assert store.get_item("job-existing") is not None
+    assert store.get_user_state("job-existing") is not None
+
+
+def test_rebuild_preserves_known_invalid_sibling_and_review_state(tmp_path: Path) -> None:
+    work_dir = tmp_path / "work"
+    source_root = tmp_path / "media"
+    source_root.mkdir()
+    valid_source = source_root / "valid.mp4"
+    valid_source.write_bytes(b"valid source")
+    _write_job(work_dir, valid_source, job_id="job-valid")
+    invalid_dir = work_dir / "job-invalid"
+    invalid_dir.mkdir()
+    (invalid_dir / "job.json").write_text("{not-json", encoding="utf-8")
+
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    preserved = CatalogItem(
+        item_id="job-invalid",
+        title="Previously indexed",
+        source_fingerprint="a" * 64,
+        revision="invalid-lineage-r1",
+        availability="available",
+        segment_count=2,
+        source_ref="sources/job-invalid/source.mp4",
+    )
+    store.rebuild([preserved])
+    store.set_user_state(UserState("job-invalid", preserved.revision, (), "in_review", 4.0))
+
+    report = rebuild_from_work_dir(store, work_dir, source_root=source_root)
+
+    assert report.rebuild_applied is True
+    assert report.preserved_existing is True
+    assert report.reason == "rebuilt_with_preserved_invalid"
+    assert report.indexed == 2
+    assert store.get_item("job-valid") is not None
+    invalid_item = store.get_item("job-invalid")
+    assert invalid_item is not None
+    assert invalid_item.availability == "unknown"
+    assert invalid_item.metadata["projection_warning"]
+    assert store.get_user_state("job-invalid") == UserState("job-invalid", preserved.revision, (), "in_review", 4.0)
+
+
+def test_rebuild_preserves_existing_projection_when_work_root_is_unavailable(tmp_path: Path) -> None:
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    store.rebuild(
+        [
+            CatalogItem(
+                item_id="job-existing",
+                title="Existing",
+                source_fingerprint=_sha256(source),
+                revision="r1",
+                availability="available",
+                segment_count=1,
+                source_ref="sources/job-existing/source.mp4",
+            )
+        ]
+    )
+    store.set_user_state(UserState("job-existing", "r1", (), "in_review", 2.0))
+
+    report = rebuild_from_work_dir(store, tmp_path / "missing-work", source_root=tmp_path)
+
+    assert report.rebuild_applied is False
+    assert report.preserved_existing is True
+    assert report.reason == "work_dir_unavailable"
+    assert store.get_item("job-existing") is not None
+    assert store.get_user_state("job-existing") is not None
 

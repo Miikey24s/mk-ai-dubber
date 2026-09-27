@@ -1,0 +1,35 @@
+{
+  "claims_excluded": [
+    "VI M0 baseline acceptance",
+    "M5 product/UI acceptance",
+    "real licensed media availability or relink",
+    "application server/browser wiring",
+    "cold/warm p95 or DOM/memory performance",
+    "provider, OAuth, Drive, network, and Job12 behavior"
+  ],
+  "contract": "vi-dubber-catalog-view-v1",
+  "observations": {
+    "allowlisted_job_metadata": true,
+    "backup_view_round_trip": true,
+    "cross_lineage_state_rejected": true,
+    "invalid_projection_preserved": true,
+    "joined_review_state": true,
+    "mixed_invalid_projection_preserved": true,
+    "stable_schema": true,
+    "unavailable_projection_preserved": true
+  },
+  "scope": {
+    "availability_states": [
+      "available",
+      "missing"
+    ],
+    "connector_called": false,
+    "items": 2,
+    "job12_touched": false,
+    "media_opened": false,
+    "provider_called": false,
+    "review_states": 1,
+    "storage": "temporary SQLite only"
+  },
+  "status": "PREP_ONLY"
+}

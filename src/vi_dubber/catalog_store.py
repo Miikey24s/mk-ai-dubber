@@ -446,6 +446,40 @@ class CatalogStore:
             ).fetchall()
         return [_item_from_row(row) for row in rows]
 
+    def read_view(
+        self,
+        query: str = "",
+        *,
+        availability: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Return the versioned, joined metadata view for a bounded page.
+
+        This is intentionally a read-only bridge for a future Jobs/Review API;
+        it does not publish URLs, open media, or mutate user state.  The import
+        stays local so ``catalog_store`` remains the persistence authority and
+        the view contract cannot create an import cycle.
+        """
+
+        from .catalog_view import build_catalog_view
+
+        items = self.search(query, availability=availability, limit=limit, offset=offset)
+        states = [
+            state
+            for item in items
+            for state in (self.get_user_state(item.item_id),)
+            if state is not None
+        ]
+        return build_catalog_view(
+            items,
+            states,
+            query=query,
+            availability=availability,
+            limit=limit,
+            offset=offset,
+        )
+
     def delete_item(self, item_id: str) -> None:
         """Remove only the catalog projection; source/media is never touched."""
         item_id = _validate_item_id(item_id)

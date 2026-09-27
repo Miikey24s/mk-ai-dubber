@@ -32,6 +32,9 @@ class ProjectionIssue:
 class ProjectionReport:
     indexed: int
     skipped: tuple[ProjectionIssue, ...]
+    rebuild_applied: bool = True
+    preserved_existing: bool = False
+    reason: str = "rebuilt"
 
 
 def _safe_source_alias(job_id: str, source_name: str) -> str:
@@ -187,10 +190,35 @@ def rebuild_from_work_dir(
     *,
     source_root: Path | None = None,
 ) -> ProjectionReport:
-    """Atomically rebuild a catalog projection from local job directories."""
+    """Atomically rebuild a catalog projection from local job directories.
+
+    A missing/unreadable work root or an all-invalid job set is treated as an
+    unavailable projection source.  In those cases the existing catalog and
+    its review state are preserved instead of interpreting a transient mount
+    or corruption as an intentional empty catalog.
+    """
+    root = Path(work_dir)
+    if not root.is_dir():
+        return ProjectionReport(
+            indexed=0,
+            skipped=(ProjectionIssue(root.name or ".", "work_dir_unavailable"),),
+            rebuild_applied=False,
+            preserved_existing=True,
+            reason="work_dir_unavailable",
+        )
     items: list[CatalogItem] = []
     skipped: list[ProjectionIssue] = []
-    for job_dir in sorted(Path(work_dir).glob("job-*"), key=lambda path: path.name):
+    try:
+        job_dirs = sorted(root.glob("job-*"), key=lambda path: path.name)
+    except OSError:
+        return ProjectionReport(
+            indexed=0,
+            skipped=(ProjectionIssue(root.name or ".", "work_dir_unavailable"),),
+            rebuild_applied=False,
+            preserved_existing=True,
+            reason="work_dir_unavailable",
+        )
+    for job_dir in job_dirs:
         try:
             item = catalog_item_from_job(job_dir, source_root=source_root)
         except (CatalogError, OSError, TypeError, ValueError) as exc:
@@ -200,6 +228,63 @@ def rebuild_from_work_dir(
             skipped.append(ProjectionIssue(job_dir.name, "missing or invalid job source identity"))
             continue
         items.append(item)
+    if not job_dirs:
+        return ProjectionReport(
+            indexed=0,
+            skipped=(),
+            rebuild_applied=False,
+            preserved_existing=True,
+            reason="empty_work_dir",
+        )
+    if not items:
+        return ProjectionReport(
+            indexed=0,
+            skipped=tuple(skipped),
+            rebuild_applied=False,
+            preserved_existing=True,
+            reason="all_jobs_invalid",
+        )
+    preserved_invalid_ids: set[str] = set()
+    if skipped:
+        # Keep an already-known item's review/bookmark row when one job is
+        # temporarily unreadable while its siblings are still valid.  The
+        # item is marked unknown so the UI cannot present the old source as
+        # verified; its unchanged lineage revision lets the user annotations
+        # survive the recovery rebuild.
+        try:
+            existing = {issue.job_id: store.get_item(issue.job_id) for issue in skipped}
+        except (CatalogError, OSError, TypeError, ValueError):
+            return ProjectionReport(
+                indexed=0,
+                skipped=tuple(skipped),
+                rebuild_applied=False,
+                preserved_existing=True,
+                reason="existing_projection_unavailable",
+            )
+        current_ids = {item.item_id for item in items}
+        for issue in skipped:
+            old = existing.get(issue.job_id)
+            if old is None or old.item_id in current_ids:
+                continue
+            items.append(
+                CatalogItem(
+                    item_id=old.item_id,
+                    title=old.title,
+                    source_fingerprint=old.source_fingerprint,
+                    revision=old.revision,
+                    availability="unknown",
+                    segment_count=old.segment_count,
+                    source_ref=old.source_ref,
+                    metadata={**dict(old.metadata), "projection_warning": issue.reason},
+                )
+            )
+            preserved_invalid_ids.add(old.item_id)
+        items.sort(key=lambda item: item.item_id)
     store.rebuild(items)
-    return ProjectionReport(indexed=len(items), skipped=tuple(skipped))
+    return ProjectionReport(
+        indexed=len(items),
+        skipped=tuple(skipped),
+        preserved_existing=bool(preserved_invalid_ids),
+        reason="rebuilt_with_preserved_invalid" if preserved_invalid_ids else "rebuilt",
+    )
 
