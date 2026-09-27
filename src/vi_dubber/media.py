@@ -50,6 +50,49 @@ def media_duration(path: Path) -> float:
     return float(json.loads(result.stdout)["format"]["duration"])
 
 
+def _video_codec_name(path: Path) -> str:
+    result = subprocess.run(
+        [
+            str(ffprobe_exe()),
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=codec_name",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    streams = json.loads(result.stdout).get("streams") or []
+    if not streams or not streams[0].get("codec_name"):
+        raise RuntimeError(f"Không xác định được video codec: {path}")
+    return str(streams[0]["codec_name"]).strip().lower()
+
+
+def _mux_video_codec_args(video: Path, output: Path) -> list[str]:
+    if output.suffix.lower() != ".mp4":
+        return ["-c:v", "copy"]
+    if _video_codec_name(video) in {"h264", "hevc", "av1", "mpeg4"}:
+        return ["-c:v", "copy"]
+    return [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+    ]
+
+
 def audio_duration(path: Path) -> float:
     info = sf.info(str(path))
     return float(info.frames) / float(info.samplerate)
@@ -528,6 +571,8 @@ def build_mix_filter_graph(
 
 _LOUDNORM_JSON_RE = re.compile(r"\{\s*\"input_i\".*?\}", re.DOTALL)
 _AAC_TRUE_PEAK_HEADROOM_DB = 0.75
+_AAC_TRUE_PEAK_RETRY_MARGIN_DB = 0.25
+_AAC_TRUE_PEAK_MAX_ATTEMPTS = 3
 
 
 def _parse_loudnorm_measurements(stderr: str) -> dict[str, float]:
@@ -661,39 +706,55 @@ def mux_dubbed_video(
         true_peak_db=true_peak_db,
         duck_background=duck_background,
     )
-    filter_graph = build_mix_filter_graph(
-        background_gain_db=background_gain_db,
-        voice_gain_db=voice_gain_db,
-        final_lufs=final_lufs,
-        true_peak_db=true_peak_db,
-        duck_background=duck_background,
-        loudnorm_measurements=loudnorm_measurements,
-        output_peak_ceiling_db=true_peak_db - _AAC_TRUE_PEAK_HEADROOM_DB,
-    )
-    _run_ffmpeg(
-        [
-            "-i",
-            str(video),
-            "-i",
-            str(background),
-            "-i",
-            str(voice_track),
-            "-filter_complex",
-            filter_graph,
-            "-map",
-            "0:v:0",
-            "-map",
-            "[outa]",
-            "-c:v",
-            "copy",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-shortest",
-            str(output),
-        ]
-    )
+    video_codec_args = _mux_video_codec_args(video, output)
+    headroom_db = _AAC_TRUE_PEAK_HEADROOM_DB
+    for attempt in range(_AAC_TRUE_PEAK_MAX_ATTEMPTS):
+        filter_graph = build_mix_filter_graph(
+            background_gain_db=background_gain_db,
+            voice_gain_db=voice_gain_db,
+            final_lufs=final_lufs,
+            true_peak_db=true_peak_db,
+            duck_background=duck_background,
+            loudnorm_measurements=loudnorm_measurements,
+            output_peak_ceiling_db=true_peak_db - headroom_db,
+        )
+        _run_ffmpeg(
+            [
+                "-i",
+                str(video),
+                "-i",
+                str(background),
+                "-i",
+                str(voice_track),
+                "-filter_complex",
+                filter_graph,
+                "-map",
+                "0:v:0",
+                "-map",
+                "[outa]",
+                *video_codec_args,
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                str(output),
+            ]
+        )
+        encoded_metrics = measure_mix_metrics(
+            output,
+            target_lufs=final_lufs,
+            target_true_peak_db=true_peak_db,
+        )
+        if bool(encoded_metrics["passes_true_peak"]):
+            break
+        if attempt + 1 >= _AAC_TRUE_PEAK_MAX_ATTEMPTS:
+            break
+        encoded_true_peak = float(encoded_metrics["true_peak_db"])
+        if not math.isfinite(encoded_true_peak):
+            break
+        overshoot_db = max(0.0, encoded_true_peak - true_peak_db)
+        headroom_db += overshoot_db + _AAC_TRUE_PEAK_RETRY_MARGIN_DB
     return output
 
 

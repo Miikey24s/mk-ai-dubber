@@ -2720,7 +2720,7 @@ def _run_pipeline_impl(
         "mix_mux",
         inputs=mix_inputs,
         config=mix,
-        versions={"policy": 2},
+        versions={"policy": 3},
     )
     with metrics.stage("mix_mux"):
         if _stage_cache_hit(job_dir, "mix_mux", mix_fingerprint, resume=resume):
@@ -2752,7 +2752,7 @@ def _run_pipeline_impl(
                 inputs=mix_inputs,
                 artifacts=[cached_video, mix_metrics_path],
                 config=mix,
-                versions={"policy": 2},
+                versions={"policy": 3},
             )
         if cached_video.resolve() != output_path.resolve():
             shutil.copy2(cached_video, output_path)

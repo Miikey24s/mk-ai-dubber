@@ -238,6 +238,12 @@ def test_mux_reserves_aac_true_peak_headroom_without_changing_final_target_seman
 
     monkeypatch.setattr(media, "analyze_mix_loudnorm", fake_analyze)
     monkeypatch.setattr(media, "build_mix_filter_graph", fake_graph)
+    monkeypatch.setattr(media, "_video_codec_name", lambda _path: "h264")
+    monkeypatch.setattr(
+        media,
+        "measure_mix_metrics",
+        lambda *_args, **_kwargs: {"passes_true_peak": True, "true_peak_db": -1.6},
+    )
     monkeypatch.setattr(media, "_run_ffmpeg", lambda args: seen.setdefault("ffmpeg", list(args)))
 
     mux_dubbed_video(
@@ -255,6 +261,104 @@ def test_mux_reserves_aac_true_peak_headroom_without_changing_final_target_seman
     assert seen["graph_true_peak_db"] == pytest.approx(-1.5)
     assert seen["output_peak_ceiling_db"] == pytest.approx(-2.25)
     assert "aac" in seen["ffmpeg"]
+    assert seen["ffmpeg"][seen["ffmpeg"].index("-c:v") + 1] == "copy"
+
+
+def test_mux_transcodes_video_codec_that_mp4_cannot_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, list[str]] = {}
+
+    monkeypatch.setattr(
+        media,
+        "analyze_mix_loudnorm",
+        lambda *_args, **_kwargs: {
+            "input_i": -20.4,
+            "input_tp": -3.2,
+            "input_lra": 4.1,
+            "input_thresh": -31.0,
+            "target_offset": 0.2,
+        },
+    )
+    monkeypatch.setattr(
+        media,
+        "build_mix_filter_graph",
+        lambda **_kwargs: "[1:a][2:a]amix=inputs=2[outa]",
+    )
+    monkeypatch.setattr(media, "_video_codec_name", lambda _path: "vp8")
+    monkeypatch.setattr(
+        media,
+        "measure_mix_metrics",
+        lambda *_args, **_kwargs: {"passes_true_peak": True, "true_peak_db": -1.6},
+    )
+    monkeypatch.setattr(media, "_run_ffmpeg", lambda args: seen.setdefault("ffmpeg", list(args)))
+
+    mux_dubbed_video(
+        tmp_path / "video.webm",
+        tmp_path / "background.wav",
+        tmp_path / "voice.wav",
+        tmp_path / "output.mp4",
+        background_gain_db=0.0,
+        voice_gain_db=1.5,
+        final_lufs=-14.0,
+        true_peak_db=-1.5,
+    )
+
+    args = seen["ffmpeg"]
+    assert args[args.index("-c:v") + 1] == "libx264"
+    assert "-preset" in args
+    assert "-crf" in args
+
+
+def test_mux_retries_with_more_headroom_when_encoded_aac_exceeds_true_peak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ceilings: list[float] = []
+    ffmpeg_calls: list[list[str]] = []
+    encoded_metrics = iter(
+        [
+            {"passes_true_peak": False, "true_peak_db": 0.88},
+            {"passes_true_peak": True, "true_peak_db": -1.72},
+        ]
+    )
+
+    monkeypatch.setattr(
+        media,
+        "analyze_mix_loudnorm",
+        lambda *_args, **_kwargs: {
+            "input_i": -20.4,
+            "input_tp": -3.2,
+            "input_lra": 4.1,
+            "input_thresh": -31.0,
+            "target_offset": 0.2,
+        },
+    )
+
+    def fake_graph(*, output_peak_ceiling_db: float, **_kwargs) -> str:
+        ceilings.append(output_peak_ceiling_db)
+        return "[1:a][2:a]amix=inputs=2[outa]"
+
+    monkeypatch.setattr(media, "build_mix_filter_graph", fake_graph)
+    monkeypatch.setattr(media, "_video_codec_name", lambda _path: "h264")
+    monkeypatch.setattr(media, "measure_mix_metrics", lambda *_args, **_kwargs: next(encoded_metrics))
+    monkeypatch.setattr(media, "_run_ffmpeg", lambda args: ffmpeg_calls.append(list(args)))
+
+    mux_dubbed_video(
+        tmp_path / "video.mp4",
+        tmp_path / "background.wav",
+        tmp_path / "voice.wav",
+        tmp_path / "output.mp4",
+        background_gain_db=0.0,
+        voice_gain_db=1.5,
+        final_lufs=-14.0,
+        true_peak_db=-1.5,
+    )
+
+    assert len(ffmpeg_calls) == 2
+    assert ceilings[0] == pytest.approx(-2.25)
+    assert ceilings[1] == pytest.approx(-4.88)
 
 
 def test_mix_graph_can_add_codec_peak_limiter_after_loudnorm() -> None:
