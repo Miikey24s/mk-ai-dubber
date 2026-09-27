@@ -429,6 +429,10 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             {**reference, "artifact": {**reference["artifact"], "source_timestamp_utc": "2026-09-27T17:00:00+07:00"}},
             contract,
         ),
+        "missing_trusted_key_id": validate_learn_reference(
+            {**reference, "identity": {**reference["identity"], "key_id": ""}},
+            contract,
+        ),
     }
     duplicate_request = deepcopy(request)
     duplicate_request["request_id"] = "export-request-fixture-duplicate"

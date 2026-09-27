@@ -7,7 +7,7 @@ provenance timestamp, a non-empty trusted-fixture `key_id`, and an exact URI sch
 authority match. It rejects look-alike authorities, decoded path traversal,
 backslashes, query/fragment mutation, and control characters before a reference can
 cross the local contract boundary. The focused contract suite passes **18 tests**;
-the generated receipt records three negative hardening cases and remains
+the generated receipt records four negative hardening cases and remains
 `PREP_ONLY`.
 
 ## Scope

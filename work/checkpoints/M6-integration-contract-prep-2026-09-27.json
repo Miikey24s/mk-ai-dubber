@@ -22,6 +22,9 @@
       ],
       "non_utc_timestamp": [
         "reference.artifact.source_timestamp_utc_format"
+      ],
+      "missing_trusted_key_id": [
+        "reference.identity.key_id"
       ]
     },
     "policy": [
