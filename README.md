@@ -53,6 +53,8 @@ Web dashboard:
 
 Mở `http://127.0.0.1:7860`, chọn tệp trên máy hoặc dán URL YouTube, sau đó chọn backend dịch. Dashboard hiển thị progress theo các stage thật của pipeline, video đầu ra, SRT và thống kê tác vụ.
 
+Dashboard và thư mục `work/` mặc định chỉ bind trên localhost. CLI từ chối bind ra mạng nếu chưa set rõ `VI_DUBBER_ALLOW_REMOTE_BIND=1`; khi chạy remote, tự cấu hình lớp xác thực/reverse proxy và danh sách origin CORS qua `VI_DUBBER_CORS_ORIGINS` (phân tách bằng dấu phẩy). Không dùng wildcard CORS cho deployment chứa artifact cá nhân.
+
 Khi dùng WebGPT, pipeline không đổi route global trong `~/.codex/config.toml`. VI Dubber gọi trực tiếp `http://127.0.0.1:17850/v1/responses`, health-check port và live model catalog trước khi chạy; coding harness, MCP, cwd/filesystem và subagents không đi vào production translation request.
 
 Khởi tạo runtime riêng một lần:

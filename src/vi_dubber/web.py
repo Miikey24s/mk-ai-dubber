@@ -23,7 +23,7 @@ from .pipeline import load_config, run_pipeline
 from .preflight import raise_for_preflight, run_preflight
 from .profiles import normalize_profile
 from .review import ReviewDataError, load_review_rows, review_summary, update_segment_review
-from .runtime import PROJECT_ROOT, WORK_DIR, configure_runtime
+from .runtime import PROJECT_ROOT, WORK_DIR, configure_runtime, validate_server_bind_host
 from .translate import PINNED_WEBGPT_MODEL, webgpt_route_info
 from .youtube import download_youtube
 
@@ -3265,4 +3265,4 @@ def launch_app(host: str = "127.0.0.1", port: int = 7860, share: bool = False) -
     demo.queue(default_concurrency_limit=1)
     api = create_app()
     app = gr.mount_gradio_app(api, demo, path="/gradio")
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=validate_server_bind_host(host), port=port)

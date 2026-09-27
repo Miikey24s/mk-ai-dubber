@@ -11,6 +11,22 @@ TOOLS_DIR = PROJECT_ROOT / "tools"
 MODELS_DIR = PROJECT_ROOT / "models"
 WORK_DIR = PROJECT_ROOT / "work"
 
+LOCAL_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def validate_server_bind_host(host: str) -> str:
+    """Keep the local-only dashboard local unless remote exposure is explicit."""
+
+    normalized = str(host or "").strip().lower()
+    if not normalized:
+        raise ValueError("Server host không được để trống.")
+    if normalized not in LOCAL_BIND_HOSTS and os.getenv("VI_DUBBER_ALLOW_REMOTE_BIND") != "1":
+        raise ValueError(
+            "VI Dubber mặc định chỉ bind localhost để bảo vệ work artifacts; "
+            "set VI_DUBBER_ALLOW_REMOTE_BIND=1 khi đã tự cấu hình lớp bảo vệ remote."
+        )
+    return normalized
+
 _DLL_HANDLES: list[object] = []
 
 

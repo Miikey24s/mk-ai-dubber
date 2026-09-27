@@ -56,6 +56,18 @@ _active_threads: dict[str, threading.Thread] = {}
 _active_threads_lock = threading.Lock()
 
 
+def _cors_origins() -> list[str]:
+    """Return explicit browser origins; never combine wildcard CORS with credentials."""
+
+    configured = os.getenv("VI_DUBBER_CORS_ORIGINS", "").strip()
+    if configured:
+        return [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+    return [
+        "http://127.0.0.1:7860",
+        "http://localhost:7860",
+    ]
+
+
 def _ensure_webgpt_runtime_ready() -> dict[str, Any]:
     """Self-heal the dedicated translation runtime before accepting a job."""
     current = runtime_status(timeout=0.5)
@@ -376,7 +388,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

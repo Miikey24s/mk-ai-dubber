@@ -387,6 +387,42 @@ def _sanitize_webgpt_diagnostic_preview(text: str) -> str:
     return preview[:WEBGPT_DIAGNOSTIC_PREVIEW_CHARS]
 
 
+# Provider failures are copied into persisted job state and surfaced by the
+# API/UI.  Keep the small set of operational clues that help a user act while
+# dropping arbitrary response bodies, prompts, paths, and credentials.  A
+# provider can echo request content in an HTTP error, so truncating the raw
+# body alone is not a sufficient boundary.
+_SAFE_PROVIDER_DETAIL_PATTERNS = (
+    re.compile(r"\bHTTP\s+\d{3}\b", re.IGNORECASE),
+    re.compile(r"\bselected model is at capacity\b", re.IGNORECASE),
+    re.compile(r"\bat capacity\b", re.IGNORECASE),
+    re.compile(r"\brate limit exceeded\b", re.IGNORECASE),
+    re.compile(r"\bcooldown active\b", re.IGNORECASE),
+    re.compile(r"\btemporary execution failure\b", re.IGNORECASE),
+    re.compile(r"\btemporary route failure\b", re.IGNORECASE),
+    re.compile(r"\btemporary failure\b", re.IGNORECASE),
+    re.compile(r"\bsynthetic route down\b", re.IGNORECASE),
+    re.compile(r"\bweb route unavailable\b", re.IGNORECASE),
+    re.compile(r"\broute unavailable\b", re.IGNORECASE),
+    re.compile(r"\bmodel not found\b", re.IGNORECASE),
+    re.compile(r"\bpermission denied\b", re.IGNORECASE),
+    re.compile(r"\bauthentication failed\b", re.IGNORECASE),
+    re.compile(r"\binvalid request\b", re.IGNORECASE),
+    re.compile(r"\b(?:request )?timed? out\b", re.IGNORECASE),
+)
+
+
+def _safe_provider_detail(value: Any) -> str:
+    """Return an actionable, bounded provider detail without persisting raw data."""
+
+    preview = _sanitize_webgpt_diagnostic_preview(str(value or ""))
+    for pattern in _SAFE_PROVIDER_DETAIL_PATTERNS:
+        match = pattern.search(preview)
+        if match:
+            return match.group(0).lower()
+    return "provider detail redacted"
+
+
 def _bounded_webgpt_diagnostic_value(value: Any) -> Any:
     if isinstance(value, str):
         return value[:WEBGPT_DIAGNOSTIC_METADATA_CHARS]
@@ -755,9 +791,12 @@ def webgpt_model_catalog(config: dict[str, Any] | None = None) -> dict[str, Any]
     try:
         response = requests.get(f"{base_url}/models", timeout=max(1.0, timeout))
     except requests.RequestException as exc:
-        raise RuntimeError(f"Không thể lấy model catalog từ Dedicated Dubber-WebGPT tại {base_url}: {exc}") from exc
+        raise RuntimeError(
+            "Không thể lấy model catalog từ Dedicated Dubber-WebGPT "
+            f"tại {base_url}: {_safe_provider_detail(exc)}"
+        ) from exc
     if not response.ok:
-        detail = response.text.strip()[:600]
+        detail = _safe_provider_detail(response.text)
         raise RuntimeError(
             f"Dedicated Dubber-WebGPT model catalog trả HTTP {response.status_code}"
             + (f": {detail}" if detail else "")
@@ -871,9 +910,11 @@ def aurora_model_catalog(config: dict[str, Any]) -> dict[str, Any]:
             timeout=max(1.0, timeout),
         )
     except requests.RequestException as exc:
-        raise RuntimeError(f"Không thể lấy model catalog từ Aurora tại {base_url}: {exc}") from exc
+        raise RuntimeError(
+            f"Không thể lấy model catalog từ Aurora tại {base_url}: {_safe_provider_detail(exc)}"
+        ) from exc
     if not response.ok:
-        detail = response.text.strip()[:600]
+        detail = _safe_provider_detail(response.text)
         raise RuntimeError(
             f"Aurora model catalog trả HTTP {response.status_code}"
             + (f": {detail}" if detail else "")
@@ -935,7 +976,7 @@ def webgpt_route_info(config: dict[str, Any] | None = None) -> dict[str, str | b
             "model": str(config.get("webgpt_model") or DEFAULT_WEBGPT_MODEL),
             "base_url": "",
             "port": WEBGPT_INSTANCE_PORT,
-            "reason": str(exc),
+            "reason": _safe_provider_detail(exc),
         }
     model = str(config.get("webgpt_model") or DEFAULT_WEBGPT_MODEL).strip()
     try:
@@ -960,7 +1001,10 @@ def webgpt_route_info(config: dict[str, Any] | None = None) -> dict[str, str | b
             "model": model,
             "base_url": base_url,
             "port": WEBGPT_INSTANCE_PORT,
-            "reason": f"Dedicated Dubber-WebGPT chưa sẵn sàng: {exc}",
+            "reason": (
+                "Dedicated Dubber-WebGPT chưa sẵn sàng: "
+                f"{_safe_provider_detail(exc)}"
+            ),
         }
     return {
         "ready": True,
@@ -1127,11 +1171,14 @@ class WebGptTranslator:
                     )
                     retryable_error.__cause__ = exc
                 except requests.RequestException as exc:
-                    retryable_error = RuntimeError(f"Không thể gọi direct WebGPT Responses: {exc}")
+                    retryable_error = RuntimeError(
+                        "Không thể gọi direct WebGPT Responses: "
+                        f"{_safe_provider_detail(exc)}"
+                    )
                     retryable_error.__cause__ = exc
                 else:
                     if not response.ok:
-                        detail = response.text.strip()[-1200:]
+                        detail = _safe_provider_detail(response.text)
                         retryable_error = RuntimeError(
                             f"Direct WebGPT Responses trả HTTP {response.status_code}"
                             + (f": {detail}" if detail else "")
@@ -1159,7 +1206,10 @@ class WebGptTranslator:
                                     ensure_ascii=False,
                                     default=str,
                                 )
-                                retryable_error = RuntimeError(f"Direct WebGPT Responses thất bại: {detail[-1200:]}")
+                                retryable_error = RuntimeError(
+                                    "Direct WebGPT Responses thất bại: "
+                                    f"{_safe_provider_detail(detail)}"
+                                )
                                 if _is_webgpt_pressure_error(detail):
                                     with self._stats_lock:
                                         self.webgpt_failures += 1
@@ -1258,14 +1308,22 @@ class WebGptTranslator:
                     retryable_error.__cause__ = exc
                 except OSError as exc:
                     retryable_error = RuntimeError(
-                        f"Không thể chạy Codex WebGPT: {exc}"
+                        "Không thể chạy Codex WebGPT: "
+                        f"{_safe_provider_detail(exc)}"
                     )
                     retryable_error.__cause__ = exc
                 else:
                     if result.returncode != 0:
-                        detail = (result.stderr or result.stdout).strip()
+                        # Codex owns this file and may have written a provider
+                        # response even when it exits non-zero. Never leave
+                        # that untrusted payload under the job directory.
+                        try:
+                            output_path.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+                        detail = _safe_provider_detail(result.stderr or result.stdout)
                         retryable_error = RuntimeError(
-                            f"Dịch bằng ChatGPT Web GPT thất bại: {detail[-1200:]}"
+                            f"Dịch bằng ChatGPT Web GPT thất bại: {detail}"
                         )
                         if _is_webgpt_pressure_error(detail):
                             with self._stats_lock:
@@ -1283,6 +1341,10 @@ class WebGptTranslator:
                                 array=False,
                             )
                         except (OSError, UnicodeError, ValueError) as exc:
+                            try:
+                                output_path.unlink(missing_ok=True)
+                            except OSError:
+                                pass
                             retryable_error = RuntimeError(
                                 "ChatGPT Web GPT trả kết quả JSON không hợp lệ."
                             )
@@ -1888,11 +1950,13 @@ class AuroraTranslator:
                         error.__cause__ = exc
                         retryable = True
             except (requests.Timeout, requests.ConnectionError) as exc:
-                error = RuntimeError(f"Không kết nối được Aurora tại {self.base_url}: {exc}")
+                error = RuntimeError(
+                    f"Không kết nối được Aurora tại {self.base_url}: {_safe_provider_detail(exc)}"
+                )
                 error.__cause__ = exc
                 retryable = True
             except requests.RequestException as exc:
-                error = RuntimeError(f"Aurora request thất bại: {exc}")
+                error = RuntimeError(f"Aurora request thất bại: {_safe_provider_detail(exc)}")
                 error.__cause__ = exc
 
             self.aurora_failures += 1

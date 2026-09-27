@@ -18,7 +18,15 @@ from .jobs import list_job_states, request_control
 from .pipeline import load_config, run_pipeline
 from .preflight import raise_for_preflight, run_preflight
 from .profiles import PROFILE_OVERRIDES
-from .runtime import PROJECT_ROOT, WORK_DIR, command_version, configure_runtime, ffmpeg_exe, find_codex_exe
+from .runtime import (
+    PROJECT_ROOT,
+    WORK_DIR,
+    command_version,
+    configure_runtime,
+    ffmpeg_exe,
+    find_codex_exe,
+    validate_server_bind_host,
+)
 from .translate import PINNED_WEBGPT_MODEL, normalize_translation_provider, webgpt_route_info
 from .webgpt_runtime import (
     DUBBER_WEBGPT_PORT,
@@ -128,6 +136,10 @@ def web_app(
     """Mở giao diện web VI Dubber trên máy (kèm REST API và Gradio)."""
     from .web import launch_app
 
+    try:
+        host = validate_server_bind_host(host)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--host") from exc
     launch_app(host=host, port=port, share=share)
 
 
@@ -140,6 +152,10 @@ def api_server(
     import uvicorn
     from .api import create_app
 
+    try:
+        host = validate_server_bind_host(host)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--host") from exc
     uvicorn.run(create_app(), host=host, port=port)
 
 
