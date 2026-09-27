@@ -166,3 +166,21 @@ def test_delete_removes_projection_and_user_state_but_not_source(tmp_path: Path)
     assert store.get_user_state("job-0001") is None
     assert source.read_bytes() == b"keep me"
 
+
+def test_catalog_metadata_rejects_absolute_paths_before_persistence(tmp_path: Path) -> None:
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    unsafe = _item()
+    unsafe = CatalogItem(
+        item_id=unsafe.item_id,
+        title=unsafe.title,
+        source_fingerprint=unsafe.source_fingerprint,
+        revision=unsafe.revision,
+        availability=unsafe.availability,
+        segment_count=unsafe.segment_count,
+        source_ref=unsafe.source_ref,
+        metadata={"debug_path": r"C:\Users\secret\source.mp4"},
+    )
+    with pytest.raises(CatalogError, match="absolute filesystem paths"):
+        store.upsert_item(unsafe)
+    assert store.search() == []
+

@@ -24,6 +24,7 @@ CATALOG_SCHEMA_VERSION = 1
 BACKUP_FORMAT = "vi-dubber-m5-catalog-backup-v1"
 AVAILABILITY_STATES = frozenset({"available", "missing", "stale", "failed", "pending", "unknown"})
 _FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
+_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|\\\\|/(?!/))")
 _MAX_SEARCH_LIMIT = 5_000
 
 
@@ -98,7 +99,19 @@ def _validate_metadata(value: Any) -> dict[str, Any]:
         raise CatalogError("metadata must be JSON-compatible and finite") from exc
     if not isinstance(decoded, dict):  # pragma: no cover - guarded by input check
         raise CatalogError("metadata must be an object")
+    if _contains_absolute_path(decoded):
+        raise CatalogError("metadata must not contain absolute filesystem paths")
     return decoded
+
+
+def _contains_absolute_path(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(_ABSOLUTE_PATH_RE.search(value))
+    if isinstance(value, Mapping):
+        return any(_contains_absolute_path(key) or _contains_absolute_path(item) for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_absolute_path(item) for item in value)
+    return False
 
 
 def _validate_item(item: CatalogItem) -> CatalogItem:
