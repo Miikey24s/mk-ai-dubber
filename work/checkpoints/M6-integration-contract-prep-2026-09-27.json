@@ -26,7 +26,7 @@
     },
     "policy": [
       "resource URI must match exact scheme and authority from the allowlist",
-      "resource URI path rejects traversal and control characters",
+      "resource URI path rejects decoded traversal, query/fragment mutation, and control characters",
       "artifact source timestamp must be explicit UTC with Z suffix",
       "trusted identity must include a non-empty key_id"
     ]

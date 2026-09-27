@@ -4,10 +4,11 @@ Status: **PREP_ONLY**. This checkpoint prepares a software-only boundary; it doe
 
 Hardening update (27/09/2026): the I1 reference validator now requires an explicit UTC
 provenance timestamp, a non-empty trusted-fixture `key_id`, and an exact URI scheme /
-authority match. It rejects look-alike authorities, path traversal, backslashes, and
-control characters before a reference can cross the local contract boundary. The
-focused contract suite passes **16 tests**; the generated receipt records three
-negative hardening cases and remains `PREP_ONLY`.
+authority match. It rejects look-alike authorities, decoded path traversal,
+backslashes, query/fragment mutation, and control characters before a reference can
+cross the local contract boundary. The focused contract suite passes **18 tests**;
+the generated receipt records three negative hardening cases and remains
+`PREP_ONLY`.
 
 ## Scope
 
@@ -15,7 +16,7 @@ negative hardening cases and remains `PREP_ONLY`.
 - **Export request/receipt:** a user-selected Drive-style destination is represented by `drive.file`, picker destination, data class, source revision/hash, and an idempotency key. Receipts distinguish `unknown`, `succeeded`, and `revoked` and keep external identity/checksum only when known.
 - **Failure semantics:** same-intent retries dedupe; reuse of an idempotency key with a different intent is rejected; an unknown outcome is looked up before retry; a successful lookup is adopted without resend; a not-found lookup is retryable; revoke/cancel and stale events cannot reopen a terminal state.
 - **Offline adapter skeleton:** `OfflineExportAdapter` provides the future connector seam for submit, unknown, reconcile, revoke, and cancel. It is an in-memory contract harness only; it performs no external I/O and is deliberately not a production store.
-- **I1 URI/provenance hardening:** allowlist entries are parsed as URI components rather than matched by a raw string prefix. Artifact timestamps must be parseable UTC values ending in `Z`; trusted fixture identity must carry a non-empty `key_id`.
+- **I1 URI/provenance hardening:** allowlist entries are parsed as URI components rather than matched by a raw string prefix; percent-decoded traversal and query/fragment mutation are rejected. Artifact timestamps must be parseable UTC values ending in `Z`; trusted fixture identity must carry a non-empty `key_id`.
 
 ## Evidence
 

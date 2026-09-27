@@ -44,7 +44,9 @@ def test_reference_rejects_unallowlisted_resource_and_answer_key_exposure() -> N
     [
         "learn://authorized-evil/file.srt",
         "learn://authorized/job/../secret.srt",
+        "learn://authorized/job/%2e%2e/secret.srt",
         "learn://authorized/job/\x1fsecret.srt",
+        "learn://authorized/job/file.srt?redirect=https://attacker.invalid",
         "https://authorized/job/file.srt",
     ],
 )

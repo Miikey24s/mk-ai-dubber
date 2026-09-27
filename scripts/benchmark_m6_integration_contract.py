@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -89,6 +89,13 @@ def _is_allowlisted_resource_uri(value: Any, contract: dict[str, Any]) -> bool:
         parsed = urlsplit(value)
     except ValueError:
         return False
+    decoded_path = unquote(parsed.path)
+    if (
+        parsed.query
+        or parsed.fragment
+        or any(ord(char) < 0x20 or ord(char) == 0x7F for char in decoded_path)
+    ):
+        return False
     allowlisted = contract.get("resource_allowlist", [])
     if not isinstance(allowlisted, list):
         return False
@@ -100,12 +107,12 @@ def _is_allowlisted_resource_uri(value: Any, contract: dict[str, Any]) -> bool:
         except ValueError:
             continue
         if (
-            parsed.scheme == allowed.scheme
-            and parsed.netloc == allowed.netloc
-            and parsed.path.startswith(allowed.path)
-            and parsed.path != allowed.path.rstrip("/")
-            and "\\" not in parsed.path
-            and ".." not in parsed.path.split("/")
+            parsed.scheme.casefold() == allowed.scheme.casefold()
+            and parsed.netloc.casefold() == allowed.netloc.casefold()
+            and decoded_path.startswith(unquote(allowed.path))
+            and decoded_path != unquote(allowed.path).rstrip("/")
+            and "\\" not in decoded_path
+            and ".." not in decoded_path.split("/")
         ):
             return True
     return False
@@ -466,7 +473,7 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "rejected_cases": hardening_cases,
             "policy": [
                 "resource URI must match exact scheme and authority from the allowlist",
-                "resource URI path rejects traversal and control characters",
+                "resource URI path rejects decoded traversal, query/fragment mutation, and control characters",
                 "artifact source timestamp must be explicit UTC with Z suffix",
                 "trusted identity must include a non-empty key_id",
             ],
