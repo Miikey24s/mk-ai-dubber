@@ -8,12 +8,25 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import soundfile as sf
 
 from .runtime import ffmpeg_exe, ffprobe_exe
 from .types import Segment
+
+
+# Keep a margin below the 32-bit RIFF data-size limit.  The extracted audio is
+# stereo 24-bit PCM at 48 kHz for the historical WAV path, so the estimate is
+# deterministic and independent of the compressed source container.
+WAV_SAFE_BYTES = 3_500_000_000
+EXTRACT_AUDIO_POLICY_VERSION = 2
+EXTRACT_AUDIO_SAMPLE_RATE = 48_000
+EXTRACT_AUDIO_CHANNELS = 2
+EXTRACT_AUDIO_PCM_BYTES_PER_SAMPLE = 3
+_EXTRACTED_AUDIO_MAX_GAP_SECONDS = 5.0
+_EXTRACTED_AUDIO_MAX_RELATIVE_GAP = 0.001
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,22 +111,143 @@ def audio_duration(path: Path) -> float:
     return float(info.frames) / float(info.samplerate)
 
 
-def extract_audio(video: Path, output: Path, sample_rate: int = 48000) -> Path:
+def extracted_audio_container(
+    duration_seconds: float,
+    *,
+    sample_rate: int = EXTRACT_AUDIO_SAMPLE_RATE,
+    channels: int = EXTRACT_AUDIO_CHANNELS,
+    bytes_per_sample: int = EXTRACT_AUDIO_PCM_BYTES_PER_SAMPLE,
+) -> str:
+    """Select a seekable extraction container from the expected timeline length."""
+
+    if not math.isfinite(float(duration_seconds)) or duration_seconds <= 0:
+        raise ValueError("duration_seconds must be a finite positive number")
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
+        raise ValueError("sample_rate must be a positive integer")
+    if isinstance(channels, bool) or not isinstance(channels, int) or channels <= 0:
+        raise ValueError("channels must be a positive integer")
+    if isinstance(bytes_per_sample, bool) or not isinstance(bytes_per_sample, int) or bytes_per_sample <= 0:
+        raise ValueError("bytes_per_sample must be a positive integer")
+    estimated_pcm_bytes = duration_seconds * sample_rate * channels * bytes_per_sample
+    return "FLAC" if estimated_pcm_bytes >= WAV_SAFE_BYTES else "WAV"
+
+
+def extracted_audio_path(job_dir: Path, duration_seconds: float) -> Path:
+    """Return the deterministic cache path for the selected extraction container."""
+
+    container = extracted_audio_container(duration_seconds)
+    return Path(job_dir) / f"original.{container.lower()}"
+
+
+def audio_extraction_spec(duration_seconds: float) -> dict[str, Any]:
+    """Return the versioned extraction identity used by the pipeline cache."""
+
+    container = extracted_audio_container(duration_seconds)
+    return {
+        "policy": EXTRACT_AUDIO_POLICY_VERSION,
+        "container": container,
+        "codec": "pcm_s24le" if container == "WAV" else "flac",
+        "sample_rate": EXTRACT_AUDIO_SAMPLE_RATE,
+        "channels": EXTRACT_AUDIO_CHANNELS,
+    }
+
+
+def validate_extracted_audio(
+    path: Path,
+    expected_duration_seconds: float,
+    *,
+    max_gap_seconds: float = _EXTRACTED_AUDIO_MAX_GAP_SECONDS,
+    max_relative_gap: float = _EXTRACTED_AUDIO_MAX_RELATIVE_GAP,
+) -> float:
+    """Probe an extraction and reject truncated/header-only output."""
+
+    if not math.isfinite(float(expected_duration_seconds)) or expected_duration_seconds <= 0:
+        raise ValueError("expected_duration_seconds must be a finite positive number")
+    if not path.is_file() or path.stat().st_size <= 0:
+        raise RuntimeError(f"Extracted audio is missing or empty: {path}")
+    try:
+        probed_duration = media_duration(path)
+    except Exception as exc:
+        raise RuntimeError(f"Extracted audio probe failed: {path}") from exc
+    try:
+        decoded_duration = audio_duration(path)
+    except Exception as exc:
+        raise RuntimeError(f"Extracted audio decode probe failed: {path}") from exc
+    if (
+        not math.isfinite(probed_duration)
+        or not math.isfinite(decoded_duration)
+        or probed_duration <= 0
+        or decoded_duration <= 0
+    ):
+        raise RuntimeError(f"Extracted audio has no valid duration: {path}")
+    tolerance = max(float(max_gap_seconds), expected_duration_seconds * float(max_relative_gap))
+    if probed_duration + tolerance < expected_duration_seconds or decoded_duration + tolerance < expected_duration_seconds:
+        raise RuntimeError(
+            "Extracted audio is truncated: "
+            f"expected at least {expected_duration_seconds:.3f}s, "
+            f"probed {probed_duration:.3f}s, decoded {decoded_duration:.3f}s"
+        )
+    return min(probed_duration, decoded_duration)
+
+
+def validate_separation_stems(
+    vocals: Path,
+    background: Path,
+    expected_duration_seconds: float,
+) -> tuple[float, float]:
+    """Reject separator stems that are missing, header-only, or truncated."""
+
+    validated: list[float] = []
+    for label, path in (("vocals", vocals), ("background", background)):
+        try:
+            validated.append(validate_extracted_audio(path, expected_duration_seconds))
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise RuntimeError(f"Separation {label} stem failed duration validation: {path}") from exc
+    return validated[0], validated[1]
+
+
+def extract_audio(
+    video: Path,
+    output: Path,
+    sample_rate: int = EXTRACT_AUDIO_SAMPLE_RATE,
+    *,
+    container: str | None = None,
+    expected_duration_seconds: float | None = None,
+) -> Path:
+    """Extract audio atomically as WAV for short input or FLAC for long input."""
+
+    selected_container = str(container or ("FLAC" if output.suffix.lower() == ".flac" else "WAV")).upper()
+    if selected_container not in {"WAV", "FLAC"}:
+        raise ValueError(f"unsupported extraction container: {selected_container}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    _run_ffmpeg(
-        [
-            "-i",
-            str(video),
-            "-vn",
-            "-ac",
-            "2",
-            "-ar",
-            str(sample_rate),
-            "-c:a",
-            "pcm_s24le",
-            str(output),
-        ]
-    )
+    # Keep the real extension so FFmpeg selects the intended muxer while the
+    # leading dot and ``.partial`` marker keep incomplete output out of the
+    # canonical cache path.
+    partial = output.with_name(f".{output.stem}.partial{output.suffix}")
+    partial.unlink(missing_ok=True)
+    codec = "pcm_s24le" if selected_container == "WAV" else "flac"
+    try:
+        _run_ffmpeg(
+            [
+                "-i",
+                str(video),
+                "-vn",
+                "-ac",
+                str(EXTRACT_AUDIO_CHANNELS),
+                "-ar",
+                str(sample_rate),
+                "-c:a",
+                codec,
+                str(partial),
+            ]
+        )
+        if not partial.is_file() or partial.stat().st_size <= 0:
+            raise RuntimeError(f"FFmpeg produced no extracted audio: {partial}")
+        os.replace(partial, output)
+    finally:
+        partial.unlink(missing_ok=True)
+    if expected_duration_seconds is not None:
+        validate_extracted_audio(output, expected_duration_seconds)
     return output
 
 

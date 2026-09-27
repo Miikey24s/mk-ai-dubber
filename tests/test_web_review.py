@@ -119,6 +119,49 @@ def test_review_editor_exposes_cached_source_and_dubbed_audio(monkeypatch, tmp_p
     assert calls[0][3] == pytest.approx(0.8)
 
 
+def test_review_editor_uses_long_form_flac_source(monkeypatch, tmp_path: Path) -> None:
+    job = tmp_path / "job-review-flac"
+    job.mkdir()
+    source = job / "original.flac"
+    source.write_bytes(b"source-audio")
+    rows = [_row(4)]
+    monkeypatch.setattr(web, "load_review_rows", lambda _job: rows)
+    calls: list[tuple[Path, Path, float, float]] = []
+
+    def fake_clip(source_path: Path, output: Path, start: float, duration: float) -> Path:
+        calls.append((source_path, output, start, duration))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"source-slice")
+        return output
+
+    monkeypatch.setattr(web, "clip_audio", fake_clip)
+    fields = web._review_editor_fields(str(job), "4")
+
+    assert fields[6] == str(job / "review_source" / "00004.wav")
+    assert calls[0][0] == source
+
+
+def test_review_editor_prefers_flac_when_legacy_wav_is_also_present(monkeypatch, tmp_path: Path) -> None:
+    job = tmp_path / "job-review-migrated"
+    job.mkdir()
+    (job / "original.wav").write_bytes(b"legacy-truncated")
+    source = job / "original.flac"
+    source.write_bytes(b"repaired-long-form")
+    monkeypatch.setattr(web, "load_review_rows", lambda _job: [_row(5)])
+    calls: list[Path] = []
+
+    def fake_clip(source_path: Path, output: Path, start: float, duration: float) -> Path:
+        calls.append(source_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"source-slice")
+        return output
+
+    monkeypatch.setattr(web, "clip_audio", fake_clip)
+    web._review_editor_fields(str(job), "5")
+
+    assert calls == [source]
+
+
 def test_review_editor_gracefully_handles_missing_source_audio(monkeypatch, tmp_path: Path) -> None:
     job = tmp_path / "job-review-no-source"
     job.mkdir()

@@ -2109,8 +2109,15 @@ def _refresh_review_workspace(
 
 
 def _review_source_slice(job_dir: Path, row: dict[str, Any]) -> Path | None:
-    source = job_dir / "original.wav"
-    if not source.is_file():
+    # Long-input extraction uses FLAC to avoid the RIFF/WAV 4 GiB data-size
+    # limit. Prefer FLAC when both files exist: a resumed long job can retain
+    # its historical truncated WAV beside the repaired canonical extraction.
+    # Fall back to WAV for short and legacy jobs.
+    source = next(
+        (candidate for candidate in (job_dir / "original.flac", job_dir / "original.wav") if candidate.is_file()),
+        None,
+    )
+    if source is None:
         return None
 
     try:

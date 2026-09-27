@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import vi_dubber.asr as asr_module
+import vi_dubber.media as media_module
 import vi_dubber.separation as separation_module
 
 
@@ -28,6 +29,99 @@ def test_short_audio_keeps_wav_fallback(
     monkeypatch.setattr(separation_module, "_WAV_SAFE_BYTES", 4)
 
     assert separation_module._output_format_for_audio(audio_path) == "WAV"
+
+
+def test_flac_input_keeps_separator_output_out_of_riff() -> None:
+    assert separation_module._output_format_for_audio(Path("original.flac")) == "FLAC"
+
+
+def test_extraction_spec_and_path_are_deterministic_for_short_and_long_input(tmp_path: Path) -> None:
+    short = media_module.audio_extraction_spec(60.0)
+    long = media_module.audio_extraction_spec(43_000.0)
+
+    assert short["policy"] == media_module.EXTRACT_AUDIO_POLICY_VERSION
+    assert short["container"] == "WAV"
+    assert short["codec"] == "pcm_s24le"
+    assert long["container"] == "FLAC"
+    assert long["codec"] == "flac"
+    assert media_module.extracted_audio_path(tmp_path, 60.0).name == "original.wav"
+    assert media_module.extracted_audio_path(tmp_path, 43_000.0).name == "original.flac"
+    assert media_module.audio_extraction_spec(43_000.0) == long
+
+
+def test_extract_audio_uses_atomic_container_specific_output_and_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    video = tmp_path / "input.mp4"
+    video.write_bytes(b"video")
+    calls: list[list[str]] = []
+    probes: list[tuple[Path, float]] = []
+
+    def fake_ffmpeg(args: list[str]) -> None:
+        calls.append(args)
+        Path(args[-1]).write_bytes(b"encoded")
+
+    def fake_probe(path: Path, expected: float) -> float:
+        probes.append((path, expected))
+        return expected
+
+    monkeypatch.setattr(media_module, "_run_ffmpeg", fake_ffmpeg)
+    monkeypatch.setattr(media_module, "validate_extracted_audio", fake_probe)
+
+    flac_output = media_module.extract_audio(
+        video,
+        tmp_path / "original.flac",
+        container="FLAC",
+        expected_duration_seconds=43_000.0,
+    )
+    wav_output = media_module.extract_audio(video, tmp_path / "short.wav")
+
+    assert flac_output.suffix == ".flac"
+    assert wav_output.suffix == ".wav"
+    assert flac_output.read_bytes() == b"encoded"
+    assert wav_output.read_bytes() == b"encoded"
+    assert not list(tmp_path.glob(".*.partial.*"))
+    assert [args[args.index("-c:a") + 1] for args in calls] == ["flac", "pcm_s24le"]
+    assert probes == [(flac_output, 43_000.0)]
+
+
+def test_validate_extracted_audio_rejects_truncated_or_unprobeable_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio = tmp_path / "header-only.wav"
+    audio.write_bytes(b"header-only")
+    monkeypatch.setattr(media_module, "media_duration", lambda _path: 14_913.0)
+    monkeypatch.setattr(media_module, "audio_duration", lambda _path: 14_913.0)
+    with pytest.raises(RuntimeError, match="truncated"):
+        media_module.validate_extracted_audio(audio, 42_831.0)
+
+    def fail_probe(_path: Path) -> float:
+        raise RuntimeError("ffprobe failed")
+
+    monkeypatch.setattr(media_module, "media_duration", fail_probe)
+    with pytest.raises(RuntimeError, match="probe failed"):
+        media_module.validate_extracted_audio(audio, 42_831.0)
+
+
+def test_validate_separation_stems_rejects_a_truncated_cached_stem(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocals = tmp_path / "vocals.wav"
+    background = tmp_path / "background.wav"
+    vocals.write_bytes(b"vocals")
+    background.write_bytes(b"background")
+
+    def fake_validate(path: Path, expected: float) -> float:
+        if path == background:
+            raise RuntimeError("truncated")
+        return expected
+
+    monkeypatch.setattr(media_module, "validate_extracted_audio", fake_validate)
+    with pytest.raises(RuntimeError, match="background stem"):
+        media_module.validate_separation_stems(vocals, background, 42_831.0)
 
 
 def test_cuda_oom_retries_with_conservative_batch_fallbacks(

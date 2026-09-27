@@ -33,13 +33,17 @@ from .jobs import (
 )
 from .media import (
     assemble_voice_track,
+    audio_extraction_spec,
     build_chunk_preview,
     extract_audio,
+    extracted_audio_path,
     measure_mix_metrics,
     media_duration,
     detect_speech_intervals,
     mux_dubbed_video,
     voice_track_metrics,
+    validate_extracted_audio,
+    validate_separation_stems,
     write_srt,
 )
 from .longform import (
@@ -862,24 +866,39 @@ def _run_pipeline_impl(
 
         console.rule("1/6 Âm thanh")
         progress(0.04, "Đang tách âm thanh khỏi video", stage="input_extract")
-        original_audio = job_dir / "original.wav"
-        extract_inputs = {"source": source_identity}
+        extraction_spec = audio_extraction_spec(total_duration)
+        original_audio = extracted_audio_path(job_dir, total_duration)
+        extract_inputs = {"source": source_identity, "audio": extraction_spec}
         extract_fingerprint = stage_fingerprint(
             "extract_audio",
             inputs=extract_inputs,
-            versions={"policy": 1},
+            versions={"policy": extraction_spec["policy"]},
         )
-        if _stage_cache_hit(job_dir, "extract_audio", extract_fingerprint, resume=resume):
-            metrics.increment("cache_hits")
-        else:
+        extract_manifest = _stage_cache_hit(job_dir, "extract_audio", extract_fingerprint, resume=resume)
+        cache_valid = False
+        if extract_manifest is not None:
+            try:
+                validate_extracted_audio(original_audio, total_duration)
+            except (OSError, RuntimeError, ValueError):
+                metrics.increment("cache_invalidations")
+            else:
+                cache_valid = True
+                metrics.increment("cache_hits")
+        if not cache_valid:
             metrics.increment("cache_misses")
-            extract_audio(input_path, original_audio)
+            extract_audio(
+                input_path,
+                original_audio,
+                sample_rate=int(extraction_spec["sample_rate"]),
+                container=str(extraction_spec["container"]),
+                expected_duration_seconds=total_duration,
+            )
             _commit_stage(
                 job_dir,
                 "extract_audio",
                 inputs=extract_inputs,
                 artifacts=[original_audio],
-                versions={"policy": 1},
+                versions={"policy": extraction_spec["policy"]},
             )
 
     stems_meta = job_dir / "stems.json"
@@ -896,8 +915,21 @@ def _run_pipeline_impl(
         versions={"policy": 2, **runtime_versions("audio_separator", "torch")},
     )
     with metrics.stage("separation"):
-        if _stage_cache_hit(job_dir, "separation", separation_fingerprint, resume=resume):
-            vocals, background = _load_stems(job_dir, stems_meta)
+        separation_manifest = _stage_cache_hit(
+            job_dir,
+            "separation",
+            separation_fingerprint,
+            resume=resume,
+        )
+        if separation_manifest is not None:
+            cached_vocals, cached_background = _load_stems(job_dir, stems_meta)
+            if cached_vocals is not None and cached_background is not None:
+                try:
+                    validate_separation_stems(cached_vocals, cached_background, total_duration)
+                except (OSError, RuntimeError, ValueError):
+                    metrics.increment("cache_invalidations")
+                else:
+                    vocals, background = cached_vocals, cached_background
 
         if vocals is None or background is None:
             metrics.increment("cache_misses")
@@ -916,6 +948,7 @@ def _run_pipeline_impl(
                     stage="separation",
                 ),
             )
+            validate_separation_stems(vocals, background, total_duration)
             atomic_write_json(
                 stems_meta,
                 {

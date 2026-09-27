@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .media import WAV_SAFE_BYTES
+
 
 ProgressCallback = Callable[[float, str], None]
 _PROGRESS_STEP = 0.01
@@ -15,12 +17,17 @@ _LOCAL_SEPARATOR_LOCK = threading.RLock()
 # Classic RIFF/WAV uses a 32-bit data-size field. Keep a safety margin below
 # the nominal 4 GiB limit because separator output can retain the input's
 # channel count and sample subtype. FLAC is lossless and has no RIFF-size cap.
-_WAV_SAFE_BYTES = 3_500_000_000
+_WAV_SAFE_BYTES = WAV_SAFE_BYTES
 
 
 def _output_format_for_audio(input_audio: Path) -> str:
     """Choose a lossless container that remains valid for long audio files."""
 
+    # FLAC extraction is the long-input policy.  Its compressed size can be
+    # below the RIFF threshold even when the decoded timeline is many hours,
+    # so suffix is a stronger signal than file size here.
+    if input_audio.suffix.lower() == ".flac":
+        return "FLAC"
     try:
         size_bytes = input_audio.stat().st_size
     except OSError:
