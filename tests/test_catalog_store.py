@@ -186,6 +186,21 @@ def test_export_fails_closed_if_sqlite_user_state_is_tampered(tmp_path: Path) ->
         CatalogStore(db_path).get_user_state("job-0001")
 
 
+def test_read_and_export_fail_closed_if_sqlite_user_state_is_orphaned(tmp_path: Path) -> None:
+    db_path = tmp_path / "catalog.sqlite3"
+    store = CatalogStore(db_path)
+    store.rebuild([_item()])
+    store.set_user_state(UserState("job-0001", "r1", (), "reviewed", 1.0))
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("DELETE FROM catalog_items WHERE item_id = 'job-0001'")
+        connection.commit()
+    with pytest.raises(CatalogIntegrityError, match="unknown catalog item"):
+        CatalogStore(db_path).get_user_state("job-0001")
+    with pytest.raises(CatalogIntegrityError, match="unknown catalog item"):
+        CatalogStore(db_path).export_metadata()
+
+
 def test_probe_and_relink_require_exact_fingerprint_and_explicit_mapping(tmp_path: Path) -> None:
     root = tmp_path / "media-root"
     source_dir = root / "sources" / "job-0001"

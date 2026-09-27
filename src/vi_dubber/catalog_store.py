@@ -472,13 +472,15 @@ class CatalogStore:
                 """
                 SELECT user_state.*, catalog_items.revision AS catalog_revision
                 FROM user_state
-                JOIN catalog_items ON catalog_items.item_id = user_state.item_id
+                LEFT JOIN catalog_items ON catalog_items.item_id = user_state.item_id
                 WHERE user_state.item_id = ?
                 """,
                 (item_id,),
             ).fetchone()
         if row is None:
             return None
+        if row["catalog_revision"] is None:
+            raise CatalogIntegrityError("user state references an unknown catalog item")
         state = _state_from_row(row)
         if state.revision != row["catalog_revision"]:
             raise CatalogIntegrityError("user state revision does not match catalog item revision")
@@ -495,10 +497,12 @@ class CatalogStore:
                 """
                 SELECT user_state.*, catalog_items.revision AS catalog_revision
                 FROM user_state
-                JOIN catalog_items ON catalog_items.item_id = user_state.item_id
+                LEFT JOIN catalog_items ON catalog_items.item_id = user_state.item_id
                 ORDER BY user_state.item_id
                 """
             ):
+                if row["catalog_revision"] is None:
+                    raise CatalogIntegrityError("user state references an unknown catalog item")
                 state = _state_from_row(row)
                 if state.revision != row["catalog_revision"]:
                     raise CatalogIntegrityError("user state revision does not match catalog item revision")
