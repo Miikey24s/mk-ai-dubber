@@ -110,3 +110,19 @@ def test_rebuild_reopen_search_and_missing_stale_mapping_are_deterministic(tmp_p
     rebuild_from_work_dir(reopened, work_dir, source_root=source_root)
     assert reopened.get_item(first.item_id).availability == "stale"  # type: ignore[union-attr]
 
+
+def test_rebuild_skips_non_finite_job_state_instead_of_poisoning_catalog(tmp_path: Path) -> None:
+    work_dir = tmp_path / "work"
+    source = tmp_path / "fixture.mp4"
+    source.write_bytes(b"fixture source")
+    job_dir = _write_job(work_dir, source)
+    state = json.loads((job_dir / "state.json").read_text(encoding="utf-8"))
+    state["progress"] = "NaN"
+    (job_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    report = rebuild_from_work_dir(store, work_dir, source_root=tmp_path)
+    assert report.indexed == 0
+    assert report.skipped[0].job_id == job_dir.name
+    assert store.search() == []
+

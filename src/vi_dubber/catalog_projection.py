@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .artifacts import fingerprint_data, fingerprint_file
-from .catalog_store import CatalogItem, CatalogStore
+from .catalog_store import CatalogError, CatalogItem, CatalogStore
 from .jobs import load_json
 
 
@@ -191,7 +191,11 @@ def rebuild_from_work_dir(
     items: list[CatalogItem] = []
     skipped: list[ProjectionIssue] = []
     for job_dir in sorted(Path(work_dir).glob("job-*"), key=lambda path: path.name):
-        item = catalog_item_from_job(job_dir, source_root=source_root)
+        try:
+            item = catalog_item_from_job(job_dir, source_root=source_root)
+        except (CatalogError, OSError, TypeError, ValueError) as exc:
+            skipped.append(ProjectionIssue(job_dir.name, f"projection validation failed: {type(exc).__name__}"))
+            continue
         if item is None:
             skipped.append(ProjectionIssue(job_dir.name, "missing or invalid job source identity"))
             continue
