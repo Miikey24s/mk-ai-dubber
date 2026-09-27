@@ -1,0 +1,35 @@
+{
+  "claims_excluded": [
+    "M0 baseline acceptance",
+    "M5 product/UI acceptance",
+    "real authorized media or playback",
+    "application server network/listening or browser acceptance",
+    "provider/OAuth/Drive behavior",
+    "cold/warm p95 product SLO",
+    "Job12 completion or media quality"
+  ],
+  "observations": {
+    "boot_indexed": 2,
+    "boot_skipped": [
+      "job-invalid"
+    ],
+    "lineage_change_invalidated_state": true,
+    "restart_app_entrypoint_imported": true,
+    "restart_health_status": 200,
+    "restart_indexed": 2,
+    "restart_state_retained_same_revision": true
+  },
+  "scope": {
+    "api_route": "/api/health only",
+    "fresh_python_processes": 3,
+    "job12_touched": false,
+    "jobs": 2,
+    "media": "synthetic local bytes only",
+    "provider": false,
+    "real_media": false,
+    "real_work_dir": false,
+    "segments_per_job": 2
+  },
+  "smoke": "m5-process-startup-restart-v1",
+  "status": "PREP_ONLY"
+}
