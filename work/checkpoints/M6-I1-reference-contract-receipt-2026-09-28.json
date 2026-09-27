@@ -1,0 +1,79 @@
+{
+  "catalog_bridge": {
+    "artifact": {
+      "artifact_id": "job-fixture-0001/subtitle-r3",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "subtitle",
+      "language": "vi",
+      "qa_status": "passed",
+      "resource_uri": "learn://authorized/job-fixture-0001/subtitle-r3.srt",
+      "revision": "lineage-r3",
+      "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_timestamp_utc": "2026-09-27T10:00:00Z",
+      "source_visible": true
+    },
+    "identity": {
+      "issuer": "vi-dubber-local",
+      "key_id": "fixture-key-1",
+      "trust_state": "trusted_fixture"
+    },
+    "reference_id": "learn-ref-catalog-fixture",
+    "safety": {
+      "answer_keys_exposed": false,
+      "auto_completion_enabled": false
+    },
+    "schema_version": "workspace-learn-reference-v1",
+    "source_system": "vi-dubber",
+    "target_system": "learn"
+  },
+  "claims_excluded": [
+    "cryptographic signature verification beyond the trusted fixture marker",
+    "actual Learn/Drive connector behavior, OAuth, account or network access",
+    "media upload, deletion, remote revision, or exactly-once delivery",
+    "course progress writes, answer-key exposure, or automatic completion",
+    "human QA of naturalness or content correctness"
+  ],
+  "contract": "tests/fixtures/m6_integration_contract.json",
+  "schema_version": "workspace-learn-reference-v1",
+  "status": "PREP_ONLY",
+  "typed_reference": {
+    "artifact": {
+      "artifact_id": "job-fixture-0001/subtitle-r3",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "subtitle",
+      "language": "vi",
+      "qa_status": "passed",
+      "resource_uri": "learn://authorized/job-fixture-0001/subtitle-r3.srt",
+      "revision": "3",
+      "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_timestamp_utc": "2026-09-27T10:00:00Z",
+      "source_visible": true
+    },
+    "identity": {
+      "issuer": "vi-dubber-local",
+      "key_id": "fixture-key-1",
+      "trust_state": "trusted_fixture"
+    },
+    "reference_id": "learn-ref-fixture-0001",
+    "safety": {
+      "answer_keys_exposed": false,
+      "auto_completion_enabled": false
+    },
+    "schema_version": "workspace-learn-reference-v1",
+    "source_system": "vi-dubber",
+    "target_system": "learn"
+  },
+  "validation": {
+    "catalog_lineage": true,
+    "passed": true,
+    "rejected_cases": {
+      "answer_key_exposure": true,
+      "authority_prefix_bypass": true,
+      "decoded_path_traversal": true,
+      "qa_not_passed": true,
+      "schema_version": true
+    },
+    "round_trip": true,
+    "typed_parse": true
+  }
+}
