@@ -22,6 +22,7 @@ from .artifacts import atomic_write_json, canonical_json, fingerprint_file
 
 CATALOG_SCHEMA_VERSION = 1
 BACKUP_FORMAT = "vi-dubber-m5-catalog-backup-v1"
+MAX_BACKUP_BYTES = 32 * 1024 * 1024
 AVAILABILITY_STATES = frozenset({"available", "missing", "stale", "failed", "pending", "unknown"})
 _FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 _ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|\\\\|/(?!/))")
@@ -526,6 +527,28 @@ class CatalogStore:
         payload = self.export_metadata()
         atomic_write_json(Path(path), payload)
         return payload
+
+    def restore_from(self, path: Path, *, replace: bool = True) -> int:
+        """Read and restore one bounded, metadata-only backup file.
+
+        The file is parsed and fully validated by :meth:`restore_metadata`
+        before its transaction can mutate SQLite.  Reading at most one byte
+        beyond ``MAX_BACKUP_BYTES`` keeps a damaged or unexpectedly large file
+        from becoming an unbounded memory allocation.
+        """
+        backup_path = Path(path)
+        try:
+            with backup_path.open("rb") as handle:
+                raw = handle.read(MAX_BACKUP_BYTES + 1)
+        except OSError as exc:
+            raise CatalogIntegrityError("catalog backup file is not readable") from exc
+        if len(raw) > MAX_BACKUP_BYTES:
+            raise CatalogIntegrityError("catalog backup file exceeds the size limit")
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            raise CatalogIntegrityError("catalog backup file is invalid JSON") from exc
+        return self.restore_metadata(payload, replace=replace)
 
     def restore_metadata(self, payload: Mapping[str, Any], *, replace: bool = True) -> int:
         """Restore a verified metadata snapshot without touching media files."""

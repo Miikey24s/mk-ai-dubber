@@ -14,6 +14,7 @@ from vi_dubber.catalog_store import (
     CatalogIntegrityError,
     CatalogItem,
     CatalogStore,
+    MAX_BACKUP_BYTES,
     UserState,
     _digest_payload,
 )
@@ -170,6 +171,33 @@ def test_restore_rejects_digest_valid_revision_mismatch_before_mutation(tmp_path
         target.restore_metadata(payload)
     assert target.get_item("existing") is not None
     assert target.get_item("job-0001") is None
+
+
+def test_backup_file_round_trip_and_invalid_file_leave_target_unchanged(tmp_path: Path) -> None:
+    source = CatalogStore(tmp_path / "source.sqlite3")
+    source.rebuild([_item()])
+    source.set_user_state(UserState("job-0001", "r1", (), "reviewed", 1.0))
+    backup_path = tmp_path / "catalog-backup.json"
+    payload = source.backup_to(backup_path)
+    assert json.loads(backup_path.read_text(encoding="utf-8")) == payload
+
+    target = CatalogStore(tmp_path / "target.sqlite3")
+    target.rebuild([_item("existing", title="Keep this")])
+    assert target.restore_from(backup_path) == 1
+    assert target.export_metadata() == payload
+
+    backup_path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(CatalogIntegrityError, match="invalid JSON"):
+        target.restore_from(backup_path)
+    assert target.get_item("job-0001") == _item()
+    assert target.get_item("existing") is None
+
+
+def test_restore_from_rejects_oversized_backup_before_reading_full_payload(tmp_path: Path) -> None:
+    backup_path = tmp_path / "oversized-backup.json"
+    backup_path.write_bytes(b"{" + (b" " * MAX_BACKUP_BYTES))
+    with pytest.raises(CatalogIntegrityError, match="size limit"):
+        CatalogStore(tmp_path / "catalog.sqlite3").restore_from(backup_path)
 
 
 def test_export_fails_closed_if_sqlite_user_state_is_tampered(tmp_path: Path) -> None:

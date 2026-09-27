@@ -1,0 +1,30 @@
+{
+  "status": "PREP_ONLY",
+  "slice": "m5-catalog-file-backup-v1",
+  "implementation": "src/vi_dubber/catalog_store.py",
+  "contract": "tests/fixtures/m5_catalog_contract.json",
+  "backup_format": "vi-dubber-m5-catalog-backup-v1",
+  "max_backup_bytes": 33554432,
+  "validation": {
+    "focused_command": "uv run pytest -q tests/test_catalog_store.py tests/test_catalog_projection.py tests/test_m5_catalog_contract.py tests/test_m5_e3_benchmark.py",
+    "focused_tests_passed": 24,
+    "compileall": true,
+    "git_diff_check": true
+  },
+  "invariants": [
+    "backup_to and restore_from round-trip metadata and user state",
+    "oversized file is rejected before full parsing",
+    "invalid JSON fails closed without mutating the target database",
+    "restore remains metadata-only and does not read or copy media blobs",
+    "full payload validation and digest verification happen before SQLite mutation"
+  ],
+  "claims_excluded": [
+    "M5 product acceptance",
+    "application startup/restart/restore workflow",
+    "real media availability or relink",
+    "UI/library wiring",
+    "Drive/OAuth/provider/cloud export",
+    "job12 completion",
+    "production cold-cache or multi-process performance"
+  ]
+}

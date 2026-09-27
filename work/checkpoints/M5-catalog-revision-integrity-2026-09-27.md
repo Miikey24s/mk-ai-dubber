@@ -27,7 +27,7 @@ portable metadata and content fingerprints, never media blobs.
 
 ```text
 uv run pytest -q tests/test_catalog_store.py tests/test_catalog_projection.py tests/test_m5_catalog_contract.py tests/test_m5_e3_benchmark.py
-20 passed
+24 passed
 ```
 
 The added cases cover revision change during rebuild, write-time mismatch,
