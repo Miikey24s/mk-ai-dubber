@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -9,7 +11,7 @@ from fastapi.testclient import TestClient
 import vi_dubber.api as api_mod
 from vi_dubber.api import create_app
 from vi_dubber.artifacts import atomic_write_json
-from vi_dubber.jobs import update_job_state
+from vi_dubber.jobs import JobAlreadyRunning, update_job_state
 from vi_dubber.longform import MacroChunk
 from vi_dubber.longform_state import commit_chunk_stage
 
@@ -408,6 +410,82 @@ def test_api_rerender_and_dub(client: TestClient, tmp_path: Path, monkeypatch: p
     dub_data = res_dub.json()
     assert dub_data["status"] == "ok"
     assert "job_id" in dub_data
+
+
+def test_api_duplicate_dub_request_is_idempotent_while_active(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_input = tmp_path / "duplicate-input.mp4"
+    fake_input.write_bytes(b"duplicate-video")
+    started = threading.Event()
+    release = threading.Event()
+
+    def fake_pipeline(**_kwargs: object) -> dict[str, object]:
+        started.set()
+        assert release.wait(5), "fake pipeline did not receive release"
+        return {}
+
+    monkeypatch.setattr(api_mod, "run_pipeline", fake_pipeline)
+    monkeypatch.setattr(api_mod, "run_preflight", lambda *args, **kwargs: [])
+    monkeypatch.setattr(api_mod, "raise_for_preflight", lambda *args, **kwargs: None)
+
+    first = client.post(
+        "/api/dub",
+        json={"input_path": str(fake_input), "profile": "fast", "provider": "local"},
+    )
+    assert first.status_code == 200
+    assert first.json()["status"] == "ok"
+    assert started.wait(5), "worker did not start"
+
+    duplicate = client.post(
+        "/api/dub",
+        json={"input_path": str(fake_input), "profile": "fast", "provider": "local"},
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json() == {
+        "status": "already_running",
+        "job_id": first.json()["job_id"],
+    }
+
+    release.set()
+    deadline = time.monotonic() + 5
+    job_id = first.json()["job_id"]
+    while time.monotonic() < deadline and job_id in api_mod._active_threads:
+        time.sleep(0.01)
+    assert job_id not in api_mod._active_threads
+
+
+def test_api_worker_does_not_overwrite_state_on_duplicate_lease(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_dir = tmp_path / "job-duplicate-lease"
+    job_dir.mkdir()
+    update_job_state(
+        job_dir,
+        status="running",
+        stage="translation",
+        progress=0.5,
+        message="Owner still running",
+    )
+
+    def duplicate_lease(**_kwargs: object) -> dict[str, object]:
+        raise JobAlreadyRunning("owned by another process")
+
+    monkeypatch.setattr(api_mod, "run_pipeline", duplicate_lease)
+    api_mod._run_job_worker(
+        job_dir,
+        tmp_path / "input.mp4",
+        tmp_path / "output.mp4",
+        tmp_path / "config.yaml",
+        translation_provider="local",
+    )
+
+    state = json.loads((job_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["status"] == "running"
+    assert "error" not in state
 
 
 def test_api_upload(client: TestClient) -> None:

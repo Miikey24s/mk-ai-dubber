@@ -22,7 +22,9 @@ from .artifacts import (
     resolve_artifact_path,
 )
 from .jobs import (
+    JobAlreadyRunning,
     clear_control,
+    job_lease_is_live,
     list_job_states,
     load_job_state,
     load_json,
@@ -51,6 +53,7 @@ from .youtube import download_youtube, is_youtube_url
 
 _START_TIME = time.time()
 _active_threads: dict[str, threading.Thread] = {}
+_active_threads_lock = threading.Lock()
 
 
 def _ensure_webgpt_runtime_ready() -> dict[str, Any]:
@@ -260,6 +263,10 @@ def _run_job_worker(
             resume=resume,
             progress_callback=lambda p, msg: None,
         )
+    except JobAlreadyRunning:
+        # Another process owns the durable run lease.  Its state is authoritative;
+        # a duplicate API request must never overwrite that run as failed.
+        return
     except Exception as exc:
         update_job_state(
             job_dir,
@@ -268,13 +275,19 @@ def _run_job_worker(
             error={"type": type(exc).__name__, "message": str(exc)},
         )
     finally:
-        _active_threads.pop(job_id, None)
+        with _active_threads_lock:
+            if _active_threads.get(job_id) is threading.current_thread():
+                _active_threads.pop(job_id, None)
 
 
 def _trigger_job_resume(job_dir: Path) -> dict[str, Any]:
     job_id = job_dir.name
-    if job_id in _active_threads and _active_threads[job_id].is_alive():
-        return {"status": "already_running", "job_id": job_id}
+    with _active_threads_lock:
+        existing = _active_threads.get(job_id)
+        if existing is not None:
+            if existing.is_alive():
+                return {"status": "already_running", "job_id": job_id}
+            _active_threads.pop(job_id, None)
 
     state = reconcile_job_state(job_dir)
     metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
@@ -319,8 +332,12 @@ def _trigger_job_resume(job_dir: Path) -> dict[str, Any]:
         name=f"vi-dubber-{job_id}",
         daemon=True,
     )
-    _active_threads[job_id] = thread
-    thread.start()
+    with _active_threads_lock:
+        existing = _active_threads.get(job_id)
+        if existing is not None and existing.is_alive():
+            return {"status": "already_running", "job_id": job_id}
+        _active_threads[job_id] = thread
+        thread.start()
 
     return {"status": "started", "job_id": job_id, "action": "resume"}
 
@@ -843,45 +860,54 @@ def create_app() -> FastAPI:
             else (job_dir / f"{input_path.stem}.vi.mp4")
         )
 
-        update_job_state(
-            job_dir,
-            status="queued",
-            stage="prepare",
-            progress=0.0,
-            message="Đã khởi tạo tác vụ",
-            metadata={
-                "input_path": str(input_path),
-                "input_name": input_path.name,
-                "source_mode": "YouTube" if youtube_url else "Local",
-                "youtube_url": youtube_url or "",
-                "profile": profile,
-                "translation_provider": provider,
-                "translation_model": payload.translation_model or "",
-                "translation_effort": payload.translation_effort or "",
-                "voice_ref": str(voice_ref) if voice_ref else "",
-                "diarization": payload.diarize,
-                "output": str(output_path),
-            },
-        )
+        with _active_threads_lock:
+            existing = _active_threads.get(job_dir.name)
+            if existing is not None:
+                if existing.is_alive():
+                    return {"status": "already_running", "job_id": job_dir.name}
+                _active_threads.pop(job_dir.name, None)
+            if job_lease_is_live(job_dir):
+                return {"status": "already_running", "job_id": job_dir.name}
 
-        clear_control(job_dir)
-        thread = threading.Thread(
-            target=_run_job_worker,
-            args=(job_dir, input_path, output_path, config_path),
-            kwargs={
-                "voice_ref": voice_ref,
-                "diarize_override": diarize_bool,
-                "translation_provider": provider,
-                "translation_model": payload.translation_model,
-                "translation_effort": payload.translation_effort,
-                "profile": profile,
-                "resume": True,
-            },
-            name=f"vi-dubber-{job_dir.name}",
-            daemon=True,
-        )
-        _active_threads[job_dir.name] = thread
-        thread.start()
+            update_job_state(
+                job_dir,
+                status="queued",
+                stage="prepare",
+                progress=0.0,
+                message="Đã khởi tạo tác vụ",
+                metadata={
+                    "input_path": str(input_path),
+                    "input_name": input_path.name,
+                    "source_mode": "YouTube" if youtube_url else "Local",
+                    "youtube_url": youtube_url or "",
+                    "profile": profile,
+                    "translation_provider": provider,
+                    "translation_model": payload.translation_model or "",
+                    "translation_effort": payload.translation_effort or "",
+                    "voice_ref": str(voice_ref) if voice_ref else "",
+                    "diarization": payload.diarize,
+                    "output": str(output_path),
+                },
+            )
+
+            clear_control(job_dir)
+            thread = threading.Thread(
+                target=_run_job_worker,
+                args=(job_dir, input_path, output_path, config_path),
+                kwargs={
+                    "voice_ref": voice_ref,
+                    "diarize_override": diarize_bool,
+                    "translation_provider": provider,
+                    "translation_model": payload.translation_model,
+                    "translation_effort": payload.translation_effort,
+                    "profile": profile,
+                    "resume": True,
+                },
+                name=f"vi-dubber-{job_dir.name}",
+                daemon=True,
+            )
+            _active_threads[job_dir.name] = thread
+            thread.start()
 
         return {
             "status": "ok",
