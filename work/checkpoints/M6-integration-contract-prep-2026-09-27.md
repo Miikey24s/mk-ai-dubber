@@ -1,0 +1,20 @@
+# M6 integration contract prep — 2026-09-27
+
+Status: **PREP_ONLY**. This checkpoint prepares a software-only boundary; it does not open a connector, OAuth flow, account, network call, media upload, or production integration.
+
+## Scope
+
+- **VI → Learn reference:** a VI-owned artifact reference keeps artifact ID, revision, source fingerprint, SHA-256, language, source timestamp, QA status, visible resource URI, and a trusted-fixture identity marker. The fixture explicitly denies answer-key exposure and auto-completion.
+- **Export request/receipt:** a user-selected Drive-style destination is represented by `drive.file`, picker destination, data class, source revision/hash, and an idempotency key. Receipts distinguish `unknown`, `succeeded`, and `revoked` and keep external identity/checksum only when known.
+- **Failure semantics:** same-intent retries dedupe; reuse of an idempotency key with a different intent is rejected; an unknown outcome is looked up before retry; a successful lookup is adopted without resend; a not-found lookup is retryable; revoke/cancel and stale events cannot reopen a terminal state.
+
+## Evidence
+
+- Fixture: `tests/fixtures/m6_integration_contract.json`
+- Offline probe: `scripts/benchmark_m6_integration_contract.py`
+- Tests: `tests/test_m6_integration_contract.py`
+- The probe returns `PREP_ONLY` and records excluded claims for actual connector behavior, OAuth/account permissions, cryptographic verification, upload/deletion, exactly-once delivery, and production API/schema implementation.
+
+## Gate mapping
+
+This is preparatory evidence for M6 I1/I2 and E5. It does not satisfy the master-plan gates requiring user-scoped permission, actual destination, or integration acceptance. The next implementation must keep VI artifact authority and add a durable intent/receipt map in the owning project; it must not create a second media source of truth.

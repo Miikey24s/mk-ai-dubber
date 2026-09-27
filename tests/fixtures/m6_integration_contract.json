@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "status": "PREP_ONLY",
+  "purpose": "Offline contract fixture for the future M6 VI-to-Learn reference and Drive-style export receipt boundary.",
+  "runtime_scope": "No connector, OAuth, account, provider, network, media upload, or production code is used by this fixture.",
+  "trusted_fixture_issuers": ["vi-dubber-local"],
+  "resource_allowlist": ["learn://authorized/"],
+  "learn_reference": {
+    "schema_version": "workspace-learn-reference-v1",
+    "reference_id": "learn-ref-fixture-0001",
+    "source_system": "vi-dubber",
+    "target_system": "learn",
+    "identity": {
+      "issuer": "vi-dubber-local",
+      "trust_state": "trusted_fixture",
+      "key_id": "fixture-key-1"
+    },
+    "artifact": {
+      "artifact_id": "job-fixture-0001/subtitle-r3",
+      "kind": "subtitle",
+      "revision": 3,
+      "language": "vi",
+      "qa_status": "passed",
+      "source_timestamp_utc": "2026-09-27T10:00:00Z",
+      "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "resource_uri": "learn://authorized/job-fixture-0001/subtitle-r3.srt",
+      "source_visible": true
+    },
+    "safety": {
+      "answer_keys_exposed": false,
+      "auto_completion_enabled": false
+    }
+  },
+  "export_request": {
+    "schema_version": "workspace-export-request-v1",
+    "request_id": "export-request-fixture-0001",
+    "idempotency_key": "idem-fixture-0001",
+    "source": {
+      "system": "vi-dubber",
+      "artifact_id": "job-fixture-0001/subtitle-r3",
+      "revision": 3,
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "data_class": "subtitle"
+    },
+    "destination": {
+      "provider": "drive",
+      "account_ref": "user-selected:fixture-account",
+      "parent_ref": "picker:fixture-folder",
+      "scope": "drive.file",
+      "mode": "copy"
+    },
+    "consent": {
+      "user_selected": true,
+      "revoked": false
+    }
+  },
+  "receipt_examples": {
+    "unknown": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "unknown",
+      "attempt": 1,
+      "reconcile_required": true,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "succeeded": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "succeeded",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": "drive-file-fixture-0001",
+      "remote_revision": "remote-r7",
+      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "revoked": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "revoked",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "revocation_reason": "user_revoked_connection"
+    }
+  },
+  "acceptance": {
+    "duplicate_same_intent": "dedupe_without_second_send",
+    "duplicate_conflicting_intent": "reject_conflict",
+    "unknown_outcome": "lookup_before_retry",
+    "lookup_not_found": "retry_allowed",
+    "lookup_succeeded": "adopt_existing_without_resend",
+    "revoked_or_cancelled": "do_not_send",
+    "stale_event": "must_not_regress_terminal_state"
+  }
+}
