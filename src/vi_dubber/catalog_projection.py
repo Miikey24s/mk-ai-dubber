@@ -1,0 +1,201 @@
+"""Build the M5 catalog projection from existing VI job/manifests.
+
+This adapter is intentionally read-only with respect to job directories.  It
+normalizes the existing ``job.json``, ``state.json`` and stage manifests into
+the local :mod:`catalog_store` boundary without copying blobs or persisting
+absolute source paths.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+from .artifacts import fingerprint_data, fingerprint_file
+from .catalog_store import CatalogItem, CatalogStore
+from .jobs import load_json
+
+
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionIssue:
+    job_id: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionReport:
+    indexed: int
+    skipped: tuple[ProjectionIssue, ...]
+
+
+def _safe_source_alias(job_id: str, source_name: str) -> str:
+    name = Path(source_name).name.strip() or "source.bin"
+    # Keep the alias portable while retaining enough of the original name for
+    # a human relink mapping.  The content hash remains the source identity.
+    name = "".join(char if char.isalnum() or char in {".", "-", "_"} else "_" for char in name)
+    return PurePosixPath("jobs", job_id, "source", name).as_posix()
+
+
+def _relative_source_ref(candidate: Path | None, source_root: Path | None, job_id: str, source_name: str) -> str:
+    if candidate is not None and source_root is not None:
+        try:
+            return candidate.resolve().relative_to(source_root.resolve()).as_posix()
+        except (OSError, ValueError):
+            pass
+    return _safe_source_alias(job_id, source_name)
+
+
+def _source_candidate(job_info: dict[str, Any], state: dict[str, Any], job_dir: Path) -> Path | None:
+    metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+    raw = job_info.get("source_path") or metadata.get("input_path")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = job_dir / candidate
+    return candidate.resolve(strict=False)
+
+
+def _source_availability(candidate: Path | None, source_sha: str, source_size: int | None) -> str:
+    if candidate is None:
+        return "unknown"
+    try:
+        if not candidate.is_file():
+            return "missing"
+        identity = fingerprint_file(candidate)
+    except OSError:
+        return "failed"
+    if identity.get("sha256") != source_sha:
+        return "stale"
+    if source_size is not None and identity.get("size_bytes") != source_size:
+        return "stale"
+    return "available"
+
+
+def _manifest_projection(job_dir: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    manifests_dir = job_dir / "manifests"
+    if not manifests_dir.is_dir():
+        return records
+    for path in sorted(manifests_dir.glob("*.json")):
+        payload = load_json(path)
+        stage = payload.get("stage")
+        fingerprint = payload.get("fingerprint")
+        status = payload.get("status")
+        if not isinstance(stage, str) or not stage.strip() or not isinstance(fingerprint, str) or not fingerprint.strip():
+            continue
+        records.append(
+            {
+                "stage": stage.strip(),
+                "fingerprint": fingerprint.strip(),
+                "status": str(status or "unknown"),
+                "artifact_count": len(payload.get("artifacts") or []) if isinstance(payload.get("artifacts"), list) else 0,
+            }
+        )
+    return records
+
+
+def _segment_count(job_dir: Path) -> int:
+    """Count persisted segments without loading transcript text into catalog metadata."""
+    candidates = [job_dir / "segments_source.json"]
+    candidates.extend(sorted(job_dir.glob("chunks/*/segments_source.json")))
+    for path in candidates:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError):
+            continue
+        if isinstance(payload, list):
+            return len(payload)
+    return 0
+
+
+def catalog_item_from_job(job_dir: Path, *, source_root: Path | None = None) -> CatalogItem | None:
+    """Project one content-addressed job directory into a catalog item.
+
+    Invalid/incomplete jobs return ``None`` so a corrupt directory cannot poison
+    the catalog projection.  The caller receives a reason via
+    :func:`rebuild_from_work_dir`.
+    """
+    job_dir = Path(job_dir)
+    job_id = job_dir.name
+    if not job_id.startswith("job-"):
+        return None
+    job_info = load_json(job_dir / "job.json")
+    state = load_json(job_dir / "state.json")
+    source = job_info.get("source") if isinstance(job_info.get("source"), dict) else {}
+    source_sha = str(source.get("sha256") or "").lower()
+    source_size = source.get("size_bytes")
+    if not _SHA256_RE.fullmatch(source_sha):
+        return None
+    if isinstance(source_size, bool) or not isinstance(source_size, int) or source_size < 0:
+        source_size = None
+    metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+    source_name = str(job_info.get("source_name") or metadata.get("input_name") or job_id).strip() or job_id
+    candidate = _source_candidate(job_info, state, job_dir)
+    stage_records = _manifest_projection(job_dir)
+    translation = job_info.get("translation") if isinstance(job_info.get("translation"), dict) else {}
+    safe_state = {
+        "status": str(state.get("status") or "unknown"),
+        "stage": str(state.get("stage") or "unknown"),
+        "progress": float(state.get("progress") or 0.0),
+    }
+    lineage = {
+        "job_version": job_info.get("version"),
+        "source": {"sha256": source_sha, "size_bytes": source_size},
+        "state": safe_state,
+        "translation": {
+            "provider": str(translation.get("provider") or ""),
+            "model_id": str(translation.get("model_id") or ""),
+            "effort": str(translation.get("effort") or ""),
+            "catalog_revision": str(translation.get("catalog_revision") or ""),
+        },
+        "stages": stage_records,
+    }
+    revision = fingerprint_data(lineage)
+    availability = _source_availability(candidate, source_sha, source_size)
+    source_ref = _relative_source_ref(candidate, source_root, job_id, source_name)
+    item_metadata = {
+        "source_size_bytes": source_size,
+        "source_name": source_name,
+        "job_status": safe_state["status"],
+        "job_stage": safe_state["stage"],
+        "progress": safe_state["progress"],
+        "stages": stage_records,
+        "lineage_fingerprint": revision,
+    }
+    return CatalogItem(
+        item_id=job_id,
+        title=source_name,
+        source_fingerprint=source_sha,
+        revision=revision,
+        availability=availability,
+        segment_count=_segment_count(job_dir),
+        source_ref=source_ref,
+        metadata=item_metadata,
+    )
+
+
+def rebuild_from_work_dir(
+    store: CatalogStore,
+    work_dir: Path,
+    *,
+    source_root: Path | None = None,
+) -> ProjectionReport:
+    """Atomically rebuild a catalog projection from local job directories."""
+    items: list[CatalogItem] = []
+    skipped: list[ProjectionIssue] = []
+    for job_dir in sorted(Path(work_dir).glob("job-*"), key=lambda path: path.name):
+        item = catalog_item_from_job(job_dir, source_root=source_root)
+        if item is None:
+            skipped.append(ProjectionIssue(job_dir.name, "missing or invalid job source identity"))
+            continue
+        items.append(item)
+    store.rebuild(items)
+    return ProjectionReport(indexed=len(items), skipped=tuple(skipped))
+
