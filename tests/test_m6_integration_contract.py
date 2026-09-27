@@ -39,6 +39,46 @@ def test_reference_rejects_unallowlisted_resource_and_answer_key_exposure() -> N
     assert "reference.safety.answer_keys_exposed" in errors
 
 
+@pytest.mark.parametrize(
+    "resource_uri",
+    [
+        "learn://authorized-evil/file.srt",
+        "learn://authorized/job/../secret.srt",
+        "learn://authorized/job/\x1fsecret.srt",
+        "https://authorized/job/file.srt",
+    ],
+)
+def test_reference_uri_boundary_rejects_lookalike_authority_and_unsafe_paths(
+    resource_uri: str,
+) -> None:
+    contract = benchmark.load_contract()
+    reference = copy.deepcopy(contract["learn_reference"])
+    reference["artifact"]["resource_uri"] = resource_uri
+
+    assert "reference.artifact.resource_allowlist" in benchmark.validate_learn_reference(
+        reference, contract
+    )
+
+
+def test_reference_requires_explicit_utc_provenance_and_key_id() -> None:
+    contract = benchmark.load_contract()
+    reference = copy.deepcopy(contract["learn_reference"])
+    reference["artifact"]["source_timestamp_utc"] = "2026-09-27T17:00:00+07:00"
+    reference["identity"].pop("key_id")
+
+    errors = benchmark.validate_learn_reference(reference, contract)
+
+    assert "reference.artifact.source_timestamp_utc_format" in errors
+    assert "reference.identity.key_id" in errors
+
+
+def test_probe_receipt_records_uri_and_provenance_hardening() -> None:
+    receipt = benchmark.run_probe(benchmark.load_contract())
+
+    assert receipt["hardening"]["status"] == "passed"
+    assert all(receipt["hardening"]["rejected_cases"].values())
+
+
 def test_dedupe_accepts_same_intent_and_rejects_conflicting_reuse() -> None:
     contract = benchmark.load_contract()
     first = copy.deepcopy(contract["export_request"])

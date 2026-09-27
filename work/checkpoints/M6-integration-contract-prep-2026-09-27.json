@@ -11,6 +11,26 @@
     },
     "passed": true
   },
+  "hardening": {
+    "status": "passed",
+    "rejected_cases": {
+      "uri_authority_prefix_bypass": [
+        "reference.artifact.resource_allowlist"
+      ],
+      "uri_path_traversal": [
+        "reference.artifact.resource_allowlist"
+      ],
+      "non_utc_timestamp": [
+        "reference.artifact.source_timestamp_utc_format"
+      ]
+    },
+    "policy": [
+      "resource URI must match exact scheme and authority from the allowlist",
+      "resource URI path rejects traversal and control characters",
+      "artifact source timestamp must be explicit UTC with Z suffix",
+      "trusted identity must include a non-empty key_id"
+    ]
+  },
   "idempotency": [
     {
       "request_id": "export-request-fixture-0001",

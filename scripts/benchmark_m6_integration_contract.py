@@ -12,9 +12,11 @@ import argparse
 import hashlib
 import json
 import re
+from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +70,47 @@ def _secret_keys(payload: Any) -> list[str]:
     )
 
 
+def _is_utc_timestamp(value: Any) -> bool:
+    """Accept only an explicit, parseable UTC timestamp for source provenance."""
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+
+
+def _is_allowlisted_resource_uri(value: Any, contract: dict[str, Any]) -> bool:
+    """Validate the URI boundary without allowing look-alike authorities or traversal."""
+    if not isinstance(value, str) or any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    allowlisted = contract.get("resource_allowlist", [])
+    if not isinstance(allowlisted, list):
+        return False
+    for prefix in allowlisted:
+        if not isinstance(prefix, str):
+            continue
+        try:
+            allowed = urlsplit(prefix)
+        except ValueError:
+            continue
+        if (
+            parsed.scheme == allowed.scheme
+            and parsed.netloc == allowed.netloc
+            and parsed.path.startswith(allowed.path)
+            and parsed.path != allowed.path.rstrip("/")
+            and "\\" not in parsed.path
+            and ".." not in parsed.path.split("/")
+        ):
+            return True
+    return False
+
+
 def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if reference.get("schema_version") != "workspace-learn-reference-v1":
@@ -81,6 +124,8 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
         errors.append("reference.identity.issuer")
     if not isinstance(identity, dict) or identity.get("trust_state") != "trusted_fixture":
         errors.append("reference.identity.trust_state")
+    if not isinstance(identity, dict) or not str(identity.get("key_id") or "").strip():
+        errors.append("reference.identity.key_id")
 
     artifact = reference.get("artifact")
     if not isinstance(artifact, dict):
@@ -88,6 +133,8 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
     for key in ("artifact_id", "kind", "language", "source_timestamp_utc", "resource_uri"):
         if not str(artifact.get(key) or "").strip():
             errors.append(f"reference.artifact.{key}")
+    if not _is_utc_timestamp(artifact.get("source_timestamp_utc")):
+        errors.append("reference.artifact.source_timestamp_utc_format")
     if not isinstance(artifact.get("revision"), int) or artifact["revision"] < 1:
         errors.append("reference.artifact.revision")
     if artifact.get("qa_status") != "passed":
@@ -98,7 +145,7 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
     if artifact.get("source_visible") is not True:
         errors.append("reference.artifact.source_visible")
     uri = artifact.get("resource_uri")
-    if not isinstance(uri, str) or not any(uri.startswith(prefix) for prefix in contract.get("resource_allowlist", [])):
+    if not _is_allowlisted_resource_uri(uri, contract):
         errors.append("reference.artifact.resource_allowlist")
 
     safety = reference.get("safety")
@@ -362,6 +409,20 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     receipt_errors = {
         name: validate_export_receipt(receipt, request) for name, receipt in receipts.items()
     }
+    hardening_cases = {
+        "uri_authority_prefix_bypass": validate_learn_reference(
+            {**reference, "artifact": {**reference["artifact"], "resource_uri": "learn://authorized-evil/file.srt"}},
+            contract,
+        ),
+        "uri_path_traversal": validate_learn_reference(
+            {**reference, "artifact": {**reference["artifact"], "resource_uri": "learn://authorized/job/../secret.srt"}},
+            contract,
+        ),
+        "non_utc_timestamp": validate_learn_reference(
+            {**reference, "artifact": {**reference["artifact"], "source_timestamp_utc": "2026-09-27T17:00:00+07:00"}},
+            contract,
+        ),
+    }
     duplicate_request = deepcopy(request)
     duplicate_request["request_id"] = "export-request-fixture-duplicate"
     conflict_request = deepcopy(request)
@@ -399,6 +460,16 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "export_request_errors": request_errors,
             "receipt_errors": receipt_errors,
             "passed": not reference_errors and not request_errors and not any(receipt_errors.values()),
+        },
+        "hardening": {
+            "status": "passed" if all(hardening_cases.values()) else "failed",
+            "rejected_cases": hardening_cases,
+            "policy": [
+                "resource URI must match exact scheme and authority from the allowlist",
+                "resource URI path rejects traversal and control characters",
+                "artifact source timestamp must be explicit UTC with Z suffix",
+                "trusted identity must include a non-empty key_id",
+            ],
         },
         "idempotency": dedupe,
         "reconciliation": recovery,
