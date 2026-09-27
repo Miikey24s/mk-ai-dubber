@@ -12,6 +12,7 @@ import json
 import math
 import re
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -222,9 +223,34 @@ class CatalogStore:
         connection.execute("PRAGMA busy_timeout = 5000")
         return connection
 
+    @contextmanager
+    def _connection(self):
+        """Close every SQLite handle promptly, including on Windows.
+
+        ``sqlite3.Connection`` implements transaction context management, but
+        its ``__exit__`` does not close the handle.  A catalog operation that
+        only used ``with self._connect()`` could therefore keep the database
+        locked until cyclic garbage collection, breaking restart/restore and
+        temporary-directory cleanup on Windows.  Keep transaction semantics
+        while making handle lifetime explicit.
+        """
+        connection = self._connect()
+        try:
+            yield connection
+        except BaseException:
+            try:
+                connection.rollback()
+            finally:
+                connection.close()
+            raise
+        else:
+            if connection.in_transaction:
+                connection.commit()
+            connection.close()
+
     def initialize(self) -> None:
         """Create or migrate the local schema in one transaction."""
-        with self._connect() as connection:
+        with self._connection() as connection:
             current = int(connection.execute("PRAGMA user_version").fetchone()[0])
             if current > CATALOG_SCHEMA_VERSION:
                 raise CatalogError(
@@ -266,7 +292,7 @@ class CatalogStore:
         if not self.db_path.exists():
             self.initialize()
         else:
-            with self._connect() as connection:
+            with self._connection() as connection:
                 version = int(connection.execute("PRAGMA user_version").fetchone()[0])
             if version != CATALOG_SCHEMA_VERSION:
                 self.initialize()
@@ -293,7 +319,7 @@ class CatalogStore:
     def upsert_item(self, item: CatalogItem) -> None:
         item = _validate_item(item)
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
@@ -326,7 +352,7 @@ class CatalogStore:
             seen.add(item.item_id)
         self._ensure_initialized()
         now = self._now()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             # Foreign-key protection intentionally prevents deleting a catalog
             # row while user state still references it.  Snapshot the user
@@ -382,7 +408,7 @@ class CatalogStore:
     def get_item(self, item_id: str) -> CatalogItem | None:
         item_id = _validate_item_id(item_id)
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute("SELECT * FROM catalog_items WHERE item_id = ?", (item_id,)).fetchone()
         return _item_from_row(row) if row is not None else None
 
@@ -412,7 +438,7 @@ class CatalogStore:
             params.append(availability)
         params.extend((limit, offset))
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 f"SELECT * FROM catalog_items WHERE {' AND '.join(clauses)} ORDER BY item_id LIMIT ? OFFSET ?",
                 params,
@@ -423,7 +449,7 @@ class CatalogStore:
         """Remove only the catalog projection; source/media is never touched."""
         item_id = _validate_item_id(item_id)
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             # User state is a separate, intentionally disposable projection;
             # removing a catalog item removes its bookmark/review row but never
@@ -435,7 +461,7 @@ class CatalogStore:
     def set_user_state(self, state: UserState) -> None:
         state = _validate_user_state(state)
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT revision FROM catalog_items WHERE item_id = ?",
@@ -474,7 +500,7 @@ class CatalogStore:
     def get_user_state(self, item_id: str) -> UserState | None:
         item_id = _validate_item_id(item_id)
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT user_state.*, catalog_items.revision AS catalog_revision
@@ -496,7 +522,7 @@ class CatalogStore:
     def export_metadata(self) -> dict[str, Any]:
         """Return a deterministic, blob-free snapshot of catalog and user state."""
         self._ensure_initialized()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN")
             items = [_item_from_row(row) for row in connection.execute("SELECT * FROM catalog_items ORDER BY item_id")]
             states = []
@@ -555,7 +581,7 @@ class CatalogStore:
         items, states, core = _parse_backup(payload)
         self._ensure_initialized()
         now = self._now()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             if replace:
                 connection.execute("DELETE FROM user_state")
