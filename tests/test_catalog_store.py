@@ -201,6 +201,20 @@ def test_read_and_export_fail_closed_if_sqlite_user_state_is_orphaned(tmp_path: 
         CatalogStore(db_path).export_metadata()
 
 
+def test_rebuild_rejects_corrupt_existing_state_before_projection_mutation(tmp_path: Path) -> None:
+    db_path = tmp_path / "catalog.sqlite3"
+    store = CatalogStore(db_path)
+    store.rebuild([_item()])
+    store.set_user_state(UserState("job-0001", "r1", (), "reviewed", 1.0))
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("UPDATE user_state SET bookmarks_json = '{not-json}' WHERE item_id = 'job-0001'")
+        connection.commit()
+    with pytest.raises(CatalogIntegrityError, match="user state row failed validation"):
+        CatalogStore(db_path).rebuild([_item("replacement", title="Must not replace")])
+    assert CatalogStore(db_path).get_item("job-0001") is not None
+    assert CatalogStore(db_path).get_item("replacement") is None
+
+
 def test_probe_and_relink_require_exact_fingerprint_and_explicit_mapping(tmp_path: Path) -> None:
     root = tmp_path / "media-root"
     source_dir = root / "sources" / "job-0001"

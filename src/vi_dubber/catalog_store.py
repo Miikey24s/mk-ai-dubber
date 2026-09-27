@@ -331,7 +331,13 @@ class CatalogStore:
             # row while user state still references it.  Snapshot the user
             # state inside this same transaction, replace the projection, then
             # restore state for IDs that still exist.
-            preserved_states = connection.execute("SELECT * FROM user_state ORDER BY item_id").fetchall()
+            # Validate the existing state before deleting anything.  A direct
+            # SQLite edit or interrupted external restore must not be carried
+            # into the rebuilt projection, nor should it cause a partial wipe.
+            preserved_states = [
+                _state_from_row(row)
+                for row in connection.execute("SELECT * FROM user_state ORDER BY item_id")
+            ]
             connection.execute("DELETE FROM user_state")
             connection.execute("DELETE FROM catalog_items")
             connection.executemany(
@@ -354,19 +360,19 @@ class CatalogStore:
                 """,
                 [
                     (
-                        row["item_id"],
-                        row["revision"],
-                        row["bookmarks_json"],
-                        row["review_state"],
-                        row["watch_position_seconds"],
+                        state.item_id,
+                        state.revision,
+                        canonical_json(list(state.bookmarks)),
+                        state.review_state,
+                        state.watch_position_seconds,
                         now,
                     )
-                    for row in preserved_states
+                    for state in preserved_states
                     # Review/bookmark state is scoped to the exact catalog
                     # revision.  A rebuild may discover a newer job lineage;
                     # carrying state across that boundary would make an old
                     # segment index or review decision look current.
-                    if row["item_id"] in valid_ids and row["revision"] == revisions[row["item_id"]]
+                    if state.item_id in valid_ids and state.revision == revisions[state.item_id]
                 ],
             )
             connection.commit()
