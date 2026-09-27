@@ -251,9 +251,9 @@ def validate_connection_capability(
 ) -> list[str]:
     """Validate the local capability binding without contacting a provider.
 
-    ``epoch`` is intentionally explicit: revoking a connection invalidates all
-    intents bound to its prior epoch, so a later connector cannot silently
-    reuse stale permission state.
+    ``epoch`` is intentionally explicit: a connector must bind each intent to
+    the currently active capability epoch, so a later connector can fence stale
+    permission state after revocation.
     """
     errors: list[str] = []
     if not isinstance(capability, dict):
