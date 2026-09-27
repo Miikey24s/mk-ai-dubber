@@ -12,6 +12,7 @@ import json
 import math
 import re
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -224,7 +225,7 @@ class CatalogStore:
         return connection
 
     @contextmanager
-    def _connection(self):
+    def _connection(self) -> Iterator[sqlite3.Connection]:
         """Close every SQLite handle promptly, including on Windows.
 
         ``sqlite3.Connection`` implements transaction context management, but
