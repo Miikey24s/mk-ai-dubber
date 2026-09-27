@@ -12,6 +12,22 @@ from typing import Any
 ProgressCallback = Callable[[float, str], None]
 _PROGRESS_STEP = 0.01
 _LOCAL_SEPARATOR_LOCK = threading.RLock()
+# Classic RIFF/WAV uses a 32-bit data-size field. Keep a safety margin below
+# the nominal 4 GiB limit because separator output can retain the input's
+# channel count and sample subtype. FLAC is lossless and has no RIFF-size cap.
+_WAV_SAFE_BYTES = 3_500_000_000
+
+
+def _output_format_for_audio(input_audio: Path) -> str:
+    """Choose a lossless container that remains valid for long audio files."""
+
+    try:
+        size_bytes = input_audio.stat().st_size
+    except OSError:
+        # Preserve the historical short-file behavior when the dependency will
+        # provide a clearer input error later in the pipeline.
+        return "WAV"
+    return "FLAC" if size_bytes >= _WAV_SAFE_BYTES else "WAV"
 
 
 @contextmanager
@@ -102,11 +118,12 @@ def separate_dialogue(
 
     separator = None
     try:
+        output_format = _output_format_for_audio(input_audio)
         separator = Separator(
             log_level=logging.INFO,
             model_file_dir=str(model_dir),
             output_dir=str(output_dir),
-            output_format="WAV",
+            output_format=output_format,
             sample_rate=48000,
             use_soundfile=True,
             use_autocast=True,

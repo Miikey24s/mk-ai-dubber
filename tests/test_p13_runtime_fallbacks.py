@@ -8,6 +8,28 @@ import vi_dubber.asr as asr_module
 import vi_dubber.separation as separation_module
 
 
+def test_long_audio_uses_flac_to_avoid_riff_size_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio_path = tmp_path / "long-input.wav"
+    audio_path.write_bytes(b"fixture")
+    monkeypatch.setattr(separation_module, "_WAV_SAFE_BYTES", 4)
+
+    assert separation_module._output_format_for_audio(audio_path) == "FLAC"
+
+
+def test_short_audio_keeps_wav_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio_path = tmp_path / "short-input.wav"
+    audio_path.write_bytes(b"x")
+    monkeypatch.setattr(separation_module, "_WAV_SAFE_BYTES", 4)
+
+    assert separation_module._output_format_for_audio(audio_path) == "WAV"
+
+
 def test_cuda_oom_retries_with_conservative_batch_fallbacks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

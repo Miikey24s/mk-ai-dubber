@@ -893,7 +893,7 @@ def _run_pipeline_impl(
         inputs=separation_inputs,
         config=separation_config,
         model={"name": separation_config.get("model")},
-        versions={"policy": 1, **runtime_versions("audio_separator", "torch")},
+        versions={"policy": 2, **runtime_versions("audio_separator", "torch")},
     )
     with metrics.stage("separation"):
         if _stage_cache_hit(job_dir, "separation", separation_fingerprint, resume=resume):
@@ -931,7 +931,7 @@ def _run_pipeline_impl(
                 artifacts=[vocals, background, stems_meta],
                 config=separation_config,
                 model={"name": separation_config.get("model")},
-                versions={"policy": 1, **runtime_versions("audio_separator", "torch")},
+                versions={"policy": 2, **runtime_versions("audio_separator", "torch")},
             )
         else:
             metrics.increment("cache_hits")
