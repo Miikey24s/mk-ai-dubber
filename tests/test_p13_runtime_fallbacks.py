@@ -177,3 +177,136 @@ def test_separator_cleans_cuda_cache_when_separation_fails(
 
     assert gc_calls == 1
     assert empty_cache_calls == 1
+
+
+def test_separator_reports_mdxc_progress_and_restores_dependency_tqdm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    progress_events: list[tuple[float, str]] = []
+
+    def original_tqdm(iterable, *args, **kwargs):
+        return iterable
+
+    fake_package = types.ModuleType("audio_separator")
+    fake_separator_module = types.ModuleType("audio_separator.separator")
+    fake_architectures_module = types.ModuleType("audio_separator.separator.architectures")
+    fake_mdxc_module = types.ModuleType("audio_separator.separator.architectures.mdxc_separator")
+    fake_mdxc_module.tqdm = original_tqdm
+    fake_architectures_module.mdxc_separator = fake_mdxc_module
+
+    class FakeSeparator:
+        def __init__(self, **kwargs):
+            pass
+
+        def load_model(self, model_filename):
+            pass
+
+        def separate(self, audio_file_path):
+            for _ in fake_mdxc_module.tqdm(range(200)):
+                pass
+            return ["Vocals.wav", "Instrumental.wav"]
+
+    fake_separator_module.Separator = FakeSeparator
+    fake_torch = types.ModuleType("torch")
+
+    class FakeCuda:
+        @staticmethod
+        def is_available() -> bool:
+            return False
+
+    fake_torch.cuda = FakeCuda()
+    monkeypatch.setitem(sys.modules, "audio_separator", fake_package)
+    monkeypatch.setitem(sys.modules, "audio_separator.separator", fake_separator_module)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(
+        sys.modules,
+        "audio_separator.separator.architectures",
+        fake_architectures_module,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "audio_separator.separator.architectures.mdxc_separator",
+        fake_mdxc_module,
+    )
+
+    vocals, instrumental = separation_module.separate_dialogue(
+        tmp_path / "input.wav",
+        tmp_path / "out",
+        tmp_path / "models",
+        "model.ckpt",
+        progress_callback=lambda value, message: progress_events.append((value, message)),
+    )
+
+    assert vocals.name == "Vocals.wav"
+    assert instrumental.name == "Instrumental.wav"
+    assert progress_events
+    assert progress_events[-1][0] == pytest.approx(1.0)
+    assert "200/200" in progress_events[-1][1]
+    assert all(
+        later[0] >= earlier[0]
+        for earlier, later in zip(progress_events, progress_events[1:])
+    )
+    assert fake_mdxc_module.tqdm is original_tqdm
+
+
+def test_separator_progress_callback_failure_does_not_fail_separation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def original_tqdm(iterable, *args, **kwargs):
+        return iterable
+
+    fake_package = types.ModuleType("audio_separator")
+    fake_separator_module = types.ModuleType("audio_separator.separator")
+    fake_architectures_module = types.ModuleType("audio_separator.separator.architectures")
+    fake_mdxc_module = types.ModuleType("audio_separator.separator.architectures.mdxc_separator")
+    fake_mdxc_module.tqdm = original_tqdm
+    fake_architectures_module.mdxc_separator = fake_mdxc_module
+
+    class FakeSeparator:
+        def __init__(self, **kwargs):
+            pass
+
+        def load_model(self, model_filename):
+            pass
+
+        def separate(self, audio_file_path):
+            for _ in fake_mdxc_module.tqdm(range(100)):
+                pass
+            return ["Vocals.wav", "Instrumental.wav"]
+
+    fake_separator_module.Separator = FakeSeparator
+    fake_torch = types.ModuleType("torch")
+
+    class FakeCuda:
+        @staticmethod
+        def is_available() -> bool:
+            return False
+
+    fake_torch.cuda = FakeCuda()
+    monkeypatch.setitem(sys.modules, "audio_separator", fake_package)
+    monkeypatch.setitem(sys.modules, "audio_separator.separator", fake_separator_module)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(
+        sys.modules,
+        "audio_separator.separator.architectures",
+        fake_architectures_module,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "audio_separator.separator.architectures.mdxc_separator",
+        fake_mdxc_module,
+    )
+
+    vocals, instrumental = separation_module.separate_dialogue(
+        tmp_path / "input.wav",
+        tmp_path / "out",
+        tmp_path / "models",
+        "model.ckpt",
+        progress_callback=lambda *_args: (_ for _ in ()).throw(RuntimeError("ui down")),
+    )
+
+    assert vocals.name == "Vocals.wav"
+    assert instrumental.name == "Instrumental.wav"
+    assert fake_mdxc_module.tqdm is original_tqdm

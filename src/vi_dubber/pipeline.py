@@ -909,6 +909,11 @@ def _run_pipeline_impl(
                 job_dir / "stems",
                 MODELS_DIR / "separator",
                 str(config["separation"]["model"]),
+                progress_callback=lambda value, message: progress(
+                    0.08 + 0.11 * value,
+                    message,
+                    stage="separation",
+                ),
             )
             atomic_write_json(
                 stems_meta,

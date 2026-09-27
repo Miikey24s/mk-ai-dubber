@@ -2,7 +2,90 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
+
+
+ProgressCallback = Callable[[float, str], None]
+_PROGRESS_STEP = 0.01
+_LOCAL_SEPARATOR_LOCK = threading.RLock()
+
+
+@contextmanager
+def _mdxc_progress_adapter(progress_callback: ProgressCallback | None):
+    """Adapt audio-separator's internal tqdm loop without modifying the package.
+
+    audio-separator 0.47 does not expose a public progress callback for local
+    MDXC/Roformer inference. Its architecture module does, however, route the
+    long inference loop through a module-level ``tqdm`` symbol. Temporarily
+    wrapping that symbol lets VI Dubber persist useful progress while keeping
+    the dependency untouched. If the dependency layout changes, this adapter
+    deliberately degrades to no detailed progress instead of failing a job.
+    """
+
+    # The adapter temporarily replaces a dependency module global, so local
+    # separation calls must have one owner. This also matches P23's conservative
+    # GPU-heavy concurrency=1 policy and prevents cross-job progress leakage.
+    with _LOCAL_SEPARATOR_LOCK:
+        if progress_callback is None:
+            yield
+            return
+
+        try:
+            from audio_separator.separator.architectures import mdxc_separator
+        except Exception:
+            yield
+            return
+
+        original_tqdm = getattr(mdxc_separator, "tqdm", None)
+        if original_tqdm is None:
+            yield
+            return
+
+        max_fraction = 0.0
+
+        def adapted_tqdm(iterable: Any = None, *args: Any, **kwargs: Any):
+            nonlocal max_fraction
+            if iterable is None:
+                return original_tqdm(*args, **kwargs)
+
+            bar = original_tqdm(iterable, *args, **kwargs)
+            try:
+                total = len(iterable)
+            except (AttributeError, TypeError):
+                return bar
+            if total <= 0:
+                return bar
+
+            def iterate():
+                nonlocal max_fraction
+                for index, item in enumerate(bar, start=1):
+                    fraction = min(1.0, index / total)
+                    if fraction >= 1.0 or fraction - max_fraction >= _PROGRESS_STEP:
+                        max_fraction = fraction
+                        try:
+                            progress_callback(
+                                fraction,
+                                f"Đang tách lời thoại khỏi nhạc và SFX · {index}/{total}",
+                            )
+                        except Exception:
+                            logging.getLogger(__name__).debug(
+                                "Ignoring separation progress callback failure",
+                                exc_info=True,
+                            )
+                    yield item
+
+            return iterate()
+
+        mdxc_separator.tqdm = adapted_tqdm
+        try:
+            yield
+        finally:
+            if getattr(mdxc_separator, "tqdm", None) is adapted_tqdm:
+                mdxc_separator.tqdm = original_tqdm
 
 
 def separate_dialogue(
@@ -10,6 +93,7 @@ def separate_dialogue(
     output_dir: Path,
     model_dir: Path,
     model_filename: str,
+    progress_callback: ProgressCallback | None = None,
 ) -> tuple[Path, Path]:
     from audio_separator.separator import Separator
 
@@ -28,7 +112,8 @@ def separate_dialogue(
             use_autocast=True,
         )
         separator.load_model(model_filename=model_filename)
-        filenames = separator.separate(str(input_audio))
+        with _mdxc_progress_adapter(progress_callback):
+            filenames = separator.separate(str(input_audio))
         paths = [output_dir / name for name in filenames]
 
         vocals = next((p for p in paths if "vocal" in p.name.lower()), None)
