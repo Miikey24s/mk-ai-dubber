@@ -423,6 +423,82 @@ def test_api_upload(client: TestClient) -> None:
     assert Path(data["file_path"]).is_file()
 
 
+def test_api_download_rejects_output_path_outside_job_directory(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    work = tmp_path / "work"
+    job_dir = work / "job-pathsafe01"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    secret = tmp_path / "private.mp4"
+    secret.write_bytes(b"must-not-be-served")
+    update_job_state(
+        job_dir,
+        status="completed",
+        stage="complete",
+        progress=1.0,
+        message="Done",
+        metadata={"input_name": "sample.mp4", "output": str(secret)},
+    )
+
+    response = client.get("/api/jobs/job-pathsafe01/download")
+
+    assert response.status_code == 404
+    assert response.content != secret.read_bytes()
+
+
+def test_api_download_serves_output_inside_job_directory(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    work = tmp_path / "work"
+    job_dir = work / "job-pathsafe02"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    output = job_dir / "dubbed.mp4"
+    output.write_bytes(b"verified-output")
+    update_job_state(
+        job_dir,
+        status="completed",
+        stage="complete",
+        progress=1.0,
+        message="Done",
+        metadata={"input_name": "sample.mp4", "output": str(output)},
+    )
+
+    response = client.get("/api/jobs/job-pathsafe02/download")
+
+    assert response.status_code == 200
+    assert response.content == b"verified-output"
+
+
+def test_api_download_rejects_symlinked_output_outside_job_directory(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    work = tmp_path / "work"
+    job_dir = work / "job-pathsafe03"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    secret = tmp_path / "private-symlink.mp4"
+    secret.write_bytes(b"must-not-be-served-through-symlink")
+    output_link = job_dir / "output.mp4"
+    try:
+        output_link.symlink_to(secret)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable in this environment: {exc}")
+    update_job_state(
+        job_dir,
+        status="completed",
+        stage="complete",
+        progress=1.0,
+        message="Done",
+        metadata={"input_name": "sample.mp4", "output": str(output_link)},
+    )
+
+    response = client.get("/api/jobs/job-pathsafe03/download")
+
+    assert response.status_code == 404
+
+
 def test_api_spa_fallback_or_redirect(client: TestClient) -> None:
     res = client.get("/")
     assert res.status_code in {200, 307}

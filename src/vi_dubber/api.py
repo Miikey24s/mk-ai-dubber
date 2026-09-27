@@ -95,6 +95,26 @@ def _resolve_job_dir(job_id: str) -> Path:
     return candidate
 
 
+def _safe_job_file(job_dir: Path, value: str | Path) -> Path | None:
+    """Resolve one file only when it remains inside the job directory.
+
+    Job state and result metadata are persisted data, not a trust boundary. A
+    stale or tampered output path must never turn the download endpoint into an
+    arbitrary local-file reader. Resolving before the containment check also
+    rejects symlinks that point outside the job directory.
+    """
+    try:
+        root = job_dir.resolve(strict=True)
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(root)
+        return resolved if resolved.is_file() else None
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def _list_chunk_previews(job_dir: Path) -> list[dict[str, Any]]:
     previews: list[dict[str, Any]] = []
     chunks_dir = job_dir / "chunks"
@@ -674,8 +694,8 @@ def create_app() -> FastAPI:
 
         if type in {"subtitles", "srt"}:
             for s_name in ("source_turns.srt", "source_en.srt", "subtitles.srt"):
-                candidate = job_dir / s_name
-                if candidate.is_file():
+                candidate = _safe_job_file(job_dir, s_name)
+                if candidate is not None:
                     return FileResponse(
                         candidate,
                         media_type="application/x-subrip",
@@ -688,17 +708,18 @@ def create_app() -> FastAPI:
         candidates: list[Path] = []
         for candidate_key in [result.get("output"), metadata.get("output")]:
             if candidate_key:
-                p = Path(candidate_key)
-                if p.is_file():
+                p = _safe_job_file(job_dir, str(candidate_key))
+                if p is not None:
                     candidates.append(p)
 
         for name in ("dubbed.mp4", f"{stem}.vi.mp4", "output.mp4", "final.mp4"):
-            p = job_dir / name
-            if p.is_file() and p not in candidates:
+            p = _safe_job_file(job_dir, name)
+            if p is not None and p not in candidates:
                 candidates.append(p)
 
-        for p in sorted(job_dir.glob("*.mp4")):
-            if p.is_file() and p not in candidates:
+        for candidate in sorted(job_dir.glob("*.mp4")):
+            p = _safe_job_file(job_dir, candidate)
+            if p is not None and p not in candidates:
                 candidates.append(p)
 
         if not candidates:
