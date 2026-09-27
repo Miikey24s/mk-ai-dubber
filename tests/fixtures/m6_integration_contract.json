@@ -50,6 +50,11 @@
       "scope": "drive.file",
       "mode": "copy"
     },
+    "retry_policy": {
+      "timeout_seconds": 30,
+      "max_attempts": 3,
+      "retryable_outcomes": ["timeout", "transient_failure"]
+    },
     "consent": {
       "user_selected": true,
       "revoked": false
@@ -92,6 +97,20 @@
       "remote_revision": null,
       "remote_sha256": null,
       "revocation_reason": "user_revoked_connection"
+    },
+    "failed": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "failed",
+      "attempt": 3,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "error_code": "retry_exhausted",
+      "retryable": false
     }
   },
   "acceptance": {

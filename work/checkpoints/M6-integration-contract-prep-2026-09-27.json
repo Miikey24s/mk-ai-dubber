@@ -7,7 +7,8 @@
     "receipt_errors": {
       "unknown": [],
       "succeeded": [],
-      "revoked": []
+      "revoked": [],
+      "failed": []
     },
     "passed": true
   },
@@ -25,13 +26,21 @@
       ],
       "missing_trusted_key_id": [
         "reference.identity.key_id"
+      ],
+      "unselected_account": [
+        "request.destination.account_ref_user_selected"
+      ],
+      "unselected_parent": [
+        "request.destination.parent_ref_picker_selected"
       ]
     },
     "policy": [
       "resource URI must match exact scheme and authority from the allowlist",
       "resource URI path rejects decoded traversal, query/fragment mutation, and control characters",
       "artifact source timestamp must be explicit UTC with Z suffix",
-      "trusted identity must include a non-empty key_id"
+      "trusted identity must include a non-empty key_id",
+      "export destination account and parent must carry explicit user-selection markers",
+      "export timeout becomes unknown and bounded retry exhaustion becomes terminal failure"
     ]
   },
   "idempotency": [
@@ -62,6 +71,134 @@
       "action": "retry_allowed",
       "status": "pending",
       "resend": true
+    }
+  },
+  "retry_policy": {
+    "timeout_seconds": 30,
+    "max_attempts": 3,
+    "retryable_outcomes": [
+      "timeout",
+      "transient_failure"
+    ]
+  },
+  "timeout_recovery": {
+    "timeouts": [
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "status": "unknown",
+        "attempt": 1,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      },
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "status": "unknown",
+        "attempt": 2,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      },
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "status": "unknown",
+        "attempt": 3,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      }
+    ],
+    "retries": [
+      {
+        "action": "retry_allowed",
+        "status": "pending",
+        "resend": true,
+        "receipt": {
+          "schema_version": "workspace-export-receipt-v1",
+          "request_id": "export-request-fixture-0001",
+          "idempotency_key": "idem-fixture-0001",
+          "destination_provider": "drive",
+          "status": "pending",
+          "attempt": 2,
+          "reconcile_required": false,
+          "external_id": null,
+          "remote_revision": null,
+          "remote_sha256": null
+        }
+      },
+      {
+        "action": "retry_allowed",
+        "status": "pending",
+        "resend": true,
+        "receipt": {
+          "schema_version": "workspace-export-receipt-v1",
+          "request_id": "export-request-fixture-0001",
+          "idempotency_key": "idem-fixture-0001",
+          "destination_provider": "drive",
+          "status": "pending",
+          "attempt": 3,
+          "reconcile_required": false,
+          "external_id": null,
+          "remote_revision": null,
+          "remote_sha256": null
+        }
+      }
+    ],
+    "exhausted": {
+      "action": "retry_exhausted",
+      "status": "failed",
+      "resend": false,
+      "error_code": "retry_exhausted",
+      "receipt": {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "status": "failed",
+        "attempt": 3,
+        "reconcile_required": false,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null,
+        "error_code": "retry_exhausted",
+        "retryable": false
+      }
+    },
+    "cancelled": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "cancelled",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "cancelled_after_timeout": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "status": "cancelled",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
     }
   },
   "stale_event_state": {
@@ -142,6 +279,7 @@
     "cryptographic signature verification beyond the trusted fixture marker",
     "media bytes upload or remote deletion",
     "exactly-once delivery; unknown outcomes require lookup/manual reconciliation",
+    "remote delivery, retry timing, and timeout behavior remain unverified until a connector is authorized",
     "production schema/API implementation"
   ]
 }

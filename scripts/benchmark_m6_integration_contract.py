@@ -24,6 +24,11 @@ CONTRACT_PATH = PROJECT_ROOT / "tests" / "fixtures" / "m6_integration_contract.j
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 EXPORT_STATUSES = {"pending", "succeeded", "failed", "unknown", "revoked", "cancelled"}
 TERMINAL_STATUSES = {"succeeded", "revoked", "cancelled"}
+DEFAULT_RETRY_POLICY = {
+    "timeout_seconds": 30,
+    "max_attempts": 3,
+    "retryable_outcomes": ("timeout", "transient_failure"),
+}
 FORBIDDEN_SECRET_KEYS = {
     "access_token",
     "client_secret",
@@ -195,6 +200,27 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
             errors.append("request.destination.scope")
         if destination.get("mode") != "copy":
             errors.append("request.destination.mode")
+        if not str(destination.get("account_ref") or "").startswith("user-selected:"):
+            errors.append("request.destination.account_ref_user_selected")
+        if not str(destination.get("parent_ref") or "").startswith("picker:"):
+            errors.append("request.destination.parent_ref_picker_selected")
+    retry_policy = request.get("retry_policy")
+    if not isinstance(retry_policy, dict):
+        errors.append("request.retry_policy")
+    else:
+        timeout_seconds = retry_policy.get("timeout_seconds")
+        max_attempts = retry_policy.get("max_attempts")
+        retryable_outcomes = retry_policy.get("retryable_outcomes")
+        if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool) or not (0 < timeout_seconds <= 300):
+            errors.append("request.retry_policy.timeout_seconds")
+        if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or not (1 <= max_attempts <= 5):
+            errors.append("request.retry_policy.max_attempts")
+        if (
+            not isinstance(retryable_outcomes, list)
+            or not retryable_outcomes
+            or any(outcome not in {"timeout", "transient_failure"} for outcome in retryable_outcomes)
+        ):
+            errors.append("request.retry_policy.retryable_outcomes")
     consent = request.get("consent")
     if not isinstance(consent, dict) or consent.get("user_selected") is not True:
         errors.append("request.consent.user_selected")
@@ -242,6 +268,17 @@ def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) ->
             errors.append("receipt.revoked.reason")
         if receipt.get("reconcile_required") is not False:
             errors.append("receipt.revoked.reconcile_required")
+    elif status == "failed":
+        if receipt.get("reconcile_required") is not False:
+            errors.append("receipt.failed.reconcile_required")
+        if not str(receipt.get("error_code") or "").strip():
+            errors.append("receipt.failed.error_code")
+        if receipt.get("retryable") is not False:
+            errors.append("receipt.failed.retryable")
+    retry_policy = request.get("retry_policy")
+    max_attempts = retry_policy.get("max_attempts") if isinstance(retry_policy, dict) else DEFAULT_RETRY_POLICY["max_attempts"]
+    if isinstance(max_attempts, int) and receipt.get("attempt", 0) > max_attempts:
+        errors.append("receipt.attempt_exceeds_retry_policy")
     if _secret_keys(receipt):
         errors.append("receipt.secret_fields")
     return errors
@@ -271,7 +308,11 @@ def dedupe_requests(requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return outcomes
 
 
-def reconcile_unknown(receipt: dict[str, Any], lookup: dict[str, Any] | None) -> dict[str, Any]:
+def reconcile_unknown(
+    receipt: dict[str, Any],
+    lookup: dict[str, Any] | None,
+    retry_policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Plan a safe next action; this never sends or deletes anything."""
     if receipt.get("status") != "unknown":
         return {"action": "no_lookup_needed", "status": receipt.get("status")}
@@ -281,6 +322,15 @@ def reconcile_unknown(receipt: dict[str, Any], lookup: dict[str, Any] | None) ->
     if remote_status == "succeeded":
         return {"action": "adopt_existing", "status": "succeeded", "resend": False}
     if remote_status == "not_found":
+        policy = retry_policy or DEFAULT_RETRY_POLICY
+        max_attempts = policy.get("max_attempts", DEFAULT_RETRY_POLICY["max_attempts"])
+        if int(receipt.get("attempt", 1)) >= max_attempts:
+            return {
+                "action": "retry_exhausted",
+                "status": "failed",
+                "resend": False,
+                "error_code": "retry_exhausted",
+            }
         return {"action": "retry_allowed", "status": "pending", "resend": True}
     return {"action": "manual_reconciliation", "reason": "ambiguous_lookup"}
 
@@ -300,6 +350,8 @@ def apply_event(state: dict[str, Any], event: str) -> dict[str, Any]:
         return state
     transitions = {
         "dispatch_started": "pending",
+        # A timeout is an ambiguous remote outcome, so it must reconcile before resend.
+        "dispatch_timeout": "unknown",
         "outcome_unknown": "unknown",
         "lookup_not_found": "pending",
         "lookup_succeeded": "succeeded",
@@ -368,10 +420,16 @@ class OfflineExportAdapter:
         entry["receipt"] = apply_event(entry["receipt"], "outcome_unknown")
         return deepcopy(entry["receipt"])
 
+    def mark_timeout(self, request_id: str) -> dict[str, Any]:
+        """Record a bounded request timeout without assuming the remote outcome."""
+        entry = self._entry(request_id)
+        entry["receipt"] = apply_event(entry["receipt"], "dispatch_timeout")
+        return deepcopy(entry["receipt"])
+
     def reconcile(self, request_id: str, lookup: dict[str, Any] | None) -> dict[str, Any]:
         entry = self._entry(request_id)
         receipt = entry["receipt"]
-        plan = reconcile_unknown(receipt, lookup)
+        plan = reconcile_unknown(receipt, lookup, entry["request"].get("retry_policy"))
         if plan["action"] == "adopt_existing":
             if not isinstance(lookup, dict) or not str(lookup.get("external_id") or "").strip():
                 return {**plan, "action": "manual_reconciliation", "reason": "missing_external_id"}
@@ -386,7 +444,20 @@ class OfflineExportAdapter:
                 "remote_sha256": lookup["remote_sha256"],
             }
         elif plan["action"] == "retry_allowed":
-            entry["receipt"] = {**receipt, "status": "pending", "reconcile_required": False}
+            entry["receipt"] = {
+                **receipt,
+                "status": "pending",
+                "attempt": int(receipt.get("attempt", 1)) + 1,
+                "reconcile_required": False,
+            }
+        elif plan["action"] == "retry_exhausted":
+            entry["receipt"] = {
+                **receipt,
+                "status": "failed",
+                "reconcile_required": False,
+                "error_code": "retry_exhausted",
+                "retryable": False,
+            }
         return {**plan, "receipt": deepcopy(entry["receipt"])}
 
     def revoke(self, request_id: str, reason: str) -> dict[str, Any]:
@@ -433,6 +504,12 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             {**reference, "identity": {**reference["identity"], "key_id": ""}},
             contract,
         ),
+        "unselected_account": validate_export_request(
+            {**request, "destination": {**request["destination"], "account_ref": "account-guess"}}
+        ),
+        "unselected_parent": validate_export_request(
+            {**request, "destination": {**request["destination"], "parent_ref": "folder-guess"}}
+        ),
     }
     duplicate_request = deepcopy(request)
     duplicate_request["request_id"] = "export-request-fixture-duplicate"
@@ -463,6 +540,20 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
         },
     )
     adapter_revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
+    retry_adapter = OfflineExportAdapter()
+    retry_adapter.submit(request)
+    timeout_receipts = [retry_adapter.mark_timeout(request["request_id"])]
+    retry_receipts = []
+    for _ in range(2):
+        retry_receipts.append(
+            retry_adapter.reconcile(request["request_id"], {"status": "not_found"})
+        )
+        timeout_receipts.append(retry_adapter.mark_timeout(request["request_id"]))
+    exhausted = retry_adapter.reconcile(request["request_id"], {"status": "not_found"})
+    cancel_adapter = OfflineExportAdapter()
+    cancel_adapter.submit(request)
+    cancelled = cancel_adapter.cancel(request["request_id"])
+    cancelled_after_timeout = cancel_adapter.mark_timeout(request["request_id"])
     return {
         "status": "PREP_ONLY",
         "contract": str(CONTRACT_PATH.relative_to(PROJECT_ROOT)).replace("\\", "/"),
@@ -480,10 +571,20 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
                 "resource URI path rejects decoded traversal, query/fragment mutation, and control characters",
                 "artifact source timestamp must be explicit UTC with Z suffix",
                 "trusted identity must include a non-empty key_id",
+                "export destination account and parent must carry explicit user-selection markers",
+                "export timeout becomes unknown and bounded retry exhaustion becomes terminal failure",
             ],
         },
         "idempotency": dedupe,
         "reconciliation": recovery,
+        "retry_policy": request["retry_policy"],
+        "timeout_recovery": {
+            "timeouts": timeout_receipts,
+            "retries": retry_receipts,
+            "exhausted": exhausted,
+            "cancelled": cancelled,
+            "cancelled_after_timeout": cancelled_after_timeout,
+        },
         "stale_event_state": state,
         "offline_adapter": {
             "initial": adapter_initial,
@@ -498,6 +599,7 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "cryptographic signature verification beyond the trusted fixture marker",
             "media bytes upload or remote deletion",
             "exactly-once delivery; unknown outcomes require lookup/manual reconciliation",
+            "remote delivery, retry timing, and timeout behavior remain unverified until a connector is authorized",
             "production schema/API implementation",
         ],
     }

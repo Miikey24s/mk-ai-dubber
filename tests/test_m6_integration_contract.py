@@ -74,6 +74,70 @@ def test_reference_requires_explicit_utc_provenance_and_key_id() -> None:
     assert "reference.identity.key_id" in errors
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("account_ref", "account-guess", "request.destination.account_ref_user_selected"),
+        ("parent_ref", "folder-guess", "request.destination.parent_ref_picker_selected"),
+    ],
+)
+def test_export_authorization_is_fail_closed_to_user_selected_destination(
+    field: str, value: str, error: str
+) -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    request["destination"][field] = value
+
+    assert error in benchmark.validate_export_request(request)
+
+
+def test_timeout_is_ambiguous_and_bounded_retry_exhaustion_is_terminal() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+
+    timed_out = adapter.mark_timeout(request["request_id"])
+    assert timed_out["status"] == "unknown"
+    assert timed_out["reconcile_required"] is True
+
+    first_retry = adapter.reconcile(request["request_id"], {"status": "not_found"})
+    assert first_retry["action"] == "retry_allowed"
+    assert first_retry["receipt"]["attempt"] == 2
+
+    adapter.mark_timeout(request["request_id"])
+    second_retry = adapter.reconcile(request["request_id"], {"status": "not_found"})
+    assert second_retry["action"] == "retry_allowed"
+    assert second_retry["receipt"]["attempt"] == 3
+
+    adapter.mark_timeout(request["request_id"])
+    exhausted = adapter.reconcile(request["request_id"], {"status": "not_found"})
+    assert exhausted["action"] == "retry_exhausted"
+    assert exhausted["status"] == "failed"
+    assert exhausted["resend"] is False
+    assert exhausted["error_code"] == "retry_exhausted"
+    assert exhausted["receipt"]["status"] == "failed"
+    assert exhausted["receipt"]["attempt"] == 3
+    assert exhausted["receipt"]["reconcile_required"] is False
+    assert exhausted["receipt"]["retryable"] is False
+    assert benchmark.validate_export_receipt(exhausted["receipt"], request) == []
+
+
+def test_cancelled_timeout_cannot_be_reopened_by_reconcile_or_dispatch() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+    cancelled = adapter.cancel(request["request_id"])
+    assert cancelled["status"] == "cancelled"
+
+    assert adapter.mark_timeout(request["request_id"])["status"] == "cancelled"
+    assert (
+        adapter.reconcile(request["request_id"], {"status": "not_found"})["action"]
+        == "no_lookup_needed"
+    )
+
+
 def test_probe_receipt_records_uri_and_provenance_hardening() -> None:
     receipt = benchmark.run_probe(benchmark.load_contract())
 
