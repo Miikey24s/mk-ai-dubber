@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test:telemetry-contract": "node --experimental-strip-types scripts/verify_telemetry_contract.mjs",
+    "test:ui-contract": "node scripts/verify_ui_contract.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

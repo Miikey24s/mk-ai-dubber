@@ -77,3 +77,15 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Respect an operator's reduced-motion preference without removing state cues. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
