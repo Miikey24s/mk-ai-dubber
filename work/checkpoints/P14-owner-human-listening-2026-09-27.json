@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-27",
+  "reviewer_id": "owner",
+  "packet": "work/benchmarks/P14-real-crosstalk-2026-09-27/review",
+  "labels": [
+    {
+      "clip": "01-speaker00-plus-overlap.mp4",
+      "owner_label": "quite_good"
+    },
+    {
+      "clip": "02-crosstalk-cluster.mp4",
+      "owner_label": "quite_good"
+    },
+    {
+      "clip": "03-speaker02-switch.mp4",
+      "owner_label": "quite_good"
+    }
+  ],
+  "result": "pass_with_followup",
+  "owner_summary": "All three review clips were judged quite good overall. The owner noted that interview, conversational, podcast, voice, or otherwise unstable-source audio may still reduce effectiveness and should be optimized in the near term.",
+  "interpretation": [
+    "The owner listening gate passes for the retained real multi-speaker/crosstalk evidence packet.",
+    "No owner-observed blocker was reported for speaker continuity, cross-reference leakage, or overlap intelligibility in the three review clips.",
+    "The source-robustness caveat is retained as a near-term optimization follow-up rather than treated as a blocker for P14 acceptance.",
+    "Machine-visible segment-QA flags and timing-overflow diagnostics remain intact and are not erased by this human pass."
+  ],
+  "followup": {
+    "priority": "near_term",
+    "scope": [
+      "interview and conversational material",
+      "podcast or voice-heavy material",
+      "unstable or inconsistent source audio",
+      "multi-speaker and crosstalk robustness under degraded source conditions"
+    ]
+  },
+  "media": [
+    {
+      "file": "01-speaker00-plus-overlap.mp4",
+      "sha256": "20439ee6105d9018949780ae5fe0c35c8a6d726848a12e0b2324f973b94cd932",
+      "bytes": 1283019
+    },
+    {
+      "file": "02-crosstalk-cluster.mp4",
+      "sha256": "6d8fc209e965e1d44d5d01ac653d742a554b3de0955d3b88d6f2e99c4820c05a",
+      "bytes": 2862415
+    },
+    {
+      "file": "03-speaker02-switch.mp4",
+      "sha256": "a95656149d0bf5c644797810f3aa9bfc7edcd30c8f6b04f24e4bcd81fc8cf4f5",
+      "bytes": 2178001
+    }
+  ]
+}

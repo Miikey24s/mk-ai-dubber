@@ -1,6 +1,6 @@
 # P14 real multi-speaker/crosstalk checkpoint - 2026-09-27
 
-Status: **MACHINE EVIDENCE READY / OWNER LISTENING REQUIRED**
+Status: **ACCEPTED / OWNER HUMAN PASS**
 
 ## Real fixture and runtime
 
@@ -81,12 +81,14 @@ Review clips are cut from the final corrected dubbed output:
 3. `work/benchmarks/P14-real-crosstalk-2026-09-27/review/03-speaker02-switch.mp4`
    - main-speaker to `SPEAKER_02` transition around 320-358 s; checks identity continuity and cross-reference leakage.
 
-## Remaining P14 gate
+## Owner listening result
 
-P14 stays **PARTIAL / OWNER LISTENING REQUIRED** until the owner confirms:
+Owner review on 2026-09-27 judged all three focused clips **quite good overall**. No blocker was reported for speaker continuity, audible cross-reference leakage, or overlap intelligibility in the retained review packet.
 
-- speaker identity is acceptably stable through the reviewed switches;
-- no audible voice/reference leakage crosses speaker identities;
-- overlap remains intelligible enough, or any failure is clearly audible/reviewable rather than silently wrong.
+P14 is therefore **ACCEPTED / OWNER HUMAN PASS** for the current real multi-speaker/crosstalk acceptance contract.
 
-Machine evidence alone must not close this perceptual gate.
+The owner also called out a near-term robustness caveat: interview/conversational material, podcast/voice-heavy material, and otherwise unstable source audio may reduce effectiveness. That remains an explicit follow-up optimization area rather than a blocker for this P14 acceptance.
+
+Machine-visible evidence remains preserved: 11 segment-QA flags and 2 timing overflow segments are still reviewable and are not erased by the human pass.
+
+Receipt: `work/checkpoints/P14-owner-human-listening-2026-09-27.json`.
