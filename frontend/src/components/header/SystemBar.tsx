@@ -112,7 +112,7 @@ export const SystemBar: React.FC = () => {
         <span className="text-slate-300 dark:text-slate-700">/</span>
         <div className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-sky-500" />
-          <span className="text-sky-600 dark:text-sky-400 font-bold tabular-nums">
+          <span className="text-sky-700 dark:text-sky-400 font-bold tabular-nums">
             {isJobComplete ? t('stepper.completed') : eta.remainingSeconds === null ? unavailable : `ETA ${formatSeconds(eta.remainingSeconds)}`}
           </span>
         </div>
@@ -123,7 +123,7 @@ export const SystemBar: React.FC = () => {
         {/* Stream Live Indicator */}
         <div className="flex items-center gap-1 text-[11px]" title="Telemetry Stream Connection">
           <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold hidden sm:inline">
+          <span className="text-emerald-700 dark:text-emerald-400 font-semibold hidden sm:inline">
             {systemStatus.websocket_connected ? t('system.ws_live') : t('system.polling')}
           </span>
         </div>
@@ -134,7 +134,7 @@ export const SystemBar: React.FC = () => {
             {activeJob.status === 'running' ? (
               <button
                 onClick={() => controlJob('pause')}
-                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold transition cursor-pointer"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-xs font-semibold transition cursor-pointer"
                 title={t('common.pause')}
               >
                 <Pause className="w-3.5 h-3.5" />
@@ -143,14 +143,14 @@ export const SystemBar: React.FC = () => {
             ) : activeJob.status === 'paused' ? (
               <button
                 onClick={() => controlJob('run')}
-                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition cursor-pointer"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition cursor-pointer"
                 title={t('common.resume')}
               >
                 <Play className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{t('common.resume')}</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs px-2.5 h-7">
+              <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-xs px-2.5 h-7">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{activeJob.status.toUpperCase()}</span>
               </div>
@@ -159,7 +159,7 @@ export const SystemBar: React.FC = () => {
             {(activeJob.status === 'running' || activeJob.status === 'paused') && (
               <button
                 onClick={() => controlJob('cancel')}
-                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-semibold transition cursor-pointer"
+                className="flex items-center gap-1.5 h-7 px-2.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30 text-xs font-semibold transition cursor-pointer"
                 title={t('common.abort')}
               >
                 <Square className="w-3 h-3" />
