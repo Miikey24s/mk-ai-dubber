@@ -60,7 +60,7 @@ def _portable_artifact_id(value: Any) -> str:
     if "\\" in normalized:
         raise LearnReferenceError("artifact_id must use portable POSIX separators")
     path = PurePosixPath(normalized)
-    if path.is_absolute() or not path.parts or ":" in path.parts[0] or ".." in path.parts:
+    if path.is_absolute() or not path.parts or any(":" in part for part in path.parts) or ".." in path.parts:
         raise LearnReferenceError("artifact_id must be a safe relative identifier")
     return path.as_posix()
 
@@ -71,9 +71,16 @@ def _safe_resource_uri(value: Any) -> str:
         parsed = urlsplit(normalized)
     except ValueError as exc:
         raise LearnReferenceError("resource_uri is not a valid URI") from exc
+    if not parsed.scheme or not parsed.netloc:
+        raise LearnReferenceError("resource_uri must include a scheme and authority")
     if parsed.query or parsed.fragment:
         raise LearnReferenceError("resource_uri must not contain a query or fragment")
-    decoded_path = unquote(parsed.path)
+    decoded_path = parsed.path
+    for _ in range(3):
+        decoded = unquote(decoded_path)
+        if decoded == decoded_path:
+            break
+        decoded_path = decoded
     if "\\" in decoded_path or ".." in decoded_path.split("/"):
         raise LearnReferenceError("resource_uri path must not traverse")
     if _CONTROL_RE.search(decoded_path):
@@ -84,7 +91,12 @@ def _safe_resource_uri(value: Any) -> str:
 def _allowlisted_uri(value: Any, allowlist: tuple[str, ...]) -> str:
     normalized = _safe_resource_uri(value)
     parsed = urlsplit(normalized)
-    decoded_path = unquote(parsed.path)
+    decoded_path = parsed.path
+    for _ in range(3):
+        decoded = unquote(decoded_path)
+        if decoded == decoded_path:
+            break
+        decoded_path = decoded
     for prefix in allowlist:
         try:
             allowed = urlsplit(_text(prefix, "resource_allowlist"))
@@ -92,7 +104,10 @@ def _allowlisted_uri(value: Any, allowlist: tuple[str, ...]) -> str:
             continue
         allowed_path = unquote(allowed.path)
         if (
-            parsed.scheme.casefold() == allowed.scheme.casefold()
+            allowed.scheme
+            and allowed.netloc
+            and allowed_path.endswith("/")
+            and parsed.scheme.casefold() == allowed.scheme.casefold()
             and parsed.netloc.casefold() == allowed.netloc.casefold()
             and decoded_path.startswith(allowed_path)
             and decoded_path != allowed_path.rstrip("/")

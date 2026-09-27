@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from vi_dubber.catalog_store import CatalogItem
-from vi_dubber.learn_reference import LearnReference, LearnReferenceError
+from vi_dubber.learn_reference import LearnArtifact, LearnReference, LearnReferenceError
 
 
 FIXTURE = (
@@ -55,6 +55,8 @@ def test_reference_is_typed_and_round_trips_without_safety_downgrade() -> None:
         (("artifact", "resource_uri"), "learn://authorized-evil/file.srt"),
         (("artifact", "resource_uri"), "learn://authorized/job/../secret.srt"),
         (("artifact", "resource_uri"), "learn://authorized/job/file.srt?x=1"),
+        (("artifact", "resource_uri"), "learn://authorized/job/%252e%252e/secret.srt"),
+        (("artifact", "resource_uri"), "relative/file.srt"),
         (("safety", "answer_keys_exposed"), True),
         (("safety", "auto_completion_enabled"), True),
     ],
@@ -105,6 +107,22 @@ def test_catalog_bridge_keeps_lineage_and_requires_explicit_output_provenance() 
     assert reference.artifact.source_fingerprint == item.source_fingerprint
     assert reference.artifact.revision == item.revision
     assert reference.artifact.artifact_sha256 != item.source_fingerprint
+
+
+def test_direct_artifact_value_rejects_unsafe_resource_uri_without_allowlist_context() -> None:
+    with pytest.raises(LearnReferenceError):
+        LearnArtifact(
+            artifact_id="job-fixture-0001/subtitle-r3",
+            kind="subtitle",
+            revision="lineage-r3",
+            language="vi",
+            qa_status="passed",
+            source_timestamp_utc="2026-09-27T10:00:00Z",
+            source_fingerprint="a" * 64,
+            artifact_sha256="b" * 64,
+            resource_uri="learn://authorized/job/file.srt?redirect=bad",
+            source_visible=True,
+        )
 
 
 @pytest.mark.parametrize(
