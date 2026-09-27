@@ -1,0 +1,21 @@
+{
+  "schema": "vi-dubber-separation-hardening-v1",
+  "date": "2026-09-28",
+  "problem": "full-track audio-separator overlap-add attempted a 32.9 GB allocation for the 11h53m Job12 source",
+  "policy_version": 3,
+  "chunk_threshold_seconds": 1800,
+  "chunk_seconds": 900,
+  "container": "FLAC",
+  "model_reuse": true,
+  "atomic_chunk_and_concat": true,
+  "execution_capability": false,
+  "provider_access": false,
+  "broker_access": false,
+  "focused_tests": {
+    "p13_pipeline_web": 81,
+    "fault_audio_longform": 58
+  },
+  "compileall": "pass",
+  "diff_check": "pass",
+  "job12_resume": "not_started_after_chunk_fix"
+}

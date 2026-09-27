@@ -78,7 +78,7 @@ from .semantic_qa import (
     semantic_qa_stage_cache_path,
     semantic_qa_summary,
 )
-from .separation import separate_dialogue
+from .separation import SEPARATION_POLICY_VERSION, separate_dialogue
 from .timing import TIMING_POLICY_VERSION, allocate_timing_windows
 from .terminology import (
     merge_pronunciation_map,
@@ -912,7 +912,7 @@ def _run_pipeline_impl(
         inputs=separation_inputs,
         config=separation_config,
         model={"name": separation_config.get("model")},
-        versions={"policy": 2, **runtime_versions("audio_separator", "torch")},
+        versions={"policy": SEPARATION_POLICY_VERSION, **runtime_versions("audio_separator", "torch")},
     )
     with metrics.stage("separation"):
         separation_manifest = _stage_cache_hit(
@@ -964,7 +964,7 @@ def _run_pipeline_impl(
                 artifacts=[vocals, background, stems_meta],
                 config=separation_config,
                 model={"name": separation_config.get("model")},
-                versions={"policy": 2, **runtime_versions("audio_separator", "torch")},
+                versions={"policy": SEPARATION_POLICY_VERSION, **runtime_versions("audio_separator", "torch")},
             )
         else:
             metrics.increment("cache_hits")

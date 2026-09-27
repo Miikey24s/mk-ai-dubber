@@ -35,6 +35,85 @@ def test_flac_input_keeps_separator_output_out_of_riff() -> None:
     assert separation_module._output_format_for_audio(Path("original.flac")) == "FLAC"
 
 
+def test_long_separator_uses_bounded_chunks_and_reuses_loaded_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_audio = tmp_path / "original.flac"
+    input_audio.write_bytes(b"fixture")
+    output_dir = tmp_path / "out"
+    calls: list[Path] = []
+    extracted: list[tuple[float, float, Path]] = []
+    concatenated: list[tuple[list[Path], Path]] = []
+    monkeypatch.setattr(separation_module, "media_duration", lambda _path: 25.0)
+    monkeypatch.setattr(separation_module, "SEPARATION_CHUNK_THRESHOLD_SECONDS", 5.0)
+    monkeypatch.setattr(separation_module, "SEPARATION_CHUNK_SECONDS", 10.0)
+
+    def fake_extract(source: Path, output: Path, start: float, duration: float) -> None:
+        extracted.append((start, duration, output))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"chunk")
+
+    def fake_concat(parts: list[Path], output: Path) -> None:
+        concatenated.append((parts, output))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"joined")
+
+    monkeypatch.setattr(separation_module, "_audio_window_to_flac", fake_extract)
+    monkeypatch.setattr(separation_module, "_concat_flac", fake_concat)
+
+    fake_package = types.ModuleType("audio_separator")
+    fake_separator_module = types.ModuleType("audio_separator.separator")
+    fake_torch = types.ModuleType("torch")
+
+    class FakeCuda:
+        @staticmethod
+        def is_available() -> bool:
+            return False
+
+    class FakeSeparator:
+        instances = 0
+
+        def __init__(self, **kwargs):
+            type(self).instances += 1
+            self.output_dir = kwargs["output_dir"]
+
+        def load_model(self, model_filename):
+            return None
+
+        def separate(self, audio_file_path):
+            calls.append(Path(audio_file_path))
+            return ["Vocals.flac", "Instrumental.flac"]
+
+    fake_separator_module.Separator = FakeSeparator
+    fake_torch.cuda = FakeCuda()
+    monkeypatch.setitem(sys.modules, "audio_separator", fake_package)
+    monkeypatch.setitem(sys.modules, "audio_separator.separator", fake_separator_module)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    progress: list[float] = []
+    vocals, instrumental = separation_module.separate_dialogue(
+        input_audio,
+        output_dir,
+        tmp_path / "models",
+        "model.ckpt",
+        progress_callback=lambda value, _message: progress.append(value),
+    )
+
+    assert FakeSeparator.instances == 1
+    assert [(start, duration) for start, duration, _path in extracted] == [
+        (0.0, 10.0),
+        (10.0, 10.0),
+        (20.0, 5.0),
+    ]
+    assert len(calls) == 3
+    assert len(concatenated) == 2
+    assert vocals.name == "original_(Vocals).flac"
+    assert instrumental.name == "original_(Instrumental).flac"
+    # The fake separator does not expose audio-separator's internal tqdm loop;
+    # progress behavior remains covered by the existing adapter tests below.
+
+
 def test_extraction_spec_and_path_are_deterministic_for_short_and_long_input(tmp_path: Path) -> None:
     short = media_module.audio_extraction_spec(60.0)
     long = media_module.audio_extraction_spec(43_000.0)
