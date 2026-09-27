@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import vi_dubber.pipeline as pipeline_mod
 from vi_dubber.artifacts import (
     atomic_write_json,
     build_stage_manifest,
@@ -84,6 +85,42 @@ def test_duplicate_lease_fails_closed_and_corrupt_stale_lock_is_reclaimed(tmp_pa
         claimed = json.loads(lock_path.read_text(encoding="utf-8"))
         assert claimed["pid"] == os.getpid()
     assert not lock_path.exists()
+
+
+def test_pipeline_duplicate_lease_preserves_owner_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work_dir = tmp_path / "work"
+    source = tmp_path / "input.mp4"
+    source.write_bytes(b"duplicate-source")
+    monkeypatch.setattr(pipeline_mod, "WORK_DIR", work_dir)
+    job_dir = pipeline_mod._job_dir(source)
+    job_dir.mkdir(parents=True, exist_ok=True)
+    update_job_state(
+        job_dir,
+        status="running",
+        stage="translation",
+        progress=0.5,
+        message="Owner still running",
+    )
+    (job_dir / "run.lock").write_text(
+        json.dumps({"version": 1, "pid": os.getpid()}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(JobAlreadyRunning):
+        pipeline_mod.run_pipeline(
+            source,
+            tmp_path / "output.mp4",
+            tmp_path / "config.yaml",
+            translation_provider="local",
+        )
+
+    state = load_job_state(job_dir)
+    assert state["status"] == "running"
+    assert state["message"] == "Owner still running"
+    assert "error" not in state
 
 
 @pytest.mark.parametrize(

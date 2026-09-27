@@ -22,6 +22,7 @@ from .artifacts import (
 from .asr import transcribe_and_align, transcribe_and_align_chunks, transcribe_text, transcribe_text_files
 from .audio import evaluate_reference_clarity, resolve_loudness_profile
 from .jobs import (
+    JobAlreadyRunning,
     PipelineControl,
     check_control,
     claim_job,
@@ -2997,6 +2998,10 @@ def run_pipeline(
                 message=str(exc),
                 error={"type": type(exc).__name__, "message": str(exc)},
             )
+        raise
+    except JobAlreadyRunning:
+        # A second worker failed to acquire the durable lease. The owner’s
+        # state is authoritative; never rewrite it as a failed run.
         raise
     except Exception as exc:
         try:

@@ -34,7 +34,7 @@ _SENSITIVE_EVENT_KEY = re.compile(
     r"storage[_-]?state|access[_-]?token|refresh[_-]?token|credential)",
     re.IGNORECASE,
 )
-_ABSOLUTE_PATH = re.compile(r"(?:^[A-Za-z]:[\\/]|^\\\\|^/)")
+_ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|\\\\|/(?!/))")
 
 
 class PipelineControl(Exception):

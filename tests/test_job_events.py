@@ -15,7 +15,7 @@ def test_job_events_are_monotonic_and_state_updates_are_observable(tmp_path) -> 
         stage="asr",
         progress=0.5,
         attempt=2,
-        payload={"output": r"C:\private\secret.wav", "api_key": "do-not-store"},
+        payload={"output": r"output=C:\private\secret.wav", "api_key": "do-not-store"},
     )
 
     events = load_job_events(job)
