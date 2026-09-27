@@ -22,6 +22,14 @@ from tempfile import TemporaryDirectory
 from time import perf_counter_ns
 from typing import Any, Callable, Iterable
 
+# Keep the harness runnable from the workspace root as well as from the VI
+# project directory; ``uv run`` does not necessarily put this project's src/
+# tree on sys.path when given an absolute script path.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 from vi_dubber.catalog_store import CatalogItem, CatalogStore
 
 
