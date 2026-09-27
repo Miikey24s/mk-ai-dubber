@@ -62,6 +62,7 @@ uv run vi-dubber webgpt-runtime init
 uv run vi-dubber webgpt-runtime login
 uv run vi-dubber webgpt-runtime start
 uv run vi-dubber webgpt-runtime status
+uv run vi-dubber webgpt-runtime stop
 ```
 
 `login` mở Chrome profile riêng để người dùng tự đăng nhập ChatGPT. Runtime home mặc định nằm ngoài Git tại `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`; có thể override bằng `VI_DUBBER_WEBGPT_HOME`. Core WebGPT mặc định lấy từ `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; có thể override bằng `VI_DUBBER_WEBGPT_CORE`.
