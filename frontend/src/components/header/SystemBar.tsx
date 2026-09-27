@@ -60,6 +60,13 @@ export const SystemBar: React.FC = () => {
   const activeStage = activeIndex >= 0 ? PIPELINE_STAGES[activeIndex] ?? null : null;
   const stageName = activeStage ? (language === 'vi' ? activeStage.labelVi : activeStage.labelEn) : '';
   const unavailable = t('common.unavailable');
+  const openStageDetails = () => setSelectedStage(activeStage);
+  const handleProgressKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((event.key === 'Enter' || event.key === ' ') && activeStage) {
+      event.preventDefault();
+      openStageDetails();
+    }
+  };
 
   return (
     <div className="h-[36px] shrink-0 bg-white dark:bg-[#090d16] border-b border-slate-200 dark:border-slate-800 px-3 flex items-center justify-between text-xs font-mono select-none overflow-x-auto no-scrollbar gap-4 w-full">
@@ -72,7 +79,15 @@ export const SystemBar: React.FC = () => {
         >
           {activeStage ? t('system.stage_of', { current: activeIndex + 1, total: 7 }) : unavailable}: {stageName || unavailable} · {progress === null ? unavailable : `${Math.round(progress * 100)}%`}
         </button>
-        <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full relative mx-2 cursor-pointer" onClick={() => setSelectedStage(activeStage)}>
+        <div
+          className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full relative mx-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
+          role="button"
+          tabIndex={activeStage ? 0 : -1}
+          aria-label={activeStage ? (language === 'vi' ? 'Mở chi tiết bước xử lý' : 'Open stage details') : unavailable}
+          aria-disabled={!activeStage}
+          onClick={openStageDetails}
+          onKeyDown={handleProgressKeyDown}
+        >
           {/* 7 stage marker dots */}
           {PIPELINE_STAGES.map((_, i) => (
             <div key={i}
@@ -90,7 +105,7 @@ export const SystemBar: React.FC = () => {
       <div className="flex items-center gap-2 shrink-0">
         <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
           <Timer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <span className="text-slate-800 dark:text-slate-100 font-bold tabular-nums">
+          <span className="text-slate-800 dark:text-slate-100 font-bold tabular-nums">
             {eta.elapsedSeconds === null ? unavailable : formatSeconds(eta.elapsedSeconds)}
           </span>
         </div>

@@ -36,7 +36,7 @@ export const VideoPlayer: React.FC = () => {
     setIsCreatorOpen,
     setDroppedFile,
   } = useJob();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const [isLoopingSegment, setIsLoopingSegment] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -63,6 +63,9 @@ export const VideoPlayer: React.FC = () => {
     ? timelineEnd === null ? [] : segments.filter(seg => seg.end > timelineStart && seg.start < timelineEnd)
     : segments;
   const unavailable = t('common.unavailable');
+  const timelineLocalTime = totalDuration === null
+    ? null
+    : Math.max(0, Math.min(totalDuration, currentTime - timelineStart));
 
   let finalVideoSrc = null;
   if (activeJob && activeJob.status === 'completed') {
@@ -137,6 +140,27 @@ export const VideoPlayer: React.FC = () => {
       setActiveSegmentIndex(nextIdx);
       requestSeek(segments[nextIdx].start);
     }
+  };
+
+  const handleTimelineKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (totalDuration === null || timelineLocalTime === null) return;
+    const step = event.shiftKey ? 5 : Math.max(0.1, Math.min(5, totalDuration / 100));
+    let nextTime = timelineLocalTime;
+    if (event.key === 'ArrowLeft') nextTime -= step;
+    else if (event.key === 'ArrowRight') nextTime += step;
+    else if (event.key === 'Home') nextTime = 0;
+    else if (event.key === 'End') nextTime = totalDuration;
+    else return;
+    event.preventDefault();
+    requestSeek(timelineStart + Math.max(0, Math.min(totalDuration, nextTime)));
+  };
+
+  const handleSegmentMarkerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, segmentId: number, start: number) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveSegmentIndex(segmentId);
+    requestSeek(start);
   };
 
   const toggleFullscreen = () => {
@@ -370,7 +394,16 @@ export const VideoPlayer: React.FC = () => {
       {/* Scrub Bar & Timeline */}
       <div className="px-3 pt-1.5 bg-slate-900 border-t border-slate-800">
         <div
-          className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group"
+          className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
+          role="slider"
+          tabIndex={totalDuration === null ? -1 : 0}
+          aria-label={language === 'vi' ? 'Thanh tua video' : 'Video seek bar'}
+          aria-valuemin={0}
+          aria-valuemax={totalDuration ?? undefined}
+          aria-valuenow={timelineLocalTime ?? undefined}
+          aria-valuetext={timelineLocalTime === null ? unavailable : formatSeconds(timelineLocalTime)}
+          aria-disabled={totalDuration === null}
+          onKeyDown={handleTimelineKeyDown}
           onClick={(e) => {
             if (totalDuration === null) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -394,9 +427,13 @@ export const VideoPlayer: React.FC = () => {
                   setActiveSegmentIndex(seg.id);
                   requestSeek(seg.start);
                 }}
+                onKeyDown={(e) => handleSegmentMarkerKeyDown(e, seg.id, seg.start)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Segment ${seg.id}: ${seg.speaker}`}
                 className={`absolute top-0 bottom-0 rounded-full transition-opacity ${
                   isSegActive ? 'bg-orange-500/90' : 'bg-slate-700 hover:bg-slate-600'
-                }`}
+                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400`}
                 style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                 title={`Seg #${seg.id}: ${seg.speaker}`}
               />
