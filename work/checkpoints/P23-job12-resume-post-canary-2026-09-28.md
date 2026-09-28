@@ -24,3 +24,9 @@ uv run vi-dubber dub work/youtube/IXSu0MClr34.mp4 --output work/outputs/IXSu0MCl
 ## Handoff and guardrails
 
 Monitor `work/job-8dc51f8a892aba21/state.json`, the tail of `events.jsonl`, `run.lock`, and the output path. Do not kill the worker, use `--fresh`, delete existing receipts/cache/locks, create a duplicate worker, or switch model/provider. This checkpoint does not claim translation completion, TTS completion, output MP4, media QA, owner listening, or whole-pipeline acceptance.
+
+## Live follow-up — 2026-09-28 16:11Z
+
+- The single worker remains alive under `run.lock` PID `31688`; runtime health is still `accepting_turns=true` with two active HTTP/browser turns and no provider error.
+- Translation receipts written by this PID now cover a contiguous unique ID range `0..1055` (`1,056` IDs, latest receipt sequence `0015`). The newest receipt files are `translate-1790611827581-31688-0014.json` and `translate-1790611861896-31688-0015.json`.
+- `state.json` still reports the last journaled progress `832/4277` while these receipts are being flushed; treat the receipt range as the more recent progress evidence. No terminal state, output MP4, or final QA result exists yet.
