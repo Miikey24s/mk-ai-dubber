@@ -6,6 +6,8 @@
     "query_max_chars": 256,
     "nul_query_rejected": true,
     "etag_revalidation": true,
+    "react_client_etag_cache": true,
+    "react_client_cache_entries": 32,
     "cache_control": "private, no-cache",
     "media_opened": false,
     "provider_called": false,

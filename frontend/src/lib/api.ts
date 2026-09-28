@@ -2,6 +2,10 @@ import { CatalogAvailability, CatalogResponse, JobState, PreviewArtifact, Segmen
 
 const BASE_URL = '';
 
+type CatalogCacheEntry = { etag: string; data: CatalogResponse };
+const catalogCache = new Map<string, CatalogCacheEntry>();
+const MAX_CATALOG_CACHE_ENTRIES = 32;
+
 export async function fetchBackendHealth(): Promise<boolean> {
   const res = await fetch(`${BASE_URL}/api/health`, { signal: AbortSignal.timeout(1500) });
   return res.ok;
@@ -21,11 +25,29 @@ export async function fetchCatalog(
 ): Promise<CatalogResponse> {
   const params = new URLSearchParams({ query, limit: String(limit), offset: '0' });
   if (availability) params.set('availability', availability);
+  const cacheKey = params.toString();
+  const cached = catalogCache.get(cacheKey);
   const res = await fetch(`${BASE_URL}/api/catalog?${params.toString()}`, {
+    headers: cached ? { 'If-None-Match': cached.etag } : undefined,
     signal: AbortSignal.timeout(3000),
   });
+  if (res.status === 304) {
+    if (!cached) throw new Error('Catalog returned 304 without a cached response');
+    return cached.data;
+  }
   if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-  return await res.json() as CatalogResponse;
+  const data = await res.json() as CatalogResponse;
+  const etag = res.headers.get('ETag');
+  if (etag) {
+    catalogCache.delete(cacheKey);
+    catalogCache.set(cacheKey, { etag, data });
+    while (catalogCache.size > MAX_CATALOG_CACHE_ENTRIES) {
+      const oldest = catalogCache.keys().next().value;
+      if (oldest === undefined) break;
+      catalogCache.delete(oldest);
+    }
+  }
+  return data;
 }
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {

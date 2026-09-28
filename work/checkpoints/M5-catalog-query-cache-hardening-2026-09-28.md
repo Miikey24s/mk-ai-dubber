@@ -31,3 +31,8 @@ The ETag is derived from the exact response payload, is quoted as an HTTP
 entity tag, and is marked `Cache-Control: private, no-cache`; a matching
 validator returns `304` with an empty body. This does not claim M5 real-media,
 restart/relink, performance, or owner acceptance.
+
+The React API client now keeps a bounded 32-entry in-memory catalog cache,
+sends the matching validator on repeated queries, and safely reuses the prior
+typed payload on `304`. The production frontend bundle was rebuilt after this
+change; no catalog data is persisted in browser storage.
