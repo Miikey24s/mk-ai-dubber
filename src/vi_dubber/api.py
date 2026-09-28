@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import shutil
 import threading
 import time
@@ -21,6 +22,8 @@ from .artifacts import (
     load_stage_manifest,
     resolve_artifact_path,
 )
+from .catalog_store import AVAILABILITY_STATES, CATALOG_SCHEMA_VERSION, CatalogError, CatalogStore
+from .catalog_view import build_catalog_view
 from .jobs import (
     JobAlreadyRunning,
     clear_control,
@@ -54,6 +57,97 @@ from .youtube import download_youtube, is_youtube_url
 _START_TIME = time.time()
 _active_threads: dict[str, threading.Thread] = {}
 _active_threads_lock = threading.Lock()
+_CATALOG_DB_NAME = "catalog.sqlite3"
+
+
+def _catalog_db_path() -> Path:
+    """Return the local catalog location for the currently configured work root."""
+
+    return WORK_DIR / _CATALOG_DB_NAME
+
+
+def _open_catalog_for_read() -> CatalogStore | None:
+    """Open an already-initialized catalog without creating or migrating it.
+
+    API GETs must not turn an absent or partially-created work directory into a
+    new SQLite database.  Probe the schema through SQLite's read-only URI first;
+    ``CatalogStore.read_view`` is then safe because it sees the supported schema
+    version and only performs SELECTs.
+    """
+
+    db_path = _catalog_db_path()
+    if not db_path.is_file():
+        return None
+    try:
+        with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as connection:
+            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        if version != CATALOG_SCHEMA_VERSION:
+            return None
+    except (OSError, sqlite3.Error, TypeError, ValueError):
+        return None
+    return CatalogStore(db_path)
+
+
+def _read_catalog_view(
+    *,
+    query: str = "",
+    availability: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[dict[str, Any] | None, str]:
+    """Read the metadata-only catalog view, reporting availability separately.
+
+    The adapter intentionally does not rebuild from ``work/``.  Projection
+    rebuilds are an explicit lifecycle operation; a GET must never hash media,
+    overwrite review state, or manufacture a catalog as a side effect.
+    """
+
+    store = _open_catalog_for_read()
+    if store is None:
+        return None, "unavailable"
+    try:
+        return store.read_view(query, availability=availability, limit=limit, offset=offset), "ready"
+    except (CatalogError, OSError, sqlite3.Error, TypeError, ValueError):
+        return None, "invalid"
+
+
+def _empty_catalog_view(
+    *,
+    query: str = "",
+    availability: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    status_value: str = "unavailable",
+) -> dict[str, Any]:
+    """Keep the API shape stable while the durable projection is unavailable."""
+
+    return {
+        **build_catalog_view(
+            [],
+            query=query,
+            availability=availability,
+            limit=limit,
+            offset=offset,
+        ),
+        "catalog_status": status_value,
+    }
+
+
+def _catalog_row_for_job(job_id: str) -> dict[str, Any] | None:
+    """Return one metadata-only row for a job, if a durable projection exists."""
+
+    store = _open_catalog_for_read()
+    if store is None:
+        return None
+    try:
+        item = store.get_item(job_id)
+        if item is None:
+            return None
+        state = store.get_user_state(job_id)
+        view = build_catalog_view([item], [state] if state is not None else ())
+        return view["items"][0] if view.get("items") else None
+    except (CatalogError, OSError, sqlite3.Error, TypeError, ValueError):
+        return None
 
 
 def _cors_origins() -> list[str]:
@@ -494,6 +588,18 @@ def create_app() -> FastAPI:
     @app.get("/api/jobs")
     def list_jobs() -> list[dict[str, Any]]:
         states = list_job_states(WORK_DIR)
+        # Read the projection once for the whole page.  The catalog is
+        # optional during migration, so job-state listing remains available
+        # when the SQLite projection has not been created yet.
+        catalog_view, _catalog_status = _read_catalog_view(
+            limit=min(max(100, len(states)), 5_000),
+            offset=0,
+        )
+        catalog_by_id = {
+            str(item.get("item_id")): item
+            for item in (catalog_view or {}).get("items", [])
+            if isinstance(item, dict) and isinstance(item.get("item_id"), str)
+        }
         results: list[dict[str, Any]] = []
         for state in states:
             job_dir_path = Path(str(state.get("job_dir") or ""))
@@ -513,9 +619,54 @@ def create_app() -> FastAPI:
                     "error": state.get("error"),
                     "metrics": state.get("metrics"),
                     "job_dir": str(job_dir_path),
+                    # Additive field: the existing state payload stays the
+                    # source of truth for runtime control, while this
+                    # metadata-only row supplies revision/availability/review
+                    # state when M5 has a durable projection.
+                    "catalog": catalog_by_id.get(job_id),
                 }
             )
         return results
+
+    @app.get("/api/catalog")
+    def get_catalog(
+        query: str = "",
+        availability: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Return the versioned metadata-only catalog read model.
+
+        This endpoint never rebuilds the projection and never returns media
+        URLs or bytes.  An absent/unsupported catalog is represented by the
+        same stable empty view with ``catalog_status`` so the frontend can
+        render an empty/unavailable state without guessing.
+        """
+
+        if not isinstance(query, str):
+            raise HTTPException(status_code=400, detail="catalog query must be a string")
+        if availability is not None and availability not in AVAILABILITY_STATES:
+            raise HTTPException(status_code=400, detail=f"unsupported catalog availability: {availability}")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= 5_000:
+            raise HTTPException(status_code=400, detail="catalog limit must be between 1 and 5000")
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            raise HTTPException(status_code=400, detail="catalog offset must be non-negative")
+
+        view, read_status = _read_catalog_view(
+            query=query,
+            availability=availability,
+            limit=limit,
+            offset=offset,
+        )
+        if view is None:
+            return _empty_catalog_view(
+                query=query,
+                availability=availability,
+                limit=limit,
+                offset=offset,
+                status_value=read_status,
+            )
+        return {**view, "catalog_status": read_status}
 
     @app.get("/api/jobs/{job_id}")
     def get_job_details(job_id: str) -> dict[str, Any]:
@@ -563,6 +714,7 @@ def create_app() -> FastAPI:
             "previews": _list_chunk_previews(job_dir),
             "segments": segments,
             "job_dir": str(job_dir),
+            "catalog": _catalog_row_for_job(job_dir.name),
         }
 
     @app.get("/api/jobs/{job_id}/previews")

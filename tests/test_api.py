@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 import vi_dubber.api as api_mod
 from vi_dubber.api import create_app
 from vi_dubber.artifacts import atomic_write_json
+from vi_dubber.catalog_store import CatalogItem, CatalogStore, UserState
 from vi_dubber.jobs import JobAlreadyRunning, update_job_state
 from vi_dubber.longform import MacroChunk
 from vi_dubber.longform_state import commit_chunk_stage
@@ -49,6 +50,73 @@ def test_api_jobs_empty(client: TestClient) -> None:
     res = client.get("/api/jobs")
     assert res.status_code == 200
     assert res.json() == []
+
+
+def test_api_catalog_unavailable_is_stable_and_read_only(client: TestClient, tmp_path: Path) -> None:
+    res = client.get("/api/catalog")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["catalog_status"] == "unavailable"
+    assert data["format"] == "vi-dubber-catalog-view-v1"
+    assert data["metadata_only"] is True
+    assert data["items"] == []
+    assert not (tmp_path / "work" / "catalog.sqlite3").exists()
+
+
+def test_api_jobs_and_details_attach_metadata_only_catalog_projection(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    work = tmp_path / "work"
+    job_dir = work / "job-catalog01"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    update_job_state(
+        job_dir,
+        status="completed",
+        stage="complete",
+        progress=1.0,
+        message="Done",
+        metadata={"input_name": "sample.mp4"},
+    )
+    store = CatalogStore(work / "catalog.sqlite3")
+    store.rebuild(
+        [
+            CatalogItem(
+                item_id="job-catalog01",
+                title="sample.mp4",
+                source_fingerprint="a" * 64,
+                revision="revision-1",
+                availability="available",
+                segment_count=3,
+                source_ref="jobs/job-catalog01/source/sample.mp4",
+                metadata={
+                    "source_name": "sample.mp4",
+                    "job_status": "completed",
+                    "job_stage": "complete",
+                    "progress": 1.0,
+                    "provider_credentials": "must-not-leak",
+                },
+            )
+        ]
+    )
+    store.set_user_state(UserState("job-catalog01", "revision-1", (), "reviewed", 12.5))
+
+    catalog = client.get("/api/catalog?query=sample&limit=10")
+    assert catalog.status_code == 200
+    catalog_data = catalog.json()
+    assert catalog_data["catalog_status"] == "ready"
+    assert catalog_data["items"][0]["review"]["review_state"] == "reviewed"
+    assert "provider_credentials" not in json.dumps(catalog_data)
+
+    listed = client.get("/api/jobs")
+    assert listed.status_code == 200
+    row = listed.json()[0]
+    assert row["catalog"]["item_id"] == "job-catalog01"
+    assert row["catalog"]["review"]["watch_position_seconds"] == 12.5
+
+    details = client.get("/api/jobs/job-catalog01")
+    assert details.status_code == 200
+    assert details.json()["catalog"]["lineage"]["revision"] == "revision-1"
 
 
 def test_api_jobs_with_persisted_job(client: TestClient, tmp_path: Path) -> None:
