@@ -258,6 +258,9 @@ def initialize_runtime(
             "experimentalBiggerContext": False,
             "experimentalSkillAttachments": False,
             "autoApproveToolCalls": False,
+            "coreId": core_repo.name,
+            "coreProfile": "isolated-provider",
+            "coreSourceRevision": _source_revision(core_repo),
         }
     )
     temporary = config_path.with_suffix(".json.tmp")
@@ -393,6 +396,8 @@ def start_runtime(
             "pid": process.pid,
             "startedAt": time.time(),
             "coreRepo": str(core_repo),
+            "coreId": str(config.get("coreId") or core_repo.name),
+            "coreProfile": str(config.get("coreProfile") or "isolated-provider"),
             "sourceRevision": _source_revision(core_repo),
             "configSha256": _config_fingerprint(config),
         })
