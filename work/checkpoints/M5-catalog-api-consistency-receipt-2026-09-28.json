@@ -1,0 +1,32 @@
+{
+  "audit": "vi-dubber-catalog-api-audit-v1",
+  "claims_excluded": [
+    "M5 product/UI acceptance",
+    "real-media startup/rebuild/relink workflow",
+    "provider, OAuth, connector, network, or Job12 behavior",
+    "browser DOM, performance, and memory SLOs"
+  ],
+  "observations": {
+    "allowlist_and_path_boundary_preserved": true,
+    "details_projection_consistent": true,
+    "future_schema_not_migrated_by_read": true,
+    "jobs_projection_consistent": true,
+    "missing_projection_is_read_only": true,
+    "schema_and_format_stable": true,
+    "status_ready_for_valid_projection": true
+  },
+  "scope": {
+    "api_routes": [
+      "/api/catalog",
+      "/api/jobs",
+      "/api/jobs/{job_id}"
+    ],
+    "job12_touched": false,
+    "media_opened": false,
+    "oauth_or_connector_called": false,
+    "provider_called": false,
+    "startup_rebuild": false,
+    "temporary_sqlite": true
+  },
+  "status": "PREP_ONLY"
+}

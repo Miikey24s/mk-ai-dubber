@@ -79,8 +79,11 @@ def _open_catalog_for_read() -> CatalogStore | None:
     if not db_path.is_file():
         return None
     try:
-        with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as connection:
+        connection = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        finally:
+            connection.close()
         if version != CATALOG_SCHEMA_VERSION:
             return None
     except (OSError, sqlite3.Error, TypeError, ValueError):
