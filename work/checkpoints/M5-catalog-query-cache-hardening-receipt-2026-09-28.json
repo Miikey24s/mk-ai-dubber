@@ -1,0 +1,27 @@
+{
+  "format": "vi-dubber-m5-catalog-query-cache-hardening-v1",
+  "date": "2026-09-28",
+  "status": "SOFTWARE_VERIFIED_PREP_ONLY",
+  "scope": {
+    "query_max_chars": 256,
+    "nul_query_rejected": true,
+    "etag_revalidation": true,
+    "cache_control": "private, no-cache",
+    "media_opened": false,
+    "provider_called": false,
+    "oauth_or_connector_called": false,
+    "job12_touched": false,
+    "schema_migrated": false
+  },
+  "validation": {
+    "focused": "4 passed, 32 deselected, 2 warnings",
+    "full": "590 passed, 1 skipped, 2 warnings"
+  },
+  "claims_excluded": [
+    "M5 real-media create/reopen/relink acceptance",
+    "M5 E3 performance acceptance",
+    "Job12 or P23 whole-pipeline acceptance",
+    "provider/OAuth/connector integration",
+    "owner visual or human listening acceptance"
+  ]
+}

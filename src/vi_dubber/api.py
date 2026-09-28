@@ -12,17 +12,24 @@ from typing import Any, Literal
 
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .artifacts import (
     atomic_write_json,
+    fingerprint_data,
     fingerprint_file,
     load_stage_manifest,
     resolve_artifact_path,
 )
-from .catalog_store import AVAILABILITY_STATES, CATALOG_SCHEMA_VERSION, CatalogError, CatalogStore
+from .catalog_store import (
+    AVAILABILITY_STATES,
+    CATALOG_SCHEMA_VERSION,
+    MAX_SEARCH_QUERY_CHARS,
+    CatalogError,
+    CatalogStore,
+)
 from .catalog_view import build_catalog_view
 from .jobs import (
     JobAlreadyRunning,
@@ -633,6 +640,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/catalog")
     def get_catalog(
+        request: Request,
         query: str = "",
         availability: str | None = None,
         limit: int = 100,
@@ -648,6 +656,13 @@ def create_app() -> FastAPI:
 
         if not isinstance(query, str):
             raise HTTPException(status_code=400, detail="catalog query must be a string")
+        if len(query) > MAX_SEARCH_QUERY_CHARS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"catalog query must be at most {MAX_SEARCH_QUERY_CHARS} characters",
+            )
+        if "\x00" in query:
+            raise HTTPException(status_code=400, detail="catalog query must not contain NUL")
         if availability is not None and availability not in AVAILABILITY_STATES:
             raise HTTPException(status_code=400, detail=f"unsupported catalog availability: {availability}")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= 5_000:
@@ -662,14 +677,24 @@ def create_app() -> FastAPI:
             offset=offset,
         )
         if view is None:
-            return _empty_catalog_view(
+            payload = _empty_catalog_view(
                 query=query,
                 availability=availability,
                 limit=limit,
                 offset=offset,
                 status_value=read_status,
             )
-        return {**view, "catalog_status": read_status}
+        else:
+            payload = {**view, "catalog_status": read_status}
+
+        # The projection and query are deterministic, so clients can
+        # revalidate without downloading an unchanged page. Keep it private:
+        # local job metadata must not become shared-proxy cache content.
+        etag = f'"{fingerprint_data(payload)}"'
+        headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(content=payload, headers=headers)
 
     @app.get("/api/jobs/{job_id}")
     def get_job_details(job_id: str) -> dict[str, Any]:

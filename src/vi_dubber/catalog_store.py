@@ -29,6 +29,9 @@ AVAILABILITY_STATES = frozenset({"available", "missing", "stale", "failed", "pen
 _FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 _ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|\\\\|/(?!/))")
 _MAX_SEARCH_LIMIT = 5_000
+# Bound user supplied search text before it reaches SQLite's LIKE matcher.
+# This keeps the local catalog responsive even when the API is remote-bound.
+MAX_SEARCH_QUERY_CHARS = 256
 
 
 class CatalogError(ValueError):
@@ -423,6 +426,10 @@ class CatalogStore:
     ) -> list[CatalogItem]:
         if not isinstance(query, str):
             raise CatalogError("query must be a string")
+        if len(query) > MAX_SEARCH_QUERY_CHARS:
+            raise CatalogError(f"query must be at most {MAX_SEARCH_QUERY_CHARS} characters")
+        if "\x00" in query:
+            raise CatalogError("query must not contain NUL")
         if availability is not None and availability not in AVAILABILITY_STATES:
             raise CatalogError(f"unsupported availability state: {availability}")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= _MAX_SEARCH_LIMIT:

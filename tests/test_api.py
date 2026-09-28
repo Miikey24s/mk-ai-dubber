@@ -63,6 +63,29 @@ def test_api_catalog_unavailable_is_stable_and_read_only(client: TestClient, tmp
     assert not (tmp_path / "work" / "catalog.sqlite3").exists()
 
 
+def test_api_catalog_etag_revalidation_and_query_budget_are_fail_closed(
+    client: TestClient,
+) -> None:
+    first = client.get("/api/catalog")
+    assert first.status_code == 200
+    etag = first.headers["etag"]
+    assert etag.startswith('"') and etag.endswith('"')
+    assert first.headers["cache-control"] == "private, no-cache"
+
+    cached = client.get("/api/catalog", headers={"If-None-Match": etag})
+    assert cached.status_code == 304
+    assert cached.content == b""
+    assert cached.headers["etag"] == etag
+
+    too_long = client.get("/api/catalog", params={"query": "x" * 257})
+    assert too_long.status_code == 400
+    assert "at most 256" in too_long.json()["detail"]
+
+    nul = client.get("/api/catalog", params={"query": "fixture\x00video"})
+    assert nul.status_code == 400
+    assert "NUL" in nul.json()["detail"]
+
+
 def test_api_jobs_and_details_attach_metadata_only_catalog_projection(
     client: TestClient,
     tmp_path: Path,

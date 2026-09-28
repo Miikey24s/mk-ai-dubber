@@ -126,6 +126,14 @@ def test_search_uses_literal_casefold_and_availability_filter(tmp_path: Path) ->
     assert [item.item_id for item in store.search("", availability="missing")] == ["job-b"]
 
 
+def test_search_rejects_unbounded_or_nul_query_before_sqlite(tmp_path: Path) -> None:
+    store = CatalogStore(tmp_path / "catalog.sqlite3")
+    with pytest.raises(CatalogError, match="at most 256"):
+        store.search("x" * 257)
+    with pytest.raises(CatalogError, match="NUL"):
+        store.search("fixture\x00video")
+
+
 def test_metadata_backup_round_trip_verifies_digest_and_excludes_blobs(tmp_path: Path) -> None:
     source = tmp_path / "source.mp4"
     source.write_bytes(b"fixture media bytes")
