@@ -8,6 +8,17 @@ import pytest
 from vi_dubber import webgpt_runtime
 
 
+def test_default_core_repo_uses_extracted_vi_dubber_core(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VI_DUBBER_WEBGPT_CORE", raising=False)
+
+    core = webgpt_runtime.default_core_repo()
+
+    assert core.name == "vi-dubber-webgpt-core"
+    assert core.parts[-2:] == ("AI", "vi-dubber-webgpt-core")
+
+
 def test_initialize_runtime_creates_isolated_provider_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

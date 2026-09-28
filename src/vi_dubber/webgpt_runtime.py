@@ -24,7 +24,7 @@ def default_core_repo() -> Path:
     configured = os.getenv("VI_DUBBER_WEBGPT_CORE", "").strip()
     if configured:
         return Path(configured).expanduser().resolve()
-    return (PROJECT_ROOT.parents[2] / "AI" / "codex-chatgpt-web-cockpit").resolve()
+    return (PROJECT_ROOT.parents[2] / "AI" / "vi-dubber-webgpt-core").resolve()
 
 
 def default_runtime_home() -> Path:

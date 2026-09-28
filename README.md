@@ -2,7 +2,7 @@
 
 Pipeline lồng tiếng video English -> Vietnamese, có web dashboard cục bộ và nhận video từ máy hoặc YouTube.
 
-Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Nó reuse checkout `D:\ANNAM\AI\codex-chatgpt-web-cockpit` vì checkout này giữ provider-only/model-routing semantics cần thiết; VI Dubber không khởi động Cockpit UI, không gọi Cockpit sync và không đi qua route `54005`. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
+Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Core mặc định là repo độc lập `D:\ANNAM\AI\vi-dubber-webgpt-core`, được tách từ Cockpit-custom v5.0.8 để giữ browser/session/provider-only semantics mà không kéo Cockpit UI vào đường dịch. VI Dubber không khởi động Cockpit UI, không gọi Cockpit sync và không đi qua route `54005`; repo cũ `D:\ANNAM\AI\codex-chatgpt-web-cockpit` vẫn là rollback fallback qua `VI_DUBBER_WEBGPT_CORE`. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
 
 Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ vẫn được giữ trong source để rollback/test và để job lịch sử còn đọc được provenance, nhưng không phải lựa chọn product UI hiện tại và không được dùng làm fallback tự động cho Dedicated Dubber-WebGPT.
 
@@ -69,7 +69,7 @@ uv run vi-dubber webgpt-runtime stop
 
 `start` chỉ chấp nhận storage state đi kèm marker xác minh do core WebGPT tạo sau khi nhìn thấy composer ChatGPT thật; chỉ có file cookie chưa đủ. Runtime giữ launch receipt và khóa start riêng để không tạo hai provider cùng port hoặc stop nhầm process.
 
-`login` mở Chrome profile riêng để người dùng tự đăng nhập ChatGPT. Runtime home mặc định nằm ngoài Git tại `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`; có thể override bằng `VI_DUBBER_WEBGPT_HOME`. Core WebGPT mặc định lấy từ `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; có thể override bằng `VI_DUBBER_WEBGPT_CORE`.
+`login` mở Chrome profile riêng để người dùng tự đăng nhập ChatGPT. Runtime home mặc định nằm ngoài Git tại `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`; có thể override bằng `VI_DUBBER_WEBGPT_HOME`. Core WebGPT mặc định lấy từ `D:\ANNAM\AI\vi-dubber-webgpt-core`; có thể override bằng `VI_DUBBER_WEBGPT_CORE` để rollback hoặc kiểm thử một checkout khác.
 
 Semantic QA dùng TypeSafe khi `TYPESAFE_API_KEY` có trong environment. Nội dung English/Vietnamese của các segment được gửi tới TypeSafe để chấm `faithful / partial / wrong` và kiểm tra các fact quan trọng. Chế độ hiện tại là `shadow`: kết quả được lưu vào `work/<job>/semantic_qa.json`, nhưng lỗi TypeSafe hoặc đoạn bị flag không làm dừng tác vụ.
 

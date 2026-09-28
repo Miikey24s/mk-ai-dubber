@@ -2074,7 +2074,7 @@ VI Dubber
 
 - fixed loopback port `17850`; `17841` của Codex/Cockpit không bị đụng và `17842` giữ trống để tránh nhầm historical P21;
 - runtime home mặc định `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`, nằm ngoài repo Git;
-- core engine reuse checkout `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; không fork business logic dịch sang WebGPT;
+- core engine reuse checkout `D:\ANNAM\AI\vi-dubber-webgpt-core`; repo này là bản tách độc lập từ Cockpit-custom v5.0.8, chỉ sở hữu browser/Responses transport và provider-only compatibility. Không fork business logic dịch sang WebGPT; `D:\ANNAM\AI\codex-chatgpt-web-cockpit` giữ vai trò rollback/reference qua `VI_DUBBER_WEBGPT_CORE`;
 - browser login/storage state riêng; không copy cookie/profile từ Codex daily runtime;
 - browser-only/provider-only: không MCP, không tool registry, không cwd/filesystem envelope, không subagents, không compaction cho translation batch;
 - global `~/.codex/config.toml`, Cockpit provider pool và instance `17841` không bị mutate;
