@@ -119,6 +119,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
               value={query}
               onChange={event => setQuery(event.target.value)}
               placeholder={t('catalog.search_placeholder')}
+              maxLength={256}
               className="h-8 w-full rounded-md border border-slate-300 bg-slate-50 pl-8 pr-2 text-xs text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </label>

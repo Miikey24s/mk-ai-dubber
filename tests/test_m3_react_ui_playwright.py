@@ -607,6 +607,7 @@ def test_m5_catalog_panel_search_filter_select_and_reload(
     decoy_row = dialog.get_by_role("button", name="M3 Library Entry")
     search = dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...")
     close_button = dialog.get_by_role("button", name="Đóng")
+    expect(search).to_have_attribute("maxlength", "256")
     expect(search).to_be_focused()
     page.keyboard.press("Shift+Tab")
     expect(close_button).to_be_focused()
