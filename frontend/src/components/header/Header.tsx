@@ -11,13 +11,16 @@ import {
   ChevronDown,
   UploadCloud,
   Download,
+  Library,
 } from 'lucide-react';
+import { CatalogPanel } from '@/components/header/CatalogPanel';
 
 export const Header: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { jobs, activeJobId, setActiveJobId, setIsRawJsonOpen, setIsCreatorOpen } = useJob();
   const [isJobMenuOpen, setIsJobMenuOpen] = useState(false);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const jobMenuRef = useRef<HTMLDivElement>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0];
@@ -41,6 +44,7 @@ export const Header: React.FC = () => {
   }, [isJobMenuOpen]);
 
   return (
+    <>
     <header className="h-[46px] shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#090d16] text-slate-900 dark:text-slate-100 sticky top-0 z-40 select-none transition-colors">
       <div className="w-full px-3 sm:px-4 h-full flex items-center justify-between gap-3">
         {/* Left: Branding & Job Selector */}
@@ -141,6 +145,18 @@ export const Header: React.FC = () => {
 
         {/* Right: Controls & Toggles */}
         <div className="flex items-center gap-2">
+          {/* Local metadata catalog */}
+          <button
+            type="button"
+            onClick={() => setIsCatalogOpen(true)}
+            className="ui-button ui-button--neutral flex h-8 items-center gap-1.5 px-2.5 text-xs font-semibold"
+            title={t('catalog.open')}
+            aria-label={t('catalog.open')}
+          >
+            <Library className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden xl:inline">{t('catalog.open')}</span>
+          </button>
+
           {/* Import Video & New Job CTA */}
           <button
             onClick={() => setIsCreatorOpen(true)}
@@ -198,5 +214,7 @@ export const Header: React.FC = () => {
         </div>
       </div>
     </header>
+    <CatalogPanel open={isCatalogOpen} onClose={() => setIsCatalogOpen(false)} />
+    </>
   );
 };

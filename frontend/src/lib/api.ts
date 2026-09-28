@@ -1,4 +1,4 @@
-import { JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
+import { CatalogAvailability, CatalogResponse, JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
 
 const BASE_URL = '';
 
@@ -12,6 +12,20 @@ export async function fetchJobs(): Promise<JobState[]> {
   if (!res.ok) throw new Error(`HTTP error ${res.status}`);
   const data = await res.json();
   return Array.isArray(data) ? data : data.jobs || [];
+}
+
+export async function fetchCatalog(
+  query = '',
+  availability?: CatalogAvailability,
+  limit = 100,
+): Promise<CatalogResponse> {
+  const params = new URLSearchParams({ query, limit: String(limit), offset: '0' });
+  if (availability) params.set('availability', availability);
+  const res = await fetch(`${BASE_URL}/api/catalog?${params.toString()}`, {
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+  return await res.json() as CatalogResponse;
 }
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {

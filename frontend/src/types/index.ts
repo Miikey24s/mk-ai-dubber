@@ -245,6 +245,41 @@ export interface JobState {
   error?: Record<string, any>;
 }
 
+export type CatalogAvailability = 'available' | 'missing' | 'stale' | 'failed' | 'pending' | 'unknown';
+
+export interface CatalogItem {
+  item_id: string;
+  title: string;
+  availability: CatalogAvailability;
+  source: { fingerprint: string; ref: string };
+  lineage: { revision: string; segment_count: number };
+  job: {
+    source_name?: string;
+    job_status?: string;
+    job_stage?: string;
+    progress?: number;
+    source_size_bytes?: number;
+  };
+  review: {
+    revision: string;
+    review_state: string;
+    watch_position_seconds: number;
+    bookmarks: Array<{ segment_index: number; position_seconds: number }>;
+  };
+}
+
+export interface CatalogResponse {
+  format: string;
+  schema_version: number;
+  catalog_status: 'ready' | 'unavailable' | 'unsupported' | string;
+  query: string;
+  availability_filter: CatalogAvailability | null;
+  pagination: { limit: number; offset: number; returned: number };
+  items: CatalogItem[];
+  counts: { returned: number; availability: Record<string, number> };
+  metadata_only: true;
+}
+
 export interface SystemStatus {
   gpu_name: string;
   gpu_vram_used_bytes: number;
