@@ -1046,16 +1046,16 @@ def _run_pipeline_impl(
                 raw_chunks = chunk_plan.get("chunks")
                 if not isinstance(raw_chunks, list) or not raw_chunks:
                     raise RuntimeError("ASR cache long-form thiếu macro chunk plan hợp lệ")
-                macro_chunks = [
-                    MacroChunk.from_dict(item)
-                    for item in raw_chunks
-                    if isinstance(item, dict)
-                ]
-                if len(macro_chunks) != len(raw_chunks):
-                    raise RuntimeError("ASR cache long-form có macro chunk plan bị hỏng")
                 try:
+                    macro_chunks = [
+                        MacroChunk.from_dict(item)
+                        for item in raw_chunks
+                        if isinstance(item, dict)
+                    ]
+                    if len(macro_chunks) != len(raw_chunks):
+                        raise ValueError("macro chunk plan contains a non-object row")
                     validate_macro_chunk_plan(macro_chunks, duration_seconds=total_duration)
-                except ValueError as exc:
+                except (KeyError, TypeError, ValueError) as exc:
                     raise RuntimeError("ASR cache long-form có macro chunk plan không hợp lệ") from exc
         else:
             metrics.increment("cache_misses")
