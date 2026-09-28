@@ -298,17 +298,16 @@ def initialize_runtime(
         )
         if managed_config:
             native_command = _native_runtime_command(core_repo)
-            release_version = _core_release_version(core_repo)
             if (
                 existing.get("integrationOwner") == "cockpit"
                 or existing.get("coreKind") != DEDICATED_WEBGPT_CORE_KIND
                 or existing.get("runtimeCommand") != native_command
-                or (release_version is not None and existing.get("releaseVersion") != release_version)
             ):
                 existing = dict(existing)
                 existing["integrationOwner"] = DEDICATED_WEBGPT_INTEGRATION_OWNER
                 existing["coreKind"] = DEDICATED_WEBGPT_CORE_KIND
                 existing["runtimeCommand"] = native_command
+                release_version = _core_release_version(core_repo)
                 if release_version:
                     existing["releaseVersion"] = release_version
                 _write_json_atomic(config_path, existing)
