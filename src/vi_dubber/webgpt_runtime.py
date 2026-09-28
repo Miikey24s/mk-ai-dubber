@@ -66,6 +66,14 @@ def _verified_login_state(storage_state: Path) -> bool:
     marker_path = _login_marker_path(storage_state)
     if not marker_path.is_file():
         return False
+    # The marker is evidence for this exact storage-state snapshot.  A stale
+    # marker must not keep the provider start gate open after the state file is
+    # replaced or repaired (for example after a failed login capture).
+    try:
+        if marker_path.stat().st_mtime_ns < storage_state.stat().st_mtime_ns:
+            return False
+    except OSError:
+        return False
     try:
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

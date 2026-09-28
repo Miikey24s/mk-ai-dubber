@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -100,5 +101,25 @@ def test_verified_login_state_requires_core_marker(
     assert webgpt_runtime._verified_login_state(storage) is True
 
     marker.write_text(json.dumps({"version": 1, "authenticated": False}), encoding="utf-8")
+    assert webgpt_runtime._verified_login_state(storage) is False
+
+
+def test_verified_login_state_rejects_marker_older_than_storage_snapshot(
+    tmp_path: Path,
+) -> None:
+    storage = tmp_path / "browser" / "storage-state.json"
+    storage.parent.mkdir()
+    storage.write_text("{}", encoding="utf-8")
+    marker = Path(f"{storage}.verified.json")
+    marker.write_text(
+        json.dumps({"version": 1, "authenticated": True, "verifiedAt": "2026-09-28T00:00:00Z"}),
+        encoding="utf-8",
+    )
+
+    # Simulate a newly replaced storage state while an old verification marker
+    # was left behind.  The marker must no longer authorize provider startup.
+    os.utime(marker, ns=(100, 100))
+    os.utime(storage, ns=(200, 200))
+
     assert webgpt_runtime._verified_login_state(storage) is False
 
