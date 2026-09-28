@@ -83,6 +83,8 @@ def test_long_separator_uses_bounded_chunks_and_reuses_loaded_model(
 
         def separate(self, audio_file_path):
             calls.append(Path(audio_file_path))
+            for name in ("Vocals.flac", "Instrumental.flac"):
+                (Path(self.output_dir) / name).write_bytes(b"chunk")
             return ["Vocals.flac", "Instrumental.flac"]
 
     fake_separator_module.Separator = FakeSeparator
@@ -156,6 +158,37 @@ def test_separator_redirects_architecture_writer_and_restores_output_dir(
     assert instrumental == output_dir / "chunk-00000_(Instrumental).flac"
     assert separator.output_dir == str(tmp_path / "parent-stems")
     assert separator.model_instance.output_dir == str(tmp_path / "parent-stems")
+
+
+def test_long_separator_fails_fast_when_a_stem_is_not_published(
+    tmp_path: Path,
+) -> None:
+    input_audio = tmp_path / "chunk-00000.flac"
+    input_audio.write_bytes(b"fixture")
+    output_dir = tmp_path / "chunk-output"
+    parent_dir = tmp_path / "parent-stems"
+
+    class FakeSeparator:
+        output_dir = str(parent_dir)
+
+        def separate(self, audio_file_path: str) -> list[str]:
+            del audio_file_path
+            parent_dir.mkdir(parents=True, exist_ok=True)
+            (parent_dir / "chunk-00000_(Vocals).flac").write_bytes(b"vocals")
+            (parent_dir / "chunk-00000_(Instrumental).flac").write_bytes(b"instrumental")
+            return [
+                "chunk-00000_(Vocals).flac",
+                "chunk-00000_(Instrumental).flac",
+            ]
+
+    with pytest.raises(RuntimeError, match="did not publish a non-empty stem"):
+        separation_module._separator_output(
+            FakeSeparator(),
+            input_audio,
+            output_dir,
+            progress_callback=None,
+            validate_outputs=True,
+        )
 
 
 def test_extraction_spec_and_path_are_deterministic_for_short_and_long_input(tmp_path: Path) -> None:

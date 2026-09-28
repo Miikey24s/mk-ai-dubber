@@ -145,6 +145,8 @@ def _separator_output(
     input_audio: Path,
     output_dir: Path,
     progress_callback: ProgressCallback | None,
+    *,
+    validate_outputs: bool = False,
 ) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     previous_output_dir = getattr(separator, "output_dir", None)
@@ -169,7 +171,12 @@ def _separator_output(
             separator.output_dir = previous_output_dir
         if previous_model_output_dir is not missing:
             model_instance.output_dir = previous_model_output_dir
-    return _stem_paths(output_dir, filenames)
+    vocals, instrumental = _stem_paths(output_dir, filenames)
+    if validate_outputs:
+        for stem in (vocals, instrumental):
+            if not stem.is_file() or stem.stat().st_size <= 0:
+                raise RuntimeError(f"separator did not publish a non-empty stem: {stem}")
+    return vocals, instrumental
 
 
 def _separate_chunked(
@@ -199,7 +206,13 @@ def _separate_chunked(
                 if progress_callback is not None:
                     progress_callback((index + min(1.0, max(0.0, value))) / chunk_count, message)
 
-            vocals, instrumental = _separator_output(separator, chunk_input, chunk_output, report_chunk)
+            vocals, instrumental = _separator_output(
+                separator,
+                chunk_input,
+                chunk_output,
+                report_chunk,
+                validate_outputs=True,
+            )
             vocal_parts.append(vocals)
             instrumental_parts.append(instrumental)
 

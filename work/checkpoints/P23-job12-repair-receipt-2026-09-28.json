@@ -37,12 +37,15 @@
   },
   "repair": {
     "file": "src/vi_dubber/separation.py",
-    "behavior": "redirect and restore Separator.output_dir and model_instance.output_dir",
-    "regression_test": "tests/test_p13_runtime_fallbacks.py::test_separator_redirects_architecture_writer_and_restores_output_dir"
+    "behavior": "redirect and restore Separator.output_dir and model_instance.output_dir; fail fast when a bounded window publishes no non-empty stem",
+    "regression_tests": [
+      "tests/test_p13_runtime_fallbacks.py::test_separator_redirects_architecture_writer_and_restores_output_dir",
+      "tests/test_p13_runtime_fallbacks.py::test_long_separator_fails_fast_when_a_stem_is_not_published"
+    ]
   },
   "validation": {
-    "focused": "17 passed",
-    "pipeline_fault": "62 passed",
+    "focused": "18 passed",
+    "pipeline_fault": "63 passed",
     "compileall": "pass",
     "diff_check": "pass"
   },
