@@ -30,3 +30,8 @@ Monitor `work/job-8dc51f8a892aba21/state.json`, the tail of `events.jsonl`, `run
 - The single worker remains alive under `run.lock` PID `31688`; runtime health is still `accepting_turns=true` with two active HTTP/browser turns and no provider error.
 - Translation receipts written by this PID now cover a contiguous unique ID range `0..1055` (`1,056` IDs, latest receipt sequence `0015`). The newest receipt files are `translate-1790611827581-31688-0014.json` and `translate-1790611861896-31688-0015.json`.
 - `state.json` still reports the last journaled progress `832/4277` while these receipts are being flushed; treat the receipt range as the more recent progress evidence. No terminal state, output MP4, or final QA result exists yet.
+
+## Live follow-up — final snapshot for this turn
+
+- A fresh read of the retained WebGPT receipts shows a contiguous global range `0..1311` (`1,312` unique IDs, no gaps under the maximum). PID `31688` remains alive and the job remains `running/translation` with `error=null`.
+- The worker is intentionally left running in the background. This is a progress receipt only; it does not claim the remaining translation, TTS, mux, output MP4, or QA gates.
