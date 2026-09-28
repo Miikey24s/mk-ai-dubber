@@ -259,7 +259,15 @@ def _extract_json(text: str, array: bool) -> Any:
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.S | re.I).strip()
     cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned, flags=re.I).strip()
     opener, closer = ("[", "]") if array else ("{", "}")
-    start = cleaned.find(opener)
+    # The web bridge can prepend transport commentary containing the request
+    # schema before the model's final JSON. Prefer the last known response
+    # schema object so an earlier prompt example cannot become the parse root.
+    preferred = list(re.finditer(
+        r'\{\s*"(?:translations|rewrites|vi|ok)"\s*:',
+        cleaned,
+        flags=re.S,
+    )) if not array else []
+    start = preferred[-1].start() if preferred else cleaned.find(opener)
     end = cleaned.rfind(closer)
     if start < 0 or end < start:
         raise ValueError(f"Model did not return JSON: {cleaned[:500]}")

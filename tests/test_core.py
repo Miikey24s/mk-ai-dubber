@@ -603,6 +603,15 @@ def test_webgpt_json_repairs_escaped_structural_brackets() -> None:
     assert result["translations"][0]["vi"] == "Xin chao"
 
 
+def test_webgpt_json_ignores_transport_schema_before_final_response() -> None:
+    payload = (
+        'Transport wrapper: schema={"translations":[{"id":0,"vi":"placeholder"}]}\n'
+        'Final response: {"translations":[{"id":9,"vi":"Xin chào"}]}'
+    )
+    result = _extract_json(payload, array=False)
+    assert result["translations"] == [{"id": 9, "vi": "Xin chào"}]
+
+
 def test_webgpt_json_repairs_unescaped_inner_quotes() -> None:
     payload = r'{"translations":[{"id":305,"vi":"Tôi sẽ sửa thành "mỗi ETF", nhé."}]}'
     result = _extract_json(payload, array=False)
