@@ -628,6 +628,21 @@ class CatalogStore:
             if replace:
                 connection.execute("DELETE FROM user_state")
                 connection.execute("DELETE FROM catalog_items")
+            else:
+                # Review state is scoped to a catalog revision.  A merge may
+                # replace an existing item with a newer lineage without
+                # carrying that item's user-state row in the backup.  Remove
+                # only that stale row before the catalog upsert; otherwise a
+                # later read would fail closed with a revision mismatch and
+                # leave the merged catalog partially unusable.  Unrelated
+                # items and same-revision state remain untouched.
+                connection.executemany(
+                    """
+                    DELETE FROM user_state
+                    WHERE item_id = ? AND revision <> ?
+                    """,
+                    [(item.item_id, item.revision) for item in items],
+                )
             connection.executemany(
                 """
                 INSERT INTO catalog_items (

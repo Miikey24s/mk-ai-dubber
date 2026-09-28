@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -199,6 +200,29 @@ def test_backup_file_round_trip_and_invalid_file_leave_target_unchanged(tmp_path
         target.restore_from(backup_path)
     assert target.get_item("job-0001") == _item()
     assert target.get_item("existing") is None
+
+
+def test_merge_restore_invalidates_stale_user_state_for_revised_item(tmp_path: Path) -> None:
+    target = CatalogStore(tmp_path / "target.sqlite3")
+    old_item = _item()
+    target.rebuild([old_item])
+    target.set_user_state(UserState(old_item.item_id, old_item.revision, (), "reviewed", 2.0))
+
+    source = CatalogStore(tmp_path / "source.sqlite3")
+    revised_item = replace(old_item, revision="r2")
+    source.rebuild([revised_item])
+    payload_without_state = source.export_metadata()
+
+    assert target.restore_metadata(payload_without_state, replace=False) == 1
+    assert target.get_item(old_item.item_id) == revised_item
+    # State from r1 cannot be presented as annotations for the r2 lineage.
+    assert target.get_user_state(old_item.item_id) is None
+
+    source.set_user_state(UserState(revised_item.item_id, revised_item.revision, (), "new", 3.0))
+    target.restore_metadata(source.export_metadata(), replace=False)
+    assert target.get_user_state(revised_item.item_id) == UserState(
+        revised_item.item_id, revised_item.revision, (), "new", 3.0
+    )
 
 
 def test_restore_from_rejects_oversized_backup_before_reading_full_payload(tmp_path: Path) -> None:
