@@ -11,6 +11,7 @@ or claim M5 product acceptance.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import tempfile
@@ -19,7 +20,7 @@ from typing import Any
 
 from vi_dubber.artifacts import atomic_write_json
 from vi_dubber.catalog_projection import rebuild_from_work_dir
-from vi_dubber.catalog_store import CatalogStore, UserState
+from vi_dubber.catalog_store import CatalogIntegrityError, CatalogStore, UserState
 
 
 def _sha256(path: Path) -> str:
@@ -146,12 +147,59 @@ def run_rehearsal() -> dict[str, Any]:
         assert retained_state is not None
         assert retained_state.review_state == "in_review"
         assert retained_state.watch_position_seconds == 1.5
+        restart_snapshot = restarted_store.export_metadata()
+
+        # A second restart against the same immutable job metadata must be
+        # idempotent: no duplicate rows, no revision drift and no loss of
+        # review state. ``export_metadata`` intentionally omits volatile
+        # SQLite timestamps, so this is a stable content comparison.
+        second_restart_report = rebuild_from_work_dir(restarted_store, work_dir, source_root=media_root)
+        assert second_restart_report == restarted_report
+        assert restarted_store.export_metadata() == restart_snapshot
+        assert restarted_store.get_user_state(job_id) == retained_state
+        restart_idempotent = second_restart_report == restarted_report and restarted_store.export_metadata() == restart_snapshot
 
         backup_payload = restarted_store.backup_to(backup_path)
         restored_store = CatalogStore(restored_db_path)
         restored_count = restored_store.restore_from(backup_path)
         assert restored_count == 2
         assert restored_store.export_metadata() == backup_payload
+        # Restoring the same verified snapshot twice is also idempotent. This
+        # models a crash after commit but before the caller records completion.
+        assert restored_store.restore_from(backup_path) == restored_count
+        assert restored_store.export_metadata() == backup_payload
+        restore_idempotent = restored_store.export_metadata() == backup_payload
+
+        # Digest-valid structural corruption must fail before SQLite mutation.
+        # Keep a baseline so the no-data-loss invariant is checked directly on
+        # the already-populated target rather than only on a fresh database.
+        before_tamper = restored_store.export_metadata()
+        tampered = copy.deepcopy(backup_payload)
+        tampered["catalog"][0]["title"] = "tampered after backup"
+        try:
+            restored_store.restore_metadata(tampered)
+        except CatalogIntegrityError:
+            pass
+        else:  # pragma: no cover - assertion documents the acceptance gate
+            raise AssertionError("tampered backup unexpectedly restored")
+        assert restored_store.export_metadata() == before_tamper
+        tampered_backup_rejected_without_data_loss = restored_store.export_metadata() == before_tamper
+
+        # A temporarily unavailable work root must never be interpreted as an
+        # empty catalog. Existing metadata and review state stay available so
+        # the next startup can retry after the mount/process recovers.
+        unavailable_report = rebuild_from_work_dir(
+            restarted_store,
+            root / "temporarily-unavailable-work",
+            source_root=media_root,
+        )
+        assert unavailable_report.rebuild_applied is False
+        assert unavailable_report.preserved_existing is True
+        assert restarted_store.export_metadata() == restart_snapshot
+        assert restarted_store.get_user_state(job_id) == retained_state
+        unavailable_work_preserved_existing = (
+            unavailable_report.preserved_existing and restarted_store.export_metadata() == restart_snapshot
+        )
 
         # A changed stage manifest creates a new lineage revision.  Review
         # state must not cross that boundary on the next rebuild.
@@ -172,7 +220,7 @@ def run_rehearsal() -> dict[str, Any]:
 
         receipt = {
             "status": "PREP_ONLY",
-            "rehearsal": "m5-catalog-startup-restart-restore-v1",
+            "rehearsal": "m5-catalog-startup-restart-restore-v2",
             "scope": {
                 "jobs": 2,
                 "segments_per_job": 2,
@@ -180,14 +228,19 @@ def run_rehearsal() -> dict[str, Any]:
                 "provider": False,
                 "app_server": False,
                 "job12_touched": False,
+                "real_media": False,
             },
             "observations": {
                 "initial_indexed": first_report.indexed,
                 "initial_skipped": [issue.job_id for issue in first_report.skipped],
                 "restart_indexed": restarted_report.indexed,
+                "restart_idempotent": restart_idempotent,
                 "restart_state_retained_same_revision": retained_state is not None,
                 "backup_restore_count": restored_count,
                 "backup_round_trip_equal": restored_store.export_metadata() == backup_payload,
+                "restore_idempotent": restore_idempotent,
+                "tampered_backup_rejected_without_data_loss": tampered_backup_rejected_without_data_loss,
+                "unavailable_work_preserved_existing": unavailable_work_preserved_existing,
                 "changed_lineage_invalidated_state": restarted_store.get_user_state(job_id) is None,
                 "changed_lineage_rebuild_indexed": invalidated_report.indexed,
                 "portable_source_ref": first_item.source_ref,

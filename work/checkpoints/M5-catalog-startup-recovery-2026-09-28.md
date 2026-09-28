@@ -9,8 +9,11 @@ one malformed job in a temporary directory, then exercises:
 1. initial manifest projection and invalid-job isolation;
 2. a second `CatalogStore` instance simulating application restart;
 3. retention of review/bookmark state for an unchanged lineage;
-4. metadata-only backup to JSON and restore into a fresh SQLite database; and
-5. invalidation of review state after a manifest lineage changes.
+4. metadata-only backup to JSON and restore into a fresh SQLite database;
+5. idempotent restart and repeat restore after a simulated post-commit crash;
+6. rejection of a tampered backup without mutating the populated target;
+7. preservation of catalog and review state when the work root is unavailable;
+8. invalidation of review state after a manifest lineage changes.
 
 The temporary source bytes are only fixtures. The rehearsal does not start the
 web/API server, call WebGPT/TypeSafe/OAuth, touch a real job, or access Job12.
@@ -27,7 +30,7 @@ failure, which the temporary-directory cleanup in this rehearsal verifies.
 ## Validation
 
 ```text
-uv run pytest -q tests/test_m5_catalog_recovery.py tests/test_catalog_projection.py tests/test_catalog_store.py tests/test_m5_catalog_contract.py tests/test_m5_e3_benchmark.py
+uv run pytest -q tests/test_m5_catalog_recovery.py tests/test_catalog_projection.py tests/test_catalog_store.py
 25 passed
 
 uv run python scripts/verify_m5_catalog_recovery.py
@@ -35,6 +38,9 @@ status=PREP_ONLY
 initial_indexed=2; initial_skipped=job-invalid
 restart_indexed=2; restart_state_retained_same_revision=true
 backup_restore_count=2; backup_round_trip_equal=true
+restart_idempotent=true; restore_idempotent=true
+tampered_backup_rejected_without_data_loss=true
+unavailable_work_preserved_existing=true
 changed_lineage_invalidated_state=true
 
 uv run python -m compileall -q src/vi_dubber scripts/verify_m5_catalog_recovery.py
@@ -44,7 +50,7 @@ git diff --check
 pass
 ```
 
-Machine receipt: `M5-catalog-startup-recovery-receipt-2026-09-28.json`.
+Machine receipt: `M5-catalog-startup-recovery-receipt-2026-09-28.json` (`v2`).
 
 ## Explicit exclusions
 

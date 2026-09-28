@@ -15,14 +15,18 @@ def test_m5_startup_restart_restore_rehearsal_is_prep_only() -> None:
     receipt = rehearsal.run_rehearsal()
 
     assert receipt["status"] == "PREP_ONLY"
-    assert receipt["rehearsal"] == "m5-catalog-startup-restart-restore-v1"
+    assert receipt["rehearsal"] == "m5-catalog-startup-restart-restore-v2"
     observations = receipt["observations"]
     assert observations["initial_indexed"] == 2
     assert observations["initial_skipped"] == ["job-invalid"]
     assert observations["restart_indexed"] == 2
+    assert observations["restart_idempotent"] is True
     assert observations["restart_state_retained_same_revision"] is True
     assert observations["backup_restore_count"] == 2
     assert observations["backup_round_trip_equal"] is True
+    assert observations["restore_idempotent"] is True
+    assert observations["tampered_backup_rejected_without_data_loss"] is True
+    assert observations["unavailable_work_preserved_existing"] is True
     assert observations["changed_lineage_invalidated_state"] is True
     assert observations["changed_lineage_rebuild_indexed"] == 2
     assert observations["portable_source_ref"] == "job-m5-recovery-0001/source.mp4"

@@ -18,16 +18,21 @@
       "job-invalid"
     ],
     "portable_source_ref": "job-m5-recovery-0001/source.mp4",
+    "restart_idempotent": true,
     "restart_indexed": 2,
-    "restart_state_retained_same_revision": true
+    "restart_state_retained_same_revision": true,
+    "restore_idempotent": true,
+    "tampered_backup_rejected_without_data_loss": true,
+    "unavailable_work_preserved_existing": true
   },
-  "rehearsal": "m5-catalog-startup-restart-restore-v1",
+  "rehearsal": "m5-catalog-startup-restart-restore-v2",
   "scope": {
     "app_server": false,
     "job12_touched": false,
     "jobs": 2,
     "media": "synthetic local bytes only",
     "provider": false,
+    "real_media": false,
     "segments_per_job": 2
   },
   "status": "PREP_ONLY"
