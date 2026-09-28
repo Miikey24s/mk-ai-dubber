@@ -64,6 +64,15 @@ def _safe_owner_id(value: Any) -> bool:
     return isinstance(value, str) and OWNER_ID_RE.fullmatch(value.strip()) is not None
 
 
+def _is_revision(value: Any) -> bool:
+    """Revision is either a positive integer or a stable textual lineage key."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value >= 1
+    return _strict_text(value)
+
+
 def load_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or payload.get("status") != "PREP_ONLY":
@@ -189,7 +198,7 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
             errors.append(f"reference.artifact.{key}")
     if not _is_utc_timestamp(artifact.get("source_timestamp_utc")):
         errors.append("reference.artifact.source_timestamp_utc_format")
-    if not isinstance(artifact.get("revision"), int) or artifact["revision"] < 1:
+    if not _is_revision(artifact.get("revision")):
         errors.append("reference.artifact.revision")
     if artifact.get("qa_status") != "passed":
         errors.append("reference.artifact.qa_status")
@@ -241,7 +250,7 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
         for key in ("owner_id", "project_id"):
             if not _safe_owner_id(source.get(key)):
                 errors.append(f"request.source.{key}")
-        if not isinstance(source.get("revision"), int) or isinstance(source.get("revision"), bool) or source["revision"] < 1:
+        if not _is_revision(source.get("revision")):
             errors.append("request.source.revision")
         if not _is_sha256(source.get("artifact_sha256")):
             errors.append("request.source.artifact_sha256")
