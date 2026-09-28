@@ -20,7 +20,7 @@ from typing import Any
 
 from vi_dubber.artifacts import atomic_write_json
 from vi_dubber.catalog_projection import rebuild_from_work_dir
-from vi_dubber.catalog_store import CatalogIntegrityError, CatalogStore, UserState
+from vi_dubber.catalog_store import CatalogIntegrityError, CatalogStore, UserState, _digest_payload
 
 
 def _sha256(path: Path) -> str:
@@ -170,7 +170,6 @@ def run_rehearsal() -> dict[str, Any]:
         assert restored_store.export_metadata() == backup_payload
         restore_idempotent = restored_store.export_metadata() == backup_payload
 
-        # Digest-valid structural corruption must fail before SQLite mutation.
         # Keep a baseline so the no-data-loss invariant is checked directly on
         # the already-populated target rather than only on a fresh database.
         before_tamper = restored_store.export_metadata()
@@ -184,6 +183,22 @@ def run_rehearsal() -> dict[str, Any]:
             raise AssertionError("tampered backup unexpectedly restored")
         assert restored_store.export_metadata() == before_tamper
         tampered_backup_rejected_without_data_loss = restored_store.export_metadata() == before_tamper
+
+        # Even when an attacker recomputes the outer digest, a user-state row
+        # from an older lineage must be rejected before mutation. This is the
+        # semantic stale-revision gate, distinct from malformed/tampered JSON.
+        stale_revision = copy.deepcopy(backup_payload)
+        stale_revision["user_state"][0]["revision"] = "stale-revision-r0"
+        stale_core = {key: stale_revision[key] for key in ("format", "schema_version", "catalog", "user_state")}
+        stale_revision["payload_digest"] = _digest_payload(stale_core)
+        try:
+            restored_store.restore_metadata(stale_revision)
+        except CatalogIntegrityError:
+            pass
+        else:  # pragma: no cover - assertion documents the acceptance gate
+            raise AssertionError("stale-revision backup unexpectedly restored")
+        assert restored_store.export_metadata() == before_tamper
+        stale_revision_rejected_without_data_loss = restored_store.export_metadata() == before_tamper
 
         # A temporarily unavailable work root must never be interpreted as an
         # empty catalog. Existing metadata and review state stay available so
@@ -240,6 +255,7 @@ def run_rehearsal() -> dict[str, Any]:
                 "backup_round_trip_equal": restored_store.export_metadata() == backup_payload,
                 "restore_idempotent": restore_idempotent,
                 "tampered_backup_rejected_without_data_loss": tampered_backup_rejected_without_data_loss,
+                "stale_revision_rejected_without_data_loss": stale_revision_rejected_without_data_loss,
                 "unavailable_work_preserved_existing": unavailable_work_preserved_existing,
                 "changed_lineage_invalidated_state": restarted_store.get_user_state(job_id) is None,
                 "changed_lineage_rebuild_indexed": invalidated_report.indexed,

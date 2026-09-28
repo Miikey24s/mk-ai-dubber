@@ -26,6 +26,7 @@ def test_m5_startup_restart_restore_rehearsal_is_prep_only() -> None:
     assert observations["backup_round_trip_equal"] is True
     assert observations["restore_idempotent"] is True
     assert observations["tampered_backup_rejected_without_data_loss"] is True
+    assert observations["stale_revision_rejected_without_data_loss"] is True
     assert observations["unavailable_work_preserved_existing"] is True
     assert observations["changed_lineage_invalidated_state"] is True
     assert observations["changed_lineage_rebuild_indexed"] == 2

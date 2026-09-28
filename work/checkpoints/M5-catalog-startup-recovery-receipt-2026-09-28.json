@@ -22,6 +22,7 @@
     "restart_indexed": 2,
     "restart_state_retained_same_revision": true,
     "restore_idempotent": true,
+    "stale_revision_rejected_without_data_loss": true,
     "tampered_backup_rejected_without_data_loss": true,
     "unavailable_work_preserved_existing": true
   },

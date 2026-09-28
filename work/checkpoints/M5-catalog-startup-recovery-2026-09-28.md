@@ -12,8 +12,9 @@ one malformed job in a temporary directory, then exercises:
 4. metadata-only backup to JSON and restore into a fresh SQLite database;
 5. idempotent restart and repeat restore after a simulated post-commit crash;
 6. rejection of a tampered backup without mutating the populated target;
-7. preservation of catalog and review state when the work root is unavailable;
-8. invalidation of review state after a manifest lineage changes.
+7. rejection of a digest-valid backup carrying stale user-state revision;
+8. preservation of catalog and review state when the work root is unavailable;
+9. invalidation of review state after a manifest lineage changes.
 
 The temporary source bytes are only fixtures. The rehearsal does not start the
 web/API server, call WebGPT/TypeSafe/OAuth, touch a real job, or access Job12.
@@ -40,6 +41,7 @@ restart_indexed=2; restart_state_retained_same_revision=true
 backup_restore_count=2; backup_round_trip_equal=true
 restart_idempotent=true; restore_idempotent=true
 tampered_backup_rejected_without_data_loss=true
+stale_revision_rejected_without_data_loss=true
 unavailable_work_preserved_existing=true
 changed_lineage_invalidated_state=true
 
