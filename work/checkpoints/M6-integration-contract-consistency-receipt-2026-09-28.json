@@ -475,12 +475,13 @@
         "source_timestamp_utc": "2026-09-27T10:00:00Z"
       },
       "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
-      "status": "succeeded",
+      "status": "revoked",
       "attempt": 1,
       "reconcile_required": false,
-      "external_id": "drive-file-fixture-0001",
-      "remote_revision": "remote-r7",
-      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "revocation_reason": "user_revoked_connection"
     }
   },
   "connection_capability": {

@@ -806,7 +806,13 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "remote_sha256": "c" * 64,
         },
     )
-    adapter_revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
+    # Exercise revoke on a still-ambiguous intent; a completed remote copy is
+    # intentionally left as succeeded and is covered by the terminal-state
+    # regression tests.
+    revoke_adapter = OfflineExportAdapter()
+    revoke_adapter.submit(request)
+    revoke_adapter.mark_unknown(request["request_id"])
+    adapter_revoked = revoke_adapter.revoke(request["request_id"], "user_revoked_connection")
     capability_adapter = OfflineExportAdapter(capability)
     capability_initial = capability_adapter.submit(request)
     capability_revoked = capability_adapter.revoke_connection("connection_revoked")
