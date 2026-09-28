@@ -20,6 +20,7 @@ LEARN_REFERENCE_SCHEMA_VERSION = "workspace-learn-reference-v1"
 TRUSTED_FIXTURE_STATE = "trusted_fixture"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_OWNER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class LearnReferenceError(ValueError):
@@ -39,6 +40,13 @@ def _sha256(value: Any, field: str) -> str:
     normalized = _text(value, field).lower()
     if _SHA256_RE.fullmatch(normalized) is None:
         raise LearnReferenceError(f"{field} must be a lowercase SHA-256 digest")
+    return normalized
+
+
+def _owner_id(value: Any, field: str) -> str:
+    normalized = _text(value, field)
+    if _OWNER_ID_RE.fullmatch(normalized) is None:
+        raise LearnReferenceError(f"{field} must be a stable owner identifier")
     return normalized
 
 
@@ -148,9 +156,13 @@ class LearnArtifact:
     artifact_sha256: str
     resource_uri: str
     source_visible: bool
+    owner_id: str = "vi-dubber-local"
+    project_id: str = "vi-dubber"
 
     def __post_init__(self) -> None:
         _portable_artifact_id(self.artifact_id)
+        _owner_id(self.owner_id, "artifact.owner_id")
+        _owner_id(self.project_id, "artifact.project_id")
         _text(self.kind, "artifact.kind")
         _text(self.revision, "artifact.revision")
         _text(self.language, "artifact.language")
@@ -175,6 +187,8 @@ class LearnArtifact:
             "artifact_sha256": self.artifact_sha256,
             "resource_uri": self.resource_uri,
             "source_visible": self.source_visible,
+            "owner_id": self.owner_id,
+            "project_id": self.project_id,
         }
 
 
@@ -269,6 +283,8 @@ class LearnReference:
             ),
             resource_uri=_allowlisted_uri(artifact_raw.get("resource_uri"), resource_allowlist),
             source_visible=artifact_raw.get("source_visible"),
+            owner_id=_owner_id(artifact_raw.get("owner_id", "vi-dubber-local"), "artifact.owner_id"),
+            project_id=_owner_id(artifact_raw.get("project_id", "vi-dubber"), "artifact.project_id"),
         )
         safety_raw = payload.get("safety")
         if not isinstance(safety_raw, Mapping):
@@ -337,6 +353,8 @@ class LearnReference:
             artifact_sha256=artifact_sha256,
             resource_uri=_allowlisted_uri(resource_uri, resource_allowlist),
             source_visible=True,
+            owner_id="vi-dubber-local",
+            project_id="vi-dubber",
         )
         reference = cls(reference_id=reference_id, identity=identity, artifact=artifact)
         if identity.issuer not in trusted_issuers:

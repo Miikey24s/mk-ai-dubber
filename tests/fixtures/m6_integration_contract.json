@@ -3,8 +3,12 @@
   "status": "PREP_ONLY",
   "purpose": "Offline contract fixture for the future M6 VI-to-Learn reference and Drive-style export receipt boundary.",
   "runtime_scope": "No connector, OAuth, account, provider, network, media upload, or production code is used by this fixture.",
-  "trusted_fixture_issuers": ["vi-dubber-local"],
-  "resource_allowlist": ["learn://authorized/"],
+  "trusted_fixture_issuers": [
+    "vi-dubber-local"
+  ],
+  "resource_allowlist": [
+    "learn://authorized/"
+  ],
   "connection_capability": {
     "schema_version": "workspace-connection-capability-v1",
     "connection_id": "connection-fixture-0001",
@@ -36,7 +40,9 @@
       "source_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "resource_uri": "learn://authorized/job-fixture-0001/subtitle-r3.srt",
-      "source_visible": true
+      "source_visible": true,
+      "owner_id": "vi-dubber-local",
+      "project_id": "vi-dubber"
     },
     "safety": {
       "answer_keys_exposed": false,
@@ -52,7 +58,10 @@
       "artifact_id": "job-fixture-0001/subtitle-r3",
       "revision": 3,
       "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "data_class": "subtitle"
+      "data_class": "subtitle",
+      "owner_id": "vi-dubber-local",
+      "project_id": "vi-dubber",
+      "source_timestamp_utc": "2026-09-27T10:00:00Z"
     },
     "destination": {
       "provider": "drive",
@@ -68,7 +77,10 @@
     "retry_policy": {
       "timeout_seconds": 30,
       "max_attempts": 3,
-      "retryable_outcomes": ["timeout", "transient_failure"]
+      "retryable_outcomes": [
+        "timeout",
+        "transient_failure"
+      ]
     },
     "consent": {
       "user_selected": true,
@@ -90,7 +102,18 @@
       "reconcile_required": true,
       "external_id": null,
       "remote_revision": null,
-      "remote_sha256": null
+      "remote_sha256": null,
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25"
     },
     "succeeded": {
       "schema_version": "workspace-export-receipt-v1",
@@ -106,7 +129,18 @@
       "reconcile_required": false,
       "external_id": "drive-file-fixture-0001",
       "remote_revision": "remote-r7",
-      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25"
     },
     "revoked": {
       "schema_version": "workspace-export-receipt-v1",
@@ -123,7 +157,18 @@
       "external_id": null,
       "remote_revision": null,
       "remote_sha256": null,
-      "revocation_reason": "user_revoked_connection"
+      "revocation_reason": "user_revoked_connection",
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25"
     },
     "failed": {
       "schema_version": "workspace-export-receipt-v1",
@@ -141,7 +186,18 @@
       "remote_revision": null,
       "remote_sha256": null,
       "error_code": "retry_exhausted",
-      "retryable": false
+      "retryable": false,
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25"
     }
   },
   "acceptance": {

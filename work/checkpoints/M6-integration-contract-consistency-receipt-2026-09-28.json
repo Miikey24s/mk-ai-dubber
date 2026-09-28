@@ -108,6 +108,17 @@
           "connection_id": "connection-fixture-0001",
           "epoch": 1
         },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
         "status": "unknown",
         "attempt": 1,
         "reconcile_required": true,
@@ -124,6 +135,17 @@
           "connection_id": "connection-fixture-0001",
           "epoch": 1
         },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
         "status": "unknown",
         "attempt": 2,
         "reconcile_required": true,
@@ -140,6 +162,17 @@
           "connection_id": "connection-fixture-0001",
           "epoch": 1
         },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
         "status": "unknown",
         "attempt": 3,
         "reconcile_required": true,
@@ -162,6 +195,17 @@
             "connection_id": "connection-fixture-0001",
             "epoch": 1
           },
+          "source": {
+            "system": "vi-dubber",
+            "artifact_id": "job-fixture-0001/subtitle-r3",
+            "revision": 3,
+            "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "data_class": "subtitle",
+            "owner_id": "vi-dubber-local",
+            "project_id": "vi-dubber",
+            "source_timestamp_utc": "2026-09-27T10:00:00Z"
+          },
+          "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
           "status": "pending",
           "attempt": 2,
           "reconcile_required": false,
@@ -183,6 +227,17 @@
             "connection_id": "connection-fixture-0001",
             "epoch": 1
           },
+          "source": {
+            "system": "vi-dubber",
+            "artifact_id": "job-fixture-0001/subtitle-r3",
+            "revision": 3,
+            "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "data_class": "subtitle",
+            "owner_id": "vi-dubber-local",
+            "project_id": "vi-dubber",
+            "source_timestamp_utc": "2026-09-27T10:00:00Z"
+          },
+          "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
           "status": "pending",
           "attempt": 3,
           "reconcile_required": false,
@@ -206,6 +261,17 @@
           "connection_id": "connection-fixture-0001",
           "epoch": 1
         },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
         "status": "failed",
         "attempt": 3,
         "reconcile_required": false,
@@ -225,6 +291,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "cancelled",
       "attempt": 1,
       "reconcile_required": false,
@@ -241,6 +318,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "cancelled",
       "attempt": 1,
       "reconcile_required": false,
@@ -263,6 +351,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "pending",
       "attempt": 1,
       "reconcile_required": false,
@@ -279,6 +378,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "pending",
       "attempt": 1,
       "reconcile_required": false,
@@ -295,6 +405,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "unknown",
       "attempt": 1,
       "reconcile_required": true,
@@ -315,6 +436,17 @@
           "connection_id": "connection-fixture-0001",
           "epoch": 1
         },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
         "status": "succeeded",
         "attempt": 1,
         "reconcile_required": false,
@@ -332,13 +464,23 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
-      "status": "revoked",
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "succeeded",
       "attempt": 1,
       "reconcile_required": false,
       "external_id": "drive-file-fixture-0001",
       "remote_revision": "remote-r7",
-      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "revocation_reason": "user_revoked_connection"
+      "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }
   },
   "connection_capability": {
@@ -352,6 +494,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "pending",
       "attempt": 1,
       "reconcile_required": false,
@@ -380,6 +533,17 @@
         "connection_id": "connection-fixture-0001",
         "epoch": 1
       },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
       "status": "revoked",
       "attempt": 1,
       "reconcile_required": false,

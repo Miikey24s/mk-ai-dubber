@@ -33,6 +33,8 @@ def test_reference_is_typed_and_round_trips_without_safety_downgrade() -> None:
     payload = reference.to_dict()
 
     assert reference.artifact.revision == "3"
+    assert reference.artifact.owner_id == "vi-dubber-local"
+    assert reference.artifact.project_id == "vi-dubber"
     assert payload["artifact"]["artifact_sha256"] == "b" * 64
     assert payload["safety"] == {
         "answer_keys_exposed": False,
@@ -57,6 +59,8 @@ def test_reference_is_typed_and_round_trips_without_safety_downgrade() -> None:
         (("artifact", "resource_uri"), "learn://authorized/job/file.srt?x=1"),
         (("artifact", "resource_uri"), "learn://authorized/job/%252e%252e/secret.srt"),
         (("artifact", "resource_uri"), "relative/file.srt"),
+        (("artifact", "owner_id"), "../other-owner"),
+        (("artifact", "project_id"), "project\x1funsafe"),
         (("safety", "answer_keys_exposed"), True),
         (("safety", "auto_completion_enabled"), True),
     ],

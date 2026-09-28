@@ -14,7 +14,7 @@ import json
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
@@ -37,6 +37,31 @@ FORBIDDEN_SECRET_KEYS = {
     "password",
     "secret",
 }
+DATA_CLASSES = {"subtitle", "video", "audio", "report", "metadata"}
+OWNER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+
+
+def _strict_text(value: Any) -> bool:
+    """Require a real, control-free text value; bool/int coercion is unsafe."""
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and not any(ord(char) < 0x20 or ord(char) == 0x7F for char in value)
+    )
+
+
+def _safe_artifact_id(value: Any) -> bool:
+    """Accept only a relative POSIX lineage key, never a host path or traversal."""
+    if not _strict_text(value) or "\\" in value:
+        return False
+    path = PurePosixPath(value.strip())
+    return bool(path.parts) and not path.is_absolute() and all(
+        part not in {"", ".", ".."} and ":" not in part for part in path.parts
+    )
+
+
+def _safe_owner_id(value: Any) -> bool:
+    return isinstance(value, str) and OWNER_ID_RE.fullmatch(value.strip()) is not None
 
 
 def load_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
@@ -94,7 +119,12 @@ def _is_allowlisted_resource_uri(value: Any, contract: dict[str, Any]) -> bool:
         parsed = urlsplit(value)
     except ValueError:
         return False
-    decoded_path = unquote(parsed.path)
+    decoded_path = parsed.path
+    for _ in range(3):
+        decoded = unquote(decoded_path)
+        if decoded == decoded_path:
+            break
+        decoded_path = decoded
     if (
         parsed.query
         or parsed.fragment
@@ -111,11 +141,16 @@ def _is_allowlisted_resource_uri(value: Any, contract: dict[str, Any]) -> bool:
             allowed = urlsplit(prefix)
         except ValueError:
             continue
+        allowed_path = unquote(allowed.path)
         if (
-            parsed.scheme.casefold() == allowed.scheme.casefold()
+            bool(allowed_path)
+            and allowed_path.endswith("/")
+            and not allowed.query
+            and not allowed.fragment
+            and parsed.scheme.casefold() == allowed.scheme.casefold()
             and parsed.netloc.casefold() == allowed.netloc.casefold()
-            and decoded_path.startswith(unquote(allowed.path))
-            and decoded_path != unquote(allowed.path).rstrip("/")
+            and decoded_path.startswith(allowed_path)
+            and decoded_path != allowed_path.rstrip("/")
             and "\\" not in decoded_path
             and ".." not in decoded_path.split("/")
         ):
@@ -127,6 +162,8 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
     errors: list[str] = []
     if reference.get("schema_version") != "workspace-learn-reference-v1":
         errors.append("reference.schema_version")
+    if not _strict_text(reference.get("reference_id")):
+        errors.append("reference.reference_id")
     if reference.get("source_system") != "vi-dubber" or reference.get("target_system") != "learn":
         errors.append("reference.system_boundary")
 
@@ -143,7 +180,12 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
     if not isinstance(artifact, dict):
         return errors + ["reference.artifact"]
     for key in ("artifact_id", "kind", "language", "source_timestamp_utc", "resource_uri"):
-        if not str(artifact.get(key) or "").strip():
+        if not _strict_text(artifact.get(key)):
+            errors.append(f"reference.artifact.{key}")
+    if not _safe_artifact_id(artifact.get("artifact_id")):
+        errors.append("reference.artifact.artifact_id_safe")
+    for key in ("owner_id", "project_id"):
+        if not _safe_owner_id(artifact.get(key)):
             errors.append(f"reference.artifact.{key}")
     if not _is_utc_timestamp(artifact.get("source_timestamp_utc")):
         errors.append("reference.artifact.source_timestamp_utc_format")
@@ -171,7 +213,7 @@ def validate_learn_reference(reference: dict[str, Any], contract: dict[str, Any]
 
 
 def _required_text(payload: dict[str, Any], fields: tuple[str, ...], prefix: str) -> list[str]:
-    return [f"{prefix}.{field}" for field in fields if not str(payload.get(field) or "").strip()]
+    return [f"{prefix}.{field}" for field in fields if not _strict_text(payload.get(field))]
 
 
 def _has_selected_ref(value: Any, marker: str) -> bool:
@@ -192,10 +234,19 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
         errors += _required_text(source, ("system", "artifact_id", "data_class"), "request.source")
         if source.get("system") != "vi-dubber":
             errors.append("request.source.system")
-        if not isinstance(source.get("revision"), int) or source["revision"] < 1:
+        if not _safe_artifact_id(source.get("artifact_id")):
+            errors.append("request.source.artifact_id_safe")
+        if source.get("data_class") not in DATA_CLASSES:
+            errors.append("request.source.data_class")
+        for key in ("owner_id", "project_id"):
+            if not _safe_owner_id(source.get(key)):
+                errors.append(f"request.source.{key}")
+        if not isinstance(source.get("revision"), int) or isinstance(source.get("revision"), bool) or source["revision"] < 1:
             errors.append("request.source.revision")
         if not _is_sha256(source.get("artifact_sha256")):
             errors.append("request.source.artifact_sha256")
+        if not _is_utc_timestamp(source.get("source_timestamp_utc")):
+            errors.append("request.source.source_timestamp_utc")
     destination = request.get("destination")
     if not isinstance(destination, dict):
         errors.append("request.destination")
@@ -237,7 +288,7 @@ def validate_export_request(request: dict[str, Any]) -> list[str]:
     if not isinstance(connection, dict):
         errors.append("request.connection")
     else:
-        if not str(connection.get("connection_id") or "").strip():
+        if not _strict_text(connection.get("connection_id")):
             errors.append("request.connection.connection_id")
         if not isinstance(connection.get("epoch"), int) or isinstance(connection.get("epoch"), bool) or connection["epoch"] < 1:
             errors.append("request.connection.epoch")
@@ -261,7 +312,7 @@ def validate_connection_capability(
     if capability.get("schema_version") != "workspace-connection-capability-v1":
         errors.append("capability.schema_version")
     for field in ("connection_id", "provider", "account_ref", "scope"):
-        if not str(capability.get(field) or "").strip():
+        if not _strict_text(capability.get(field)):
             errors.append(f"capability.{field}")
     if capability.get("provider") != "drive":
         errors.append("capability.provider")
@@ -274,8 +325,12 @@ def validate_connection_capability(
         errors.append("capability.status")
     if capability.get("user_selected") is not True:
         errors.append("capability.user_selected")
-    if capability.get("revoked") is not False and capability.get("status") == "active":
+    if capability.get("status") == "active" and capability.get("revoked") is not False:
         errors.append("capability.revoked")
+    if capability.get("status") in {"revoked", "expired"} and capability.get("revoked") is not True:
+        errors.append("capability.revoked_state")
+    if not _has_selected_ref(capability.get("account_ref"), "user-selected:"):
+        errors.append("capability.account_ref_user_selected")
     if _secret_keys(capability):
         errors.append("capability.secret_fields")
 
@@ -306,7 +361,7 @@ def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) ->
     if receipt.get("schema_version") != "workspace-export-receipt-v1":
         errors.append("receipt.schema_version")
     for field in ("request_id", "idempotency_key", "destination_provider"):
-        if not str(receipt.get(field) or "").strip():
+        if not _strict_text(receipt.get(field)):
             errors.append(f"receipt.{field}")
     if receipt.get("request_id") != request.get("request_id"):
         errors.append("receipt.request_id_match")
@@ -317,34 +372,51 @@ def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) ->
     status = receipt.get("status")
     if status not in EXPORT_STATUSES:
         errors.append("receipt.status")
-    if not isinstance(receipt.get("attempt"), int) or receipt["attempt"] < 1:
+    if not isinstance(receipt.get("attempt"), int) or isinstance(receipt.get("attempt"), bool) or receipt["attempt"] < 1:
         errors.append("receipt.attempt")
+    if receipt.get("source") != request.get("source"):
+        errors.append("receipt.source_lineage_match")
+    expected_fingerprint = request_intent_fingerprint(request)
+    if receipt.get("intent_fingerprint") != expected_fingerprint:
+        errors.append("receipt.intent_fingerprint_match")
+    connection = receipt.get("connection")
+    if not isinstance(connection, dict):
+        errors.append("receipt.connection")
+    elif connection != request.get("connection"):
+        errors.append("receipt.connection.request_match")
+    remote_fields = ("external_id", "remote_revision", "remote_sha256")
+    if status in {"pending", "unknown", "failed", "revoked", "cancelled"} and any(
+        receipt.get(field) is not None for field in remote_fields
+    ):
+        errors.append(f"receipt.{status}.remote_identity")
     if status == "unknown":
         if receipt.get("reconcile_required") is not True:
             errors.append("receipt.unknown.reconcile_required")
-        if any(receipt.get(field) is not None for field in ("external_id", "remote_revision", "remote_sha256")):
-            errors.append("receipt.unknown.remote_identity")
     elif status == "succeeded":
         if receipt.get("reconcile_required") is not False:
             errors.append("receipt.succeeded.reconcile_required")
-        if not str(receipt.get("external_id") or "").strip():
+        if not _strict_text(receipt.get("external_id")):
             errors.append("receipt.succeeded.external_id")
-        if not str(receipt.get("remote_revision") or "").strip():
+        if not _strict_text(receipt.get("remote_revision")):
             errors.append("receipt.succeeded.remote_revision")
         if not _is_sha256(receipt.get("remote_sha256")):
             errors.append("receipt.succeeded.remote_sha256")
     elif status == "revoked":
-        if not str(receipt.get("revocation_reason") or "").strip():
+        if not _strict_text(receipt.get("revocation_reason")):
             errors.append("receipt.revoked.reason")
         if receipt.get("reconcile_required") is not False:
             errors.append("receipt.revoked.reconcile_required")
     elif status == "failed":
         if receipt.get("reconcile_required") is not False:
             errors.append("receipt.failed.reconcile_required")
-        if not str(receipt.get("error_code") or "").strip():
+        if not _strict_text(receipt.get("error_code")):
             errors.append("receipt.failed.error_code")
         if receipt.get("retryable") is not False:
             errors.append("receipt.failed.retryable")
+    elif status == "pending" and receipt.get("reconcile_required") is not False:
+        errors.append("receipt.pending.reconcile_required")
+    elif status == "cancelled" and receipt.get("reconcile_required") is not False:
+        errors.append("receipt.cancelled.reconcile_required")
     retry_policy = request.get("retry_policy")
     max_attempts = retry_policy.get("max_attempts") if isinstance(retry_policy, dict) else DEFAULT_RETRY_POLICY["max_attempts"]
     if isinstance(max_attempts, int) and receipt.get("attempt", 0) > max_attempts:
@@ -401,6 +473,9 @@ def dedupe_requests(requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: dict[str, str] = {}
     outcomes: list[dict[str, Any]] = []
     for request in requests:
+        errors = validate_export_request(request)
+        if errors:
+            raise ValueError("invalid export request: " + ", ".join(errors))
         key = str(request.get("idempotency_key") or "")
         fingerprint = request_intent_fingerprint(request)
         previous = seen.get(key)
@@ -451,7 +526,7 @@ def apply_event(state: dict[str, Any], event: str) -> dict[str, Any]:
     """Pure state reducer used to test stale/out-of-order event behavior."""
     current = str(state.get("status"))
     if event == "connection_revoked":
-        if current not in {"cancelled"}:
+        if current not in TERMINAL_STATUSES:
             state = {**state, "status": "revoked", "reconcile_required": False}
         return state
     if event == "cancel_requested":
@@ -475,7 +550,7 @@ def apply_event(state: dict[str, Any], event: str) -> dict[str, Any]:
     next_state = {**state, "status": next_status}
     if next_status == "unknown":
         next_state["reconcile_required"] = True
-    elif next_status == "succeeded":
+    elif next_status in {"pending", "succeeded", "failed"}:
         next_state["reconcile_required"] = False
     return next_state
 
@@ -493,6 +568,12 @@ class OfflineExportAdapter:
         self._intents: dict[str, dict[str, Any]] = {}
         self._keys: dict[str, str] = {}
         self._capability = deepcopy(capability) if capability is not None else None
+        self._dispatch_count = 0
+
+    @property
+    def dispatch_count(self) -> int:
+        """Number of new dispatches; exact retries must not increment it."""
+        return self._dispatch_count
 
     def submit(self, request: dict[str, Any]) -> dict[str, Any]:
         errors = validate_export_request(request)
@@ -520,6 +601,8 @@ class OfflineExportAdapter:
             "idempotency_key": key,
             "destination_provider": request["destination"]["provider"],
             "connection": deepcopy(request["connection"]),
+            "source": deepcopy(request["source"]),
+            "intent_fingerprint": fingerprint,
             "status": "pending",
             "attempt": 1,
             "reconcile_required": False,
@@ -529,7 +612,25 @@ class OfflineExportAdapter:
         }
         self._keys[key] = fingerprint
         self._intents[key] = {"request": deepcopy(request), "receipt": receipt}
+        self._dispatch_count += 1
         return deepcopy(receipt)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Serializable local intent/receipt snapshot for crash/restart tests."""
+        return {
+            "intents": deepcopy(self._intents),
+            "keys": deepcopy(self._keys),
+            "capability": deepcopy(self._capability),
+            "dispatch_count": self._dispatch_count,
+        }
+
+    @classmethod
+    def restore(cls, snapshot: dict[str, Any]) -> "OfflineExportAdapter":
+        restored = cls(snapshot.get("capability"))
+        restored._intents = deepcopy(snapshot.get("intents", {}))
+        restored._keys = deepcopy(snapshot.get("keys", {}))
+        restored._dispatch_count = int(snapshot.get("dispatch_count", 0))
+        return restored
 
     def _entry(self, request_id: str) -> dict[str, Any]:
         for entry in self._intents.values():
@@ -559,6 +660,8 @@ class OfflineExportAdapter:
         if plan["action"] == "adopt_existing":
             if not isinstance(lookup, dict) or not str(lookup.get("external_id") or "").strip():
                 return {**plan, "action": "manual_reconciliation", "reason": "missing_external_id"}
+            if not _strict_text(lookup.get("remote_revision")):
+                return {**plan, "action": "manual_reconciliation", "reason": "missing_remote_revision"}
             if not _is_sha256(lookup.get("remote_sha256")):
                 return {**plan, "action": "manual_reconciliation", "reason": "missing_remote_sha256"}
             entry["receipt"] = {
@@ -566,7 +669,7 @@ class OfflineExportAdapter:
                 "status": "succeeded",
                 "reconcile_required": False,
                 "external_id": lookup["external_id"],
-                "remote_revision": str(lookup.get("remote_revision") or "unknown"),
+                "remote_revision": lookup["remote_revision"],
                 "remote_sha256": lookup["remote_sha256"],
             }
         elif plan["action"] == "retry_allowed":
@@ -590,7 +693,7 @@ class OfflineExportAdapter:
         if not str(reason).strip():
             raise ValueError("revocation reason is required")
         entry = self._entry(request_id)
-        if entry["receipt"].get("status") == "cancelled":
+        if entry["receipt"].get("status") in TERMINAL_STATUSES:
             return deepcopy(entry["receipt"])
         entry["receipt"] = {
             **entry["receipt"],

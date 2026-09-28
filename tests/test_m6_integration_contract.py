@@ -332,9 +332,23 @@ def test_offline_adapter_reconciles_unknown_then_revoke_blocks_reopen() -> None:
     assert adopted["receipt"]["status"] == "succeeded"
     assert adopted["receipt"]["external_id"] == "remote-1"
 
+    # Revoking a connection cannot rewrite a completed remote copy.  The
+    # receipt remains a durable success; deletion is a separate, explicit
+    # operation outside this offline contract.
+    revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
+    assert revoked["status"] == "succeeded"
+    assert benchmark.apply_event(revoked, "dispatch_started") == revoked
+
+
+def test_revoke_fences_unknown_intent_without_rewriting_terminal_success() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+    adapter.mark_timeout(request["request_id"])
     revoked = adapter.revoke(request["request_id"], "user_revoked_connection")
     assert revoked["status"] == "revoked"
-    assert benchmark.apply_event(revoked, "dispatch_started") == revoked
+    assert adapter.reconcile(request["request_id"], {"status": "not_found"})["action"] == "no_lookup_needed"
 
 
 @pytest.mark.parametrize("status", ["unknown", "succeeded", "revoked"])
@@ -346,3 +360,130 @@ def test_receipt_validator_keeps_request_identity(status: str) -> None:
     assert "receipt.idempotency_key_match" in benchmark.validate_export_receipt(
         receipt, contract["export_request"]
     )
+
+
+@pytest.mark.parametrize("artifact_id", ["../other/file.srt", "C:/secret.srt", "job\\secret.srt", "job/\x1fsecret.srt"])
+def test_i1_artifact_lineage_is_relative_and_owner_bound(artifact_id: str) -> None:
+    contract = benchmark.load_contract()
+    reference = copy.deepcopy(contract["learn_reference"])
+    reference["artifact"]["artifact_id"] = artifact_id
+    assert "reference.artifact.artifact_id_safe" in benchmark.validate_learn_reference(reference, contract)
+
+    request = copy.deepcopy(contract["export_request"])
+    request["source"]["artifact_id"] = artifact_id
+    errors = benchmark.validate_export_request(request)
+    assert "request.source.artifact_id_safe" in errors
+
+
+def test_i1_double_encoded_uri_and_non_boundary_allowlist_fail_closed() -> None:
+    contract = benchmark.load_contract()
+    reference = copy.deepcopy(contract["learn_reference"])
+    reference["artifact"]["resource_uri"] = "learn://authorized/job/%252e%252e/secret.srt"
+    assert "reference.artifact.resource_allowlist" in benchmark.validate_learn_reference(reference, contract)
+
+    scoped = copy.deepcopy(contract)
+    scoped["resource_allowlist"] = ["learn://authorized/job/"]
+    reference["artifact"]["resource_uri"] = "learn://authorized/jobmalicious/file.srt"
+    assert "reference.artifact.resource_allowlist" in benchmark.validate_learn_reference(reference, scoped)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "error"),
+    [
+        (("request_id",), True, "request.request_id"),
+        (("idempotency_key",), 42, "request.idempotency_key"),
+        (("source", "revision"), True, "request.source.revision"),
+        (("source", "data_class"), "private-secret", "request.source.data_class"),
+    ],
+)
+def test_i2_request_contract_rejects_coercion_and_unbounded_data_class(
+    path: tuple[str, ...], value: object, error: str
+) -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    target = request
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    assert error in benchmark.validate_export_request(request)
+
+
+def test_i2_capability_requires_selected_account_and_consistent_revocation_state() -> None:
+    contract = benchmark.load_contract()
+    capability = copy.deepcopy(contract["connection_capability"])
+    request = copy.deepcopy(contract["export_request"])
+    capability["account_ref"] = "account-guess"
+    request["destination"]["account_ref"] = "account-guess"
+    assert "capability.account_ref_user_selected" in benchmark.validate_connection_capability(capability, request)
+
+    capability = copy.deepcopy(contract["connection_capability"])
+    capability["status"] = "revoked"
+    capability["revoked"] = False
+    assert "capability.revoked_state" in benchmark.validate_connection_capability(capability, request)
+
+
+def test_receipt_lineage_rejects_source_or_intent_fingerprint_tampering() -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+    receipt["source"]["revision"] = 99
+    assert "receipt.source_lineage_match" in benchmark.validate_export_receipt(receipt, request)
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+    receipt["intent_fingerprint"] = "0" * 64
+    assert "receipt.intent_fingerprint_match" in benchmark.validate_export_receipt(receipt, request)
+
+
+@pytest.mark.parametrize("status", ["pending", "cancelled"])
+def test_receipt_pending_and_cancelled_states_cannot_claim_remote_identity(status: str) -> None:
+    contract = benchmark.load_contract()
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+    receipt["status"] = status
+    receipt["reconcile_required"] = False
+    receipt["external_id"] = "remote-file"
+    errors = benchmark.validate_export_receipt(receipt, contract["export_request"])
+    assert f"receipt.{status}.remote_identity" in errors
+
+
+def test_reconcile_success_requires_remote_revision_and_checksum() -> None:
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    request = copy.deepcopy(contract["export_request"])
+    adapter.submit(request)
+    adapter.mark_timeout(request["request_id"])
+    missing_revision = adapter.reconcile(
+        request["request_id"], {"status": "succeeded", "external_id": "remote", "remote_sha256": "d" * 64}
+    )
+    assert missing_revision["action"] == "manual_reconciliation"
+    assert missing_revision["reason"] == "missing_remote_revision"
+
+
+def test_duplicate_dispatch_is_single_send_across_snapshot_restore() -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    adapter = benchmark.OfflineExportAdapter()
+    first = adapter.submit(request)
+    assert adapter.dispatch_count == 1
+    duplicate = copy.deepcopy(request)
+    duplicate["request_id"] = "same-intent-new-request-id"
+    assert adapter.submit(duplicate) == first
+    assert adapter.dispatch_count == 1
+
+    restored = benchmark.OfflineExportAdapter.restore(adapter.snapshot())
+    assert restored.submit(duplicate) == first
+    assert restored.dispatch_count == 1
+
+
+def test_terminal_state_is_monotonic_under_out_of_order_events() -> None:
+    succeeded = {"status": "succeeded", "reconcile_required": False}
+    for event in ("dispatch_started", "dispatch_timeout", "connection_revoked", "cancel_requested"):
+        assert benchmark.apply_event(succeeded, event) == succeeded
+    failed = {"status": "failed", "reconcile_required": False}
+    assert benchmark.apply_event(failed, "connection_revoked") == failed
+
+
+def test_dedupe_rejects_invalid_missing_idempotency_key_before_collapsing_requests() -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    request.pop("idempotency_key")
+    with pytest.raises(ValueError, match="invalid export request"):
+        benchmark.dedupe_requests([request])
