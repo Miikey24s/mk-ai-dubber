@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-28",
+  "job_id": "job-8dc51f8a892aba21",
+  "status": "diagnosed_repair_validated_resume_pending",
+  "state": {
+    "status": "failed",
+    "stage": "separation",
+    "progress": 0.19,
+    "asr_completed_chunks": 11,
+    "asr_total_chunks": 29,
+    "run_lock_present_at_audit": false,
+    "live_dub_runner_found": false
+  },
+  "source": {
+    "name": "IXSu0MClr34.mp4",
+    "sha256": "8dc51f8a892aba2103728a8d2360b30f9a6319d5015ff8fd00ef4bdbc4b08ddf",
+    "duration_seconds": 42831.5535
+  },
+  "extract_checkpoint": {
+    "manifest": "work/job-8dc51f8a892aba21/manifests/extract_audio.json",
+    "status": "complete",
+    "artifact": "original.flac",
+    "size_bytes": 4773029380,
+    "sha256": "50d4ff199b1814baef3ca58f5c579e68c70f876bd5ec92a0e8143b2efedcf597",
+    "duration_seconds": 42831.5535
+  },
+  "separation_observation": {
+    "window_seconds": 900,
+    "window_count": 48,
+    "non_empty_vocal_windows": 48,
+    "non_empty_instrumental_windows": 48,
+    "first_window_duration_seconds": 900.0,
+    "last_window_duration_seconds": 531.5535,
+    "stale_top_level_vocal_duration_seconds": 14913.080875,
+    "root_cause": "model_instance_output_dir_not_redirected"
+  },
+  "repair": {
+    "file": "src/vi_dubber/separation.py",
+    "behavior": "redirect and restore Separator.output_dir and model_instance.output_dir",
+    "regression_test": "tests/test_p13_runtime_fallbacks.py::test_separator_redirects_architecture_writer_and_restores_output_dir"
+  },
+  "validation": {
+    "focused": "17 passed",
+    "pipeline_fault": "62 passed",
+    "compileall": "pass",
+    "diff_check": "pass"
+  },
+  "next_gate": "supported resume of retained job after source/extract/hash/disk/lease recheck",
+  "resume_command": "uv run vi-dubber dub \"work/youtube/IXSu0MClr34.mp4\" --output \"work/outputs/IXSu0MClr34_vi.mp4\" --profile balanced_fast --no-diarize --resume",
+  "execution_capability": false,
+  "provider_access": false,
+  "broker_access": false
+}

@@ -148,14 +148,27 @@ def _separator_output(
 ) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     previous_output_dir = getattr(separator, "output_dir", None)
+    # audio-separator 0.47 delegates actual writing to ``model_instance``.
+    # Updating only Separator.output_dir leaves the architecture writer pointed
+    # at the parent stems directory, which is fatal for bounded long-input
+    # separation: the returned names resolve inside the temporary chunk
+    # directory but the files were published elsewhere. Keep both objects in
+    # sync for the call and restore the model-owned value afterwards.
+    model_instance = getattr(separator, "model_instance", None)
+    missing = object()
+    previous_model_output_dir = getattr(model_instance, "output_dir", missing)
     if previous_output_dir is not None:
         separator.output_dir = str(output_dir)
+    if previous_model_output_dir is not missing:
+        model_instance.output_dir = str(output_dir)
     try:
         with _mdxc_progress_adapter(progress_callback):
             filenames = separator.separate(str(input_audio))
     finally:
         if previous_output_dir is not None:
             separator.output_dir = previous_output_dir
+        if previous_model_output_dir is not missing:
+            model_instance.output_dir = previous_model_output_dir
     return _stem_paths(output_dir, filenames)
 
 

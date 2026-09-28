@@ -114,6 +114,50 @@ def test_long_separator_uses_bounded_chunks_and_reuses_loaded_model(
     # progress behavior remains covered by the existing adapter tests below.
 
 
+def test_separator_redirects_architecture_writer_and_restores_output_dir(
+    tmp_path: Path,
+) -> None:
+    input_audio = tmp_path / "chunk-00000.flac"
+    input_audio.write_bytes(b"fixture")
+    output_dir = tmp_path / "chunk-output"
+    observed: list[tuple[str, str]] = []
+
+    class FakeModel:
+        output_dir = str(tmp_path / "parent-stems")
+
+    class FakeSeparator:
+        output_dir = str(tmp_path / "parent-stems")
+
+        def __init__(self) -> None:
+            self.model_instance = FakeModel()
+
+        def separate(self, audio_file_path: str) -> list[str]:
+            del audio_file_path
+            observed.append((self.output_dir, self.model_instance.output_dir))
+            writer_dir = Path(self.model_instance.output_dir)
+            writer_dir.mkdir(parents=True, exist_ok=True)
+            (writer_dir / "chunk-00000_(Vocals).flac").write_bytes(b"vocals")
+            (writer_dir / "chunk-00000_(Instrumental).flac").write_bytes(b"instrumental")
+            return [
+                "chunk-00000_(Vocals).flac",
+                "chunk-00000_(Instrumental).flac",
+            ]
+
+    separator = FakeSeparator()
+    vocals, instrumental = separation_module._separator_output(
+        separator,
+        input_audio,
+        output_dir,
+        progress_callback=None,
+    )
+
+    assert observed == [(str(output_dir), str(output_dir))]
+    assert vocals == output_dir / "chunk-00000_(Vocals).flac"
+    assert instrumental == output_dir / "chunk-00000_(Instrumental).flac"
+    assert separator.output_dir == str(tmp_path / "parent-stems")
+    assert separator.model_instance.output_dir == str(tmp_path / "parent-stems")
+
+
 def test_extraction_spec_and_path_are_deterministic_for_short_and_long_input(tmp_path: Path) -> None:
     short = media_module.audio_extraction_spec(60.0)
     long = media_module.audio_extraction_spec(43_000.0)
