@@ -86,6 +86,35 @@ def test_api_catalog_etag_revalidation_and_query_budget_are_fail_closed(
     assert "NUL" in nul.json()["detail"]
 
 
+def test_api_catalog_etag_changes_when_projection_state_changes(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    store = CatalogStore(tmp_path / "work" / "catalog.sqlite3")
+    store.rebuild(
+        [
+            CatalogItem(
+                item_id="job-etag01",
+                title="ETag fixture",
+                source_fingerprint="a" * 64,
+                revision="r1",
+                availability="available",
+                segment_count=1,
+                source_ref="jobs/job-etag01/source.mp4",
+            )
+        ]
+    )
+    first = client.get("/api/catalog")
+    assert first.status_code == 200
+    old_etag = first.headers["etag"]
+
+    store.set_user_state(UserState("job-etag01", "r1", (), "reviewed", 3.0))
+    changed = client.get("/api/catalog", headers={"If-None-Match": old_etag})
+    assert changed.status_code == 200
+    assert changed.headers["etag"] != old_etag
+    assert changed.json()["items"][0]["review"]["review_state"] == "reviewed"
+
+
 def test_api_jobs_and_details_attach_metadata_only_catalog_projection(
     client: TestClient,
     tmp_path: Path,
