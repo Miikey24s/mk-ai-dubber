@@ -2,7 +2,7 @@
 
 Pipeline lồng tiếng video English -> Vietnamese, có web dashboard cục bộ và nhận video từ máy hoặc YouTube.
 
-Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
+Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Nó reuse checkout `D:\ANNAM\AI\codex-chatgpt-web-cockpit` vì checkout này giữ provider-only/model-routing semantics cần thiết; VI Dubber không khởi động Cockpit UI, không gọi Cockpit sync và không đi qua route `54005`. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
 
 Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ vẫn được giữ trong source để rollback/test và để job lịch sử còn đọc được provenance, nhưng không phải lựa chọn product UI hiện tại và không được dùng làm fallback tự động cho Dedicated Dubber-WebGPT.
 
