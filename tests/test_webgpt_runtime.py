@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -104,7 +103,7 @@ def test_verified_login_state_requires_core_marker(
     assert webgpt_runtime._verified_login_state(storage) is False
 
 
-def test_verified_login_state_rejects_marker_older_than_storage_snapshot(
+def test_verified_login_state_accepts_normal_storage_refresh_after_login(
     tmp_path: Path,
 ) -> None:
     storage = tmp_path / "browser" / "storage-state.json"
@@ -116,10 +115,9 @@ def test_verified_login_state_rejects_marker_older_than_storage_snapshot(
         encoding="utf-8",
     )
 
-    # Simulate a newly replaced storage state while an old verification marker
-    # was left behind.  The marker must no longer authorize provider startup.
-    os.utime(marker, ns=(100, 100))
-    os.utime(storage, ns=(200, 200))
+    # The managed browser may rewrite cookies/local storage after a successful
+    # turn. A fresh mtime alone must not force the user through login again.
+    storage.write_text('{"cookies":[],"origins":[]}', encoding="utf-8")
 
-    assert webgpt_runtime._verified_login_state(storage) is False
+    assert webgpt_runtime._verified_login_state(storage) is True
 
