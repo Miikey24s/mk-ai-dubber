@@ -50,6 +50,7 @@ def test_initialize_runtime_creates_isolated_provider_config(
     home = tmp_path / "runtime-home"
     core.mkdir()
     monkeypatch.setattr(webgpt_runtime, "_core_cli", lambda _core: core / "src" / "cli.ts")
+    monkeypatch.setattr(webgpt_runtime, "_bun_executable", lambda: "C:/tools/bun.exe")
     monkeypatch.setattr(
         webgpt_runtime,
         "_default_config_from_core",
@@ -76,6 +77,7 @@ def test_initialize_runtime_creates_isolated_provider_config(
     assert config["experimentalBiggerContext"] is False
     assert config["experimentalSkillAttachments"] is False
     assert config["autoApproveToolCalls"] is False
+    assert config["runtimeCommand"] == ["C:/tools/bun.exe", str(core / "src" / "cli.ts")]
     on_disk = json.loads((home / "config.json").read_text(encoding="utf-8"))
     assert on_disk == config
 
@@ -91,6 +93,7 @@ def test_initialize_runtime_preserves_existing_config_without_force(
     existing = {"port": webgpt_runtime.DUBBER_WEBGPT_PORT, "solAvailable": False, "custom": "keep"}
     (home / "config.json").write_text(json.dumps(existing), encoding="utf-8")
     monkeypatch.setattr(webgpt_runtime, "_core_cli", lambda _core: core / "src" / "cli.ts")
+    monkeypatch.setattr(webgpt_runtime, "_bun_executable", lambda: "C:/tools/bun.exe")
 
     config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
 
@@ -113,11 +116,13 @@ def test_initialize_runtime_migrates_legacy_cockpit_owner_without_touching_login
     }
     (home / "config.json").write_text(json.dumps(existing), encoding="utf-8")
     monkeypatch.setattr(webgpt_runtime, "_core_cli", lambda _core: core / "src" / "cli.ts")
+    monkeypatch.setattr(webgpt_runtime, "_bun_executable", lambda: "C:/tools/bun.exe")
 
     config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
 
     assert config["integrationOwner"] == "standalone"
     assert config["coreKind"] == "native-chatgpt-web"
+    assert config["runtimeCommand"] == ["C:/tools/bun.exe", str(core / "src" / "cli.ts")]
     assert config["storageStatePath"] == existing["storageStatePath"]
     assert config["controlToken"] == existing["controlToken"]
     assert "cockpit" not in (home / "config.json").read_text(encoding="utf-8")

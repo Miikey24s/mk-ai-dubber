@@ -72,6 +72,18 @@ def _core_cli(core_repo: Path) -> Path:
     return cli
 
 
+def _native_runtime_command(core_repo: Path) -> list[str]:
+    """Build a durable command for the selected native core.
+
+    ``defaultConfig()`` is evaluated through Bun and therefore returns an
+    ``[eval]`` entrypoint. That is useful for inspecting defaults, but it is
+    not a service command: the live runtime must point at the checked-out
+    native CLI so a restart cannot silently return to the removed Cockpit
+    checkout.
+    """
+    return [_bun_executable(), str(_core_cli(core_repo))]
+
+
 def _runtime_env(home: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["CODEX_CHATGPT_WEB_HOME"] = str(home)
@@ -264,13 +276,28 @@ def initialize_runtime(
                 f"Runtime home đã có config port {existing.get('port')}; "
                 f"dùng --force nếu muốn reset sang {DUBBER_WEBGPT_PORT}."
             )
-        # Migrate the old label in place without touching browser login,
-        # control token, port, or other user-owned runtime settings.
-        if existing.get("integrationOwner") == "cockpit":
-            existing = dict(existing)
-            existing["integrationOwner"] = DEDICATED_WEBGPT_INTEGRATION_OWNER
-            existing["coreKind"] = DEDICATED_WEBGPT_CORE_KIND
-            _write_json_atomic(config_path, existing)
+        # Migrate the old label and executable in place without touching
+        # browser login, control token, port, or other user-owned settings.
+        # The old config may still contain the removed Cockpit [eval]
+        # command; preserving that field would make the next restart launch
+        # the wrong provider again.
+        managed_config = (
+            existing.get("integrationOwner") in {"cockpit", DEDICATED_WEBGPT_INTEGRATION_OWNER}
+            or "coreKind" in existing
+            or "runtimeCommand" in existing
+        )
+        if managed_config:
+            native_command = _native_runtime_command(core_repo)
+            if (
+                existing.get("integrationOwner") == "cockpit"
+                or existing.get("coreKind") != DEDICATED_WEBGPT_CORE_KIND
+                or existing.get("runtimeCommand") != native_command
+            ):
+                existing = dict(existing)
+                existing["integrationOwner"] = DEDICATED_WEBGPT_INTEGRATION_OWNER
+                existing["coreKind"] = DEDICATED_WEBGPT_CORE_KIND
+                existing["runtimeCommand"] = native_command
+                _write_json_atomic(config_path, existing)
         return existing
 
     config = _default_config_from_core(core_repo, home)
@@ -289,6 +316,7 @@ def initialize_runtime(
             "experimentalBiggerContext": False,
             "experimentalSkillAttachments": False,
             "autoApproveToolCalls": False,
+            "runtimeCommand": _native_runtime_command(core_repo),
         }
     )
     temporary = config_path.with_suffix(".json.tmp")
