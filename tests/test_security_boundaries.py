@@ -32,6 +32,26 @@ def test_provider_detail_keeps_only_known_operational_signal() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("provider_message", "expected"),
+    [
+        (
+            "ChatGPT web login is expired or the Temporary Chat surface is unavailable",
+            "chatgpt web login is expired",
+        ),
+        (
+            "Temporary Chat surface is unavailable",
+            "temporary chat surface is unavailable",
+        ),
+    ],
+)
+def test_provider_detail_keeps_dedicated_webgpt_login_gate(
+    provider_message: str,
+    expected: str,
+) -> None:
+    assert _safe_provider_detail(provider_message) == expected
+
+
 def test_direct_provider_body_is_not_exposed_in_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
