@@ -1,0 +1,139 @@
+{
+  "status": "PREP_ONLY",
+  "benchmark": "m5-e3-local-metadata-v1",
+  "contract": "tests/fixtures/m5_catalog_contract.json",
+  "protocol": {
+    "repeats": 3,
+    "cold": "new CatalogStore and SQLite connection per sample; OS page cache is not flushed",
+    "warm": "same CatalogStore with one discarded warm-up, then repeated reads",
+    "storage": "temporary SQLite files deleted after the run",
+    "media": "no media files opened or hashed",
+    "external_io": "provider/OAuth/Drive/network/job12 not invoked"
+  },
+  "dataset": {
+    "item_count": 1000,
+    "segment_count": 100000,
+    "catalog_digest": "86d056d66253cf240b3bbfad55a410590e1290cfc5e099cd93caaa70eb5ff815",
+    "search_case_count": 3
+  },
+  "integrity": {
+    "fixture_shape": true,
+    "search_expectations": true,
+    "catalog_rebuild_count": 1000,
+    "metadata_backup_round_trip": true,
+    "metadata_only_backup": true,
+    "portable_metadata_paths": true,
+    "temporary_storage_removed": true
+  },
+  "measurements": {
+    "search_cases": [
+      {
+        "id": "casefold-title-exact",
+        "query": "FIXTURE VIDEO 0007",
+        "filter": {},
+        "expected_count": 1,
+        "cold": {
+          "samples": 3,
+          "min_ms": 2.5952,
+          "p50_ms": 2.7717,
+          "p95_ms": 2.9214599999999997,
+          "max_ms": 2.9381
+        },
+        "warm": {
+          "samples": 3,
+          "min_ms": 2.5281,
+          "p50_ms": 2.5321,
+          "p95_ms": 2.55604,
+          "max_ms": 2.5587
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      },
+      {
+        "id": "availability-filter-missing",
+        "query": "",
+        "filter": {
+          "availability": "missing"
+        },
+        "expected_count": 200,
+        "cold": {
+          "samples": 3,
+          "min_ms": 8.7931,
+          "p50_ms": 8.9119,
+          "p95_ms": 9.19711,
+          "max_ms": 9.2288
+        },
+        "warm": {
+          "samples": 3,
+          "min_ms": 8.8694,
+          "p50_ms": 9.0034,
+          "p95_ms": 9.17449,
+          "max_ms": 9.1935
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      },
+      {
+        "id": "prefix-title-all",
+        "query": "fixture video 0",
+        "filter": {},
+        "expected_count": 1000,
+        "cold": {
+          "samples": 3,
+          "min_ms": 33.3569,
+          "p50_ms": 34.1011,
+          "p95_ms": 34.26661,
+          "max_ms": 34.285
+        },
+        "warm": {
+          "samples": 3,
+          "min_ms": 32.9133,
+          "p50_ms": 33.6857,
+          "p95_ms": 35.22803,
+          "max_ms": 35.3994
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      }
+    ],
+    "initial_metadata_view": {
+      "item_id": "job-0007",
+      "cold": {
+        "samples": 3,
+        "min_ms": 2.213,
+        "p50_ms": 2.2568,
+        "p95_ms": 2.3329400000000002,
+        "max_ms": 2.3414
+      },
+      "warm": {
+        "samples": 3,
+        "min_ms": 2.1087,
+        "p50_ms": 2.1103,
+        "p95_ms": 2.1166,
+        "max_ms": 2.1173
+      },
+      "target_p95_ms": 2000,
+      "target_decision": "NOT_A_PRODUCT_CLAIM"
+    }
+  },
+  "promotion": {
+    "decision": "NO_CLAIM",
+    "reason": "PREP_ONLY observations; no production performance or M5 acceptance is inferred",
+    "targets_ms": {
+      "list_search_p95": 500,
+      "initial_metadata_view_p95": 2000
+    }
+  },
+  "environment": {
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "sqlite": "3.49.1"
+  },
+  "claims_excluded": [
+    "production M5 acceptance or target attainment",
+    "OS page-cache-cold behavior or multi-process contention",
+    "UI/DOM rendering, thumbnail concurrency, or browser memory behavior",
+    "real licensed media availability, relink, or playback",
+    "provider, OAuth, Drive/cloud export, network, and job12 execution"
+  ]
+}
