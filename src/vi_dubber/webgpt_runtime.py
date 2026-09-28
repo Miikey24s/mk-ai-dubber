@@ -84,6 +84,16 @@ def _native_runtime_command(core_repo: Path) -> list[str]:
     return [_bun_executable(), str(_core_cli(core_repo))]
 
 
+def _core_release_version(core_repo: Path) -> str | None:
+    """Read the native release version for an in-place config migration."""
+    try:
+        metadata = json.loads((core_repo / "package.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    version = metadata.get("version") if isinstance(metadata, dict) else None
+    return version.strip() if isinstance(version, str) and version.strip() else None
+
+
 def _runtime_env(home: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["CODEX_CHATGPT_WEB_HOME"] = str(home)
@@ -297,6 +307,9 @@ def initialize_runtime(
                 existing["integrationOwner"] = DEDICATED_WEBGPT_INTEGRATION_OWNER
                 existing["coreKind"] = DEDICATED_WEBGPT_CORE_KIND
                 existing["runtimeCommand"] = native_command
+                release_version = _core_release_version(core_repo)
+                if release_version:
+                    existing["releaseVersion"] = release_version
                 _write_json_atomic(config_path, existing)
         return existing
 
