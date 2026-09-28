@@ -15,6 +15,7 @@ from playwright.sync_api import Page, expect
 import vi_dubber.api as api_mod
 from vi_dubber.api import create_app
 from vi_dubber.artifacts import atomic_write_json
+from vi_dubber.catalog_store import CatalogItem, CatalogStore, UserState
 from vi_dubber.jobs import update_job_state
 from vi_dubber.longform import MacroChunk
 from vi_dubber.longform_state import commit_chunk_stage
@@ -238,6 +239,44 @@ def _seed_m3_fixture(work: Path) -> tuple[str, str]:
         },
     )
     atomic_write_json(decoy / "segments_vi.json", [])
+
+    # M5 catalog rows are seeded independently from the job archive so this
+    # browser proof exercises the durable metadata projection and the real
+    # CatalogPanel API path. The source fingerprints are fixture identities;
+    # no media bytes or provider state are involved in the UI acceptance.
+    catalog = CatalogStore(work / "catalog.sqlite3")
+    catalog.rebuild(
+        [
+            CatalogItem(
+                item_id=target_id,
+                title="M3 Watch Review Fixture",
+                source_fingerprint="c" * 64,
+                revision="catalog-m3-target-r1",
+                availability="available",
+                segment_count=len(segments),
+                source_ref=f"jobs/{target_id}/source/fixture.mp4",
+                metadata={"fixture": "m5-catalog-browser"},
+            ),
+            CatalogItem(
+                item_id=decoy_id,
+                title="M3 Library Entry",
+                source_fingerprint="d" * 64,
+                revision="catalog-m3-decoy-r1",
+                availability="missing",
+                segment_count=0,
+                source_ref=f"jobs/{decoy_id}/source/fixture.mp4",
+                metadata={"fixture": "m5-catalog-browser"},
+            ),
+        ]
+    )
+    catalog.set_user_state(
+        UserState(
+            item_id=target_id,
+            revision="catalog-m3-target-r1",
+            review_state="in_review",
+            watch_position_seconds=4.0,
+        )
+    )
     return target_id, decoy_id
 
 
@@ -515,3 +554,82 @@ def test_m3_library_watch_review_edit_stale_flow(
         + "\n",
         encoding="utf-8",
     )
+
+
+def test_m5_catalog_panel_search_filter_select_and_reload(
+    page: Page,
+    m3_react_server: tuple[str, str, Path],
+) -> None:
+    """Prove the local catalog survives browser reopen and drives job selection."""
+
+    base_url, _target_id, _work = m3_react_server
+    console_errors: list[str] = []
+    page.on(
+        "console",
+        lambda msg: console_errors.append(
+            f"{msg.text} @ {(msg.location or {}).get('url', '')}"
+        )
+        if msg.type == "error"
+        else None,
+    )
+    page.add_init_script("localStorage.clear()")
+    page.route(
+        "**/api/system",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "gpu_name": "M5 catalog fixture",
+                    "gpu_vram_used_bytes": 0,
+                    "gpu_vram_total_bytes": 0,
+                    "gpu_utilization_pct": 0,
+                    "cpu_utilization_pct": 0,
+                    "active_jobs_count": 0,
+                    "webgpt_connected": False,
+                    "webgpt_model": "fixture",
+                    "webgpt_port": 17850,
+                    "server_uptime_seconds": 0,
+                    "websocket_connected": True,
+                }
+            ),
+        ),
+    )
+    page.set_viewport_size({"width": 1280, "height": 800})
+    page.goto(base_url, wait_until="networkidle", timeout=30000)
+
+    open_catalog = page.get_by_role("button", name="Catalog")
+    expect(open_catalog).to_be_visible(timeout=10000)
+    open_catalog.click()
+    dialog = page.get_by_role("dialog", name="Catalog cục bộ")
+    expect(dialog).to_be_visible(timeout=5000)
+    target_row = dialog.get_by_role("button", name="M3 Watch Review Fixture")
+    decoy_row = dialog.get_by_role("button", name="M3 Library Entry")
+    expect(target_row).to_be_visible(timeout=5000)
+    expect(decoy_row).to_be_visible(timeout=5000)
+    expect(target_row).to_contain_text("Review: in_review")
+    expect(target_row).to_contain_text("catalog-m3-target-r1")
+
+    # The availability filter is backed by the API query, not a client-side
+    # guess; selecting available removes the missing decoy row.
+    dialog.locator("#catalog-availability").select_option("available")
+    expect(target_row).to_be_visible(timeout=5000)
+    expect(decoy_row).to_have_count(0)
+
+    search = dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...")
+    search.fill("M3 Watch Review Fixture")
+    expect(target_row).to_be_visible(timeout=5000)
+    target_row.click()
+    expect(dialog).to_have_count(0)
+
+    # Selection updates the same persisted job state used by Watch/Review.
+    expect(page.get_by_role("button", name="M3 Watch Review Fixture").first).to_be_visible()
+    page.reload(wait_until="networkidle", timeout=30000)
+    page.get_by_role("button", name="Catalog").click()
+    dialog = page.get_by_role("dialog", name="Catalog cục bộ")
+    expect(dialog).to_be_visible(timeout=5000)
+    expect(dialog.get_by_role("button", name="M3 Watch Review Fixture")).to_be_visible(timeout=5000)
+    expect(dialog.get_by_text("M3 Library Entry", exact=True)).to_be_visible(timeout=5000)
+    expect(dialog.locator("#catalog-availability")).to_have_value("")
+    assert page.url == base_url + "/"
+    assert console_errors == [], "\n".join(console_errors)

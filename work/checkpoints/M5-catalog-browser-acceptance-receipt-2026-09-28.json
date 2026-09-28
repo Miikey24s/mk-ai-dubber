@@ -1,0 +1,35 @@
+{
+  "status": "PREP_ONLY",
+  "contract": "vi-dubber-m5-catalog-browser-acceptance-v1",
+  "scope": {
+    "backend": "FastAPI create_app with isolated temporary work directory",
+    "frontend": "React/Vite dist served by the local API app",
+    "browser": "Playwright Chromium",
+    "flows": [
+      "catalog metadata read through /api/catalog",
+      "availability filter round trip",
+      "job selection from catalog",
+      "browser reload and catalog reopen"
+    ],
+    "provider": false,
+    "oauth": false,
+    "real_media": false,
+    "job12_touched": false
+  },
+  "validation": {
+    "focused_playwright": "1 passed",
+    "m3_playwright_regression": "2 passed",
+    "m5_api_recovery_regression": "49 passed, 1 skipped",
+    "console_errors": [],
+    "catalog_revision_visible": true,
+    "review_state_visible": true,
+    "backend_status": "ready"
+  },
+  "claims_excluded": [
+    "real-media availability or relink",
+    "OAuth/Drive/provider behavior",
+    "production browser deployment",
+    "Job12 completion or media quality",
+    "M5 whole-product acceptance"
+  ]
+}
