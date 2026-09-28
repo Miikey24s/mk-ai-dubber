@@ -35,3 +35,14 @@ Monitor `work/job-8dc51f8a892aba21/state.json`, the tail of `events.jsonl`, `run
 
 - A fresh read of the retained WebGPT receipts shows a contiguous global range `0..1311` (`1,312` unique IDs, no gaps under the maximum). PID `31688` remains alive and the job remains `running/translation` with `error=null`.
 - The worker is intentionally left running in the background. This is a progress receipt only; it does not claim the remaining translation, TTS, mux, output MP4, or QA gates.
+
+## Live follow-up — terminal result 2026-09-29
+
+The retained worker is now terminal again:
+
+- `state.json`: `failed`, stage `translation`, updated `2026-09-28T23:47:06.590557+07:00`.
+- Error: `Direct WebGPT Responses trả kết quả JSON không hợp lệ.`
+- Runtime is idle and healthy after the failure: `ONLINE`, login `OK`, `active_http_turns=0`, `active_browser_turns=0`.
+- There is no retained-job lock, no live Job12 process, and no output MP4.
+- Translation receipts contain `3,808 / 4,277` unique IDs (**89.0%** by source-segment ID). IDs `0..3839` were reached except `3712..3743`; the remaining tail `3840..4276` was not attempted. The job's official persisted progress remains `0.3711246200607903` because the journal did not advance after the first cached replay checkpoint.
+- This supersedes the earlier `RUNNING` snapshots in this checkpoint. Do not resume blindly or use `--fresh`; the next safe slice is a narrow malformed-JSON diagnosis/recovery for the missing translation batch, followed by a bounded validation before another retained-job resume.
