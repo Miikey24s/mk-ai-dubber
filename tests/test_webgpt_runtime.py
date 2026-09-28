@@ -24,6 +24,7 @@ def test_runtime_env_isolates_both_webgpt_and_codex_homes(tmp_path: Path) -> Non
 
     assert env["CODEX_CHATGPT_WEB_HOME"] == str(tmp_path / "runtime-home")
     assert env["CODEX_HOME"] == str(tmp_path / "runtime-home" / "codex")
+    assert env["VI_DUBBER_CORE_MODE"] == "isolated-provider"
 
 
 def test_initialize_runtime_creates_isolated_provider_config(

@@ -57,6 +57,7 @@ def _runtime_env(home: Path) -> dict[str, str]:
     # same dedicated home so a serve/login cycle cannot read or mutate global Codex
     # routing files as an incidental side effect.
     env["CODEX_HOME"] = str(home / "codex")
+    env["VI_DUBBER_CORE_MODE"] = "isolated-provider"
     return env
 
 
