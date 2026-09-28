@@ -605,6 +605,17 @@ def test_m5_catalog_panel_search_filter_select_and_reload(
     expect(dialog).to_be_visible(timeout=5000)
     target_row = dialog.get_by_role("button", name="M3 Watch Review Fixture")
     decoy_row = dialog.get_by_role("button", name="M3 Library Entry")
+    search = dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...")
+    close_button = dialog.get_by_role("button", name="Đóng")
+    expect(search).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(close_button).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(
+        "(el) => el.contains(document.activeElement)",
+        dialog.element_handle(),
+    )
+    search.focus()
     expect(target_row).to_be_visible(timeout=5000)
     expect(decoy_row).to_be_visible(timeout=5000)
     expect(target_row).to_contain_text("Review: in_review")
@@ -616,11 +627,14 @@ def test_m5_catalog_panel_search_filter_select_and_reload(
     expect(target_row).to_be_visible(timeout=5000)
     expect(decoy_row).to_have_count(0)
 
-    search = dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...")
     search.fill("M3 Watch Review Fixture")
     expect(target_row).to_be_visible(timeout=5000)
     target_row.click()
     expect(dialog).to_have_count(0)
+    assert page.evaluate(
+        "(el) => document.activeElement === el",
+        open_catalog.element_handle(),
+    )
 
     # Selection updates the same persisted job state used by Watch/Review.
     expect(page.get_by_role("button", name="M3 Watch Review Fixture").first).to_be_visible()

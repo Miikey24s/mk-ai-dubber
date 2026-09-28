@@ -2,7 +2,7 @@
 
 Status: **PREP_ONLY**.
 
-The local React/Vite UI was exercised through the real FastAPI app and an isolated temporary work directory. A Chromium Playwright proof opened the Catalog panel, read the durable `/api/catalog` projection, filtered `available` rows through the backend query, selected the persisted job, reloaded the browser, reopened the panel, and verified the same revision/review metadata remained visible.
+The local React/Vite UI was exercised through the real FastAPI app and an isolated temporary work directory. A Chromium Playwright proof opened the Catalog panel, read the durable `/api/catalog` projection, filtered `available` rows through the backend query, selected the persisted job, reloaded the browser, reopened the panel, and verified the same revision/review metadata remained visible. The dialog also traps keyboard focus and restores focus to the Catalog trigger after close.
 
 Validation:
 

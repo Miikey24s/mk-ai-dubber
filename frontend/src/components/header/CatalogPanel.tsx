@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Clock3, FolderSearch, Loader2, Search, X } f
 import { useTranslation } from '@/context/I18nContext';
 import { useJob } from '@/context/JobContext';
 import { fetchCatalog } from '@/lib/api';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 import { CatalogAvailability, CatalogItem, CatalogResponse } from '@/types';
 
 interface CatalogPanelProps {
@@ -36,6 +37,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useFocusTrap<HTMLElement>(open);
 
   useEffect(() => {
     if (!open) return;
@@ -89,6 +91,7 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
       }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="catalog-panel-title"

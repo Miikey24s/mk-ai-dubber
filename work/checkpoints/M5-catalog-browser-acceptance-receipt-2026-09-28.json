@@ -23,6 +23,7 @@
     "console_errors": [],
     "catalog_revision_visible": true,
     "review_state_visible": true,
+    "focus_containment_and_restore": true,
     "backend_status": "ready"
   },
   "claims_excluded": [
