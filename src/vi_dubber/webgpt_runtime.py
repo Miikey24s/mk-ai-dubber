@@ -18,13 +18,20 @@ from .runtime import PROJECT_ROOT
 DUBBER_WEBGPT_PORT = 17850
 DUBBER_WEBGPT_BASE_URL = f"http://127.0.0.1:{DUBBER_WEBGPT_PORT}/v1"
 START_LOCK_STALE_SECONDS = 5 * 60
+# `standalone` is the native core's provider-only value. VI Dubber ownership
+# is recorded separately in `coreKind` and the dedicated launch receipt.
+DEDICATED_WEBGPT_INTEGRATION_OWNER = "standalone"
+DEDICATED_WEBGPT_CORE_KIND = "native-chatgpt-web"
+DEDICATED_WEBGPT_CORE_DIRNAME = "codex-chatgpt-web"
 
 
 def default_core_repo() -> Path:
     configured = os.getenv("VI_DUBBER_WEBGPT_CORE", "").strip()
     if configured:
         return Path(configured).expanduser().resolve()
-    return (PROJECT_ROOT.parents[2] / "AI" / "codex-chatgpt-web-cockpit").resolve()
+    # VI Dubber owns a dedicated native ChatGPT Web process. Keep this default
+    # independent from the global Codex/Cockpit route and its custom checkout.
+    return (PROJECT_ROOT.parents[2] / "AI" / DEDICATED_WEBGPT_CORE_DIRNAME).resolve()
 
 
 def default_runtime_home() -> Path:
@@ -46,6 +53,22 @@ def _core_cli(core_repo: Path) -> Path:
     package = core_repo / "package.json"
     if not cli.is_file() or not package.is_file():
         raise RuntimeError(f"Không tìm thấy codex-chatgpt-web core hợp lệ tại {core_repo}")
+    try:
+        metadata = json.loads(package.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Không đọc được metadata native ChatGPT Web tại {package}") from exc
+    if not isinstance(metadata, dict) or metadata.get("name") != "codex-chatgpt-web":
+        raise RuntimeError(
+            "Dedicated Dubber-WebGPT cần core native `codex-chatgpt-web`; "
+            f"package không hợp lệ tại {core_repo}"
+        )
+    version = str(metadata.get("version") or "").strip()
+    major = version.split(".", 1)[0]
+    if not major.isdigit() or int(major) < 6:
+        raise RuntimeError(
+            "Dedicated Dubber-WebGPT cần core native v6 trở lên; "
+            f"đang thấy version {version or 'không rõ'} tại {core_repo}"
+        )
     return cli
 
 
@@ -241,15 +264,23 @@ def initialize_runtime(
                 f"Runtime home đã có config port {existing.get('port')}; "
                 f"dùng --force nếu muốn reset sang {DUBBER_WEBGPT_PORT}."
             )
+        # Migrate the old label in place without touching browser login,
+        # control token, port, or other user-owned runtime settings.
+        if existing.get("integrationOwner") == "cockpit":
+            existing = dict(existing)
+            existing["integrationOwner"] = DEDICATED_WEBGPT_INTEGRATION_OWNER
+            existing["coreKind"] = DEDICATED_WEBGPT_CORE_KIND
+            _write_json_atomic(config_path, existing)
         return existing
 
     config = _default_config_from_core(core_repo, home)
     config.update(
         {
             "mode": "browser-only",
-            # The current bridge uses this flag to enter provider-only mode. The dedicated
-            # runtime does not register itself as a global Codex route or Cockpit provider.
-            "integrationOwner": "cockpit",
+            # Metadata only: native core serves the provider, while VI Dubber
+            # owns this isolated home/port. No global Codex route is changed.
+            "integrationOwner": DEDICATED_WEBGPT_INTEGRATION_OWNER,
+            "coreKind": DEDICATED_WEBGPT_CORE_KIND,
             "host": "127.0.0.1",
             "port": DUBBER_WEBGPT_PORT,
             "browserHost": "managed-chrome",
@@ -390,6 +421,9 @@ def start_runtime(
         (home / "provider.pid").write_text(str(process.pid), encoding="ascii")
         _write_json_atomic(home / "provider.launch.json", {
             "version": 1,
+            "provider": "dedicated-dubber-webgpt",
+            "integrationOwner": DEDICATED_WEBGPT_INTEGRATION_OWNER,
+            "coreKind": DEDICATED_WEBGPT_CORE_KIND,
             "pid": process.pid,
             "startedAt": time.time(),
             "coreRepo": str(core_repo),
