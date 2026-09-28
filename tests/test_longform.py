@@ -3,8 +3,10 @@ import pytest
 from vi_dubber.longform import (
     MacroChunkPolicy,
     SpeechInterval,
+    MacroChunk,
     plan_macro_chunks,
     segments_for_macro_chunk,
+    validate_macro_chunk_plan,
 )
 from vi_dubber.media import detect_speech_intervals
 from vi_dubber.types import Segment
@@ -84,6 +86,51 @@ def test_chunk_local_timestamp_maps_back_to_global_timeline() -> None:
 def test_macro_chunk_round_trip_is_stable() -> None:
     chunk = plan_macro_chunks(240.0, [SpeechInterval(0.0, 240.0)], policy=_policy())[0]
     assert type(chunk).from_dict(chunk.to_dict()) == chunk
+
+
+def test_macro_chunk_rejects_malformed_value_object() -> None:
+    with pytest.raises(ValueError, match="source range"):
+        MacroChunk(
+            chunk_id="chunk_0001",
+            index=0,
+            source_start=10.0,
+            source_end=10.0,
+            context_start=0.0,
+            context_end=10.0,
+            boundary_reason="safe_cut",
+        )
+    with pytest.raises(ValueError, match="context range"):
+        MacroChunk(
+            chunk_id="chunk_0001",
+            index=0,
+            source_start=0.0,
+            source_end=10.0,
+            context_start=1.0,
+            context_end=10.0,
+            boundary_reason="safe_cut",
+        )
+
+
+def test_macro_chunk_plan_rejects_gap_overlap_and_incomplete_duration() -> None:
+    first = MacroChunk("chunk_0001", 0, 0.0, 10.0, 0.0, 10.0, "safe_cut")
+    second = MacroChunk("chunk_0002", 1, 11.0, 20.0, 11.0, 20.0, "end")
+    with pytest.raises(ValueError, match="contiguous"):
+        validate_macro_chunk_plan([first, second], duration_seconds=20.0)
+
+    overlap = MacroChunk("chunk_0002", 1, 9.0, 20.0, 9.0, 20.0, "end")
+    with pytest.raises(ValueError, match="contiguous"):
+        validate_macro_chunk_plan([first, overlap], duration_seconds=20.0)
+
+    with pytest.raises(ValueError, match="complete media timeline"):
+        validate_macro_chunk_plan([first], duration_seconds=20.0)
+
+
+def test_macro_chunk_plan_accepts_exact_contiguous_coverage() -> None:
+    chunks = [
+        MacroChunk("chunk_0001", 0, 0.0, 10.0, 0.0, 10.0, "safe_cut"),
+        MacroChunk("chunk_0002", 1, 10.0, 20.0, 8.0, 20.0, "end"),
+    ]
+    assert validate_macro_chunk_plan(chunks, duration_seconds=20.0) == chunks
 
 
 def test_segments_are_owned_by_exactly_one_macro_chunk_midpoint() -> None:

@@ -52,6 +52,7 @@ from .longform import (
     SpeechInterval,
     plan_macro_chunks,
     segments_for_macro_chunk,
+    validate_macro_chunk_plan,
 )
 from .longform_state import (
     chunk_stage_fingerprint,
@@ -1052,6 +1053,10 @@ def _run_pipeline_impl(
                 ]
                 if len(macro_chunks) != len(raw_chunks):
                     raise RuntimeError("ASR cache long-form có macro chunk plan bị hỏng")
+                try:
+                    validate_macro_chunk_plan(macro_chunks, duration_seconds=total_duration)
+                except ValueError as exc:
+                    raise RuntimeError("ASR cache long-form có macro chunk plan không hợp lệ") from exc
         else:
             metrics.increment("cache_misses")
             stage_artifacts: list[Path] = [source_json, source_srt]

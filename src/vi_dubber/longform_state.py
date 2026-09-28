@@ -10,7 +10,7 @@ from .artifacts import (
     stage_fingerprint,
     write_stage_manifest,
 )
-from .longform import MacroChunk
+from .longform import MacroChunk, validate_macro_chunk_plan
 
 
 CHUNK_STATE_VERSION = 1
@@ -24,7 +24,7 @@ def chunk_plan_fingerprint(
     context_fingerprint: Any = None,
     policy_version: int = CHUNK_STATE_VERSION,
 ) -> str:
-    ordered = [chunk.to_dict() for chunk in chunks]
+    ordered = [chunk.to_dict() for chunk in validate_macro_chunk_plan(chunks)]
     return fingerprint_data(
         {
             "version": int(policy_version),
