@@ -88,6 +88,40 @@ def _config_fingerprint(config: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _catalog_model_ids(payload: Any) -> list[str]:
+    """Return a stable, validated model-id list from the runtime catalog.
+
+    The health endpoint can stay reachable while a proxy or provider returns a
+    malformed/empty catalog. Treat that response as unavailable instead of
+    advertising readiness (or accidentally exposing individual characters of a
+    string as model ids) to the translation UI.
+    """
+    if not isinstance(payload, dict):
+        raise RuntimeError("runtime model catalog phải là JSON object")
+    raw_models = payload.get("data", payload.get("models", []))
+    if not isinstance(raw_models, list):
+        raise RuntimeError("runtime model catalog không có danh sách model hợp lệ")
+
+    model_ids: list[str] = []
+    seen: set[str] = set()
+    for item in raw_models:
+        if isinstance(item, dict):
+            candidate = item.get("id") or item.get("slug")
+        elif isinstance(item, str):
+            candidate = item
+        else:
+            continue
+        if not isinstance(candidate, str):
+            continue
+        model_id = candidate.strip()
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            model_ids.append(model_id)
+    if not model_ids:
+        raise RuntimeError("runtime model catalog đang trống")
+    return model_ids
+
+
 def _source_revision(core_repo: Path) -> str:
     try:
         result = subprocess.run(
@@ -302,13 +336,7 @@ def runtime_status(*, home: Path | None = None, timeout: float = 1.5) -> dict[st
 
         catalog_response = requests.get(f"{DUBBER_WEBGPT_BASE_URL}/models", timeout=timeout)
         catalog_response.raise_for_status()
-        catalog = catalog_response.json()
-        raw_models = catalog.get("data", catalog.get("models", [])) if isinstance(catalog, dict) else []
-        result["models"] = [
-            str(item.get("id") if isinstance(item, dict) else item)
-            for item in raw_models
-            if str(item.get("id") if isinstance(item, dict) else item).strip()
-        ]
+        result["models"] = _catalog_model_ids(catalog_response.json())
         result["ready"] = True
         result["reason"] = ""
     except Exception as exc:

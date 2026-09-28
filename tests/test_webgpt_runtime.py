@@ -121,3 +121,23 @@ def test_verified_login_state_accepts_normal_storage_refresh_after_login(
 
     assert webgpt_runtime._verified_login_state(storage) is True
 
+
+def test_catalog_model_ids_accepts_openai_shapes_and_deduplicates() -> None:
+    assert webgpt_runtime._catalog_model_ids(
+        {
+            "data": [
+                {"id": " chatgpt-web/gpt-5.6-sol "},
+                {"slug": "chatgpt-web/gpt-5.6-sol"},
+                "chatgpt-web/gpt-5.6-sol-instant",
+                {"id": ""},
+                42,
+            ]
+        }
+    ) == ["chatgpt-web/gpt-5.6-sol", "chatgpt-web/gpt-5.6-sol-instant"]
+
+
+@pytest.mark.parametrize("payload", [None, [], {"data": {}}, {"data": []}, {"models": [None, 7]}])
+def test_catalog_model_ids_rejects_malformed_or_empty_catalog(payload: object) -> None:
+    with pytest.raises(RuntimeError, match="catalog"):
+        webgpt_runtime._catalog_model_ids(payload)
+
