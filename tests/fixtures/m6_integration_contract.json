@@ -81,6 +81,10 @@
       "request_id": "export-request-fixture-0001",
       "idempotency_key": "idem-fixture-0001",
       "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
       "status": "unknown",
       "attempt": 1,
       "reconcile_required": true,
@@ -93,6 +97,10 @@
       "request_id": "export-request-fixture-0001",
       "idempotency_key": "idem-fixture-0001",
       "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
       "status": "succeeded",
       "attempt": 1,
       "reconcile_required": false,
@@ -105,6 +113,10 @@
       "request_id": "export-request-fixture-0001",
       "idempotency_key": "idem-fixture-0001",
       "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
       "status": "revoked",
       "attempt": 1,
       "reconcile_required": false,
@@ -118,6 +130,10 @@
       "request_id": "export-request-fixture-0001",
       "idempotency_key": "idem-fixture-0001",
       "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
       "status": "failed",
       "attempt": 3,
       "reconcile_required": false,

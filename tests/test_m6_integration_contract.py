@@ -23,6 +23,7 @@ def test_m6_fixture_is_prep_only_and_all_boundaries_validate() -> None:
     assert receipt["validation"]["learn_reference_errors"] == []
     assert receipt["validation"]["export_request_errors"] == []
     assert all(errors == [] for errors in receipt["validation"]["receipt_errors"].values())
+    assert all(errors == [] for errors in receipt["validation"]["receipt_binding_errors"].values())
     assert receipt["claims_excluded"]
 
 
@@ -134,6 +135,52 @@ def test_connection_revoke_fences_pending_intents_and_blocks_new_dispatch() -> N
     blocked["idempotency_key"] = "new-idempotency-after-revoke"
     with pytest.raises(ValueError, match="connection capability is not active"):
         adapter.submit(blocked)
+
+
+def test_receipt_binding_rejects_connection_or_epoch_tampering() -> None:
+    contract = benchmark.load_contract()
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+
+    assert benchmark.validate_receipt_capability_binding(
+        receipt, contract["export_request"], contract["connection_capability"]
+    ) == []
+
+    receipt["connection"]["connection_id"] = "connection-other"
+    errors = benchmark.validate_receipt_capability_binding(
+        receipt, contract["export_request"], contract["connection_capability"]
+    )
+    assert "receipt.connection.connection_id_match" in errors
+    assert "receipt.capability.connection_id_match" in errors
+
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+    receipt["connection"]["epoch"] = 2
+    errors = benchmark.validate_receipt_capability_binding(
+        receipt, contract["export_request"], contract["connection_capability"]
+    )
+    assert "receipt.connection.epoch_match" in errors
+    assert "receipt.capability.epoch_match" in errors
+
+
+def test_receipt_binding_survives_timeout_reconcile_and_connection_revoke() -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    capability = copy.deepcopy(contract["connection_capability"])
+    adapter = benchmark.OfflineExportAdapter(capability)
+
+    adapter.submit(request)
+    unknown = adapter.mark_timeout(request["request_id"])
+    retry = adapter.reconcile(request["request_id"], {"status": "not_found"})
+    adapter.mark_timeout(request["request_id"])
+    revoked_capability = adapter.revoke_connection("connection_revoked")
+    fenced = adapter.receipt(request["request_id"])
+
+    for receipt in (unknown, retry["receipt"], fenced):
+        assert benchmark.validate_receipt_capability_binding(
+            receipt, request, capability
+        ) == []
+    assert revoked_capability["status"] == "revoked"
+    assert fenced["status"] == "revoked"
+    assert fenced["reconcile_required"] is False
 
 
 def test_timeout_is_ambiguous_and_bounded_retry_exhaustion_is_terminal() -> None:

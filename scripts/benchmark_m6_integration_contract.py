@@ -354,6 +354,42 @@ def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) ->
     return errors
 
 
+def validate_receipt_capability_binding(
+    receipt: dict[str, Any],
+    request: dict[str, Any],
+    capability: dict[str, Any],
+) -> list[str]:
+    """Check receipt lineage against the request and local capability epoch.
+
+    A receipt remains a local audit record after a capability is revoked. It
+    therefore records the connection binding used for that intent instead of
+    inheriting whatever capability happens to be current when it is read. The
+    check is relational and side-effect free: it does not imply that a
+    provider accepted the export.
+    """
+    errors: list[str] = []
+    binding = receipt.get("connection")
+    request_binding = request.get("connection")
+    if not isinstance(binding, dict):
+        return ["receipt.connection"]
+    if not isinstance(request_binding, dict):
+        errors.append("request.connection")
+    else:
+        if binding.get("connection_id") != request_binding.get("connection_id"):
+            errors.append("receipt.connection.connection_id_match")
+        if binding.get("epoch") != request_binding.get("epoch"):
+            errors.append("receipt.connection.epoch_match")
+
+    if not isinstance(capability, dict):
+        errors.append("capability")
+    else:
+        if binding.get("connection_id") != capability.get("connection_id"):
+            errors.append("receipt.capability.connection_id_match")
+        if binding.get("epoch") != capability.get("epoch"):
+            errors.append("receipt.capability.epoch_match")
+    return errors
+
+
 def request_intent_fingerprint(request: dict[str, Any]) -> str:
     intent = deepcopy(request)
     intent.pop("request_id", None)
@@ -483,6 +519,7 @@ class OfflineExportAdapter:
             "request_id": request["request_id"],
             "idempotency_key": key,
             "destination_provider": request["destination"]["provider"],
+            "connection": deepcopy(request["connection"]),
             "status": "pending",
             "attempt": 1,
             "reconcile_required": False,
@@ -603,6 +640,10 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     receipt_errors = {
         name: validate_export_receipt(receipt, request) for name, receipt in receipts.items()
     }
+    receipt_binding_errors = {
+        name: validate_receipt_capability_binding(receipt, request, capability)
+        for name, receipt in receipts.items()
+    }
     hardening_cases = {
         "uri_authority_prefix_bypass": validate_learn_reference(
             {**reference, "artifact": {**reference["artifact"], "resource_uri": "learn://authorized-evil/file.srt"}},
@@ -697,10 +738,12 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "export_request_errors": request_errors,
             "capability_errors": capability_errors,
             "receipt_errors": receipt_errors,
+            "receipt_binding_errors": receipt_binding_errors,
             "passed": not reference_errors
             and not request_errors
             and not capability_errors
-            and not any(receipt_errors.values()),
+            and not any(receipt_errors.values())
+            and not any(receipt_binding_errors.values()),
         },
         "hardening": {
             "status": "passed" if all(hardening_cases.values()) else "failed",
