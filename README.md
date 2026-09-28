@@ -67,6 +67,8 @@ uv run vi-dubber webgpt-runtime status
 uv run vi-dubber webgpt-runtime stop
 ```
 
+`start` chỉ chấp nhận storage state đi kèm marker xác minh do core WebGPT tạo sau khi nhìn thấy composer ChatGPT thật; chỉ có file cookie chưa đủ. Runtime giữ launch receipt và khóa start riêng để không tạo hai provider cùng port hoặc stop nhầm process.
+
 `login` mở Chrome profile riêng để người dùng tự đăng nhập ChatGPT. Runtime home mặc định nằm ngoài Git tại `D:\ANNAM\TradingWorkspace\.runtime\dubber-webgpt`; có thể override bằng `VI_DUBBER_WEBGPT_HOME`. Core WebGPT mặc định lấy từ `D:\ANNAM\AI\codex-chatgpt-web-cockpit`; có thể override bằng `VI_DUBBER_WEBGPT_CORE`.
 
 Semantic QA dùng TypeSafe khi `TYPESAFE_API_KEY` có trong environment. Nội dung English/Vietnamese của các segment được gửi tới TypeSafe để chấm `faithful / partial / wrong` và kiểm tra các fact quan trọng. Chế độ hiện tại là `shadow`: kết quả được lưu vào `work/<job>/semantic_qa.json`, nhưng lỗi TypeSafe hoặc đoạn bị flag không làm dừng tác vụ.
