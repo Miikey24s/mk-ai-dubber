@@ -19,6 +19,13 @@ def test_default_core_repo_uses_extracted_vi_dubber_core(
     assert core.parts[-2:] == ("AI", "vi-dubber-webgpt-core")
 
 
+def test_runtime_env_isolates_both_webgpt_and_codex_homes(tmp_path: Path) -> None:
+    env = webgpt_runtime._runtime_env(tmp_path / "runtime-home")
+
+    assert env["CODEX_CHATGPT_WEB_HOME"] == str(tmp_path / "runtime-home")
+    assert env["CODEX_HOME"] == str(tmp_path / "runtime-home" / "codex")
+
+
 def test_initialize_runtime_creates_isolated_provider_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

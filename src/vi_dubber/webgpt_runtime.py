@@ -52,6 +52,11 @@ def _core_cli(core_repo: Path) -> Path:
 def _runtime_env(home: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["CODEX_CHATGPT_WEB_HOME"] = str(home)
+    # The core's optional Codex/Cockpit compatibility helpers resolve CODEX_HOME
+    # independently of CODEX_CHATGPT_WEB_HOME. Bind that second namespace to the
+    # same dedicated home so a serve/login cycle cannot read or mutate global Codex
+    # routing files as an incidental side effect.
+    env["CODEX_HOME"] = str(home / "codex")
     return env
 
 
