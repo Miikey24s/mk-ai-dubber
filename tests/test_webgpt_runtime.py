@@ -117,14 +117,12 @@ def test_initialize_runtime_migrates_legacy_cockpit_owner_without_touching_login
     (home / "config.json").write_text(json.dumps(existing), encoding="utf-8")
     monkeypatch.setattr(webgpt_runtime, "_core_cli", lambda _core: core / "src" / "cli.ts")
     monkeypatch.setattr(webgpt_runtime, "_bun_executable", lambda: "C:/tools/bun.exe")
-    monkeypatch.setattr(webgpt_runtime, "_core_release_version", lambda _core: "6.1.3")
 
     config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
 
     assert config["integrationOwner"] == "standalone"
     assert config["coreKind"] == "native-chatgpt-web"
     assert config["runtimeCommand"] == ["C:/tools/bun.exe", str(core / "src" / "cli.ts")]
-    assert config["releaseVersion"] == "6.1.3"
     assert config["storageStatePath"] == existing["storageStatePath"]
     assert config["controlToken"] == existing["controlToken"]
     assert "cockpit" not in (home / "config.json").read_text(encoding="utf-8")
