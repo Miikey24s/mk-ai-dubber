@@ -473,6 +473,60 @@ def test_duplicate_dispatch_is_single_send_across_snapshot_restore() -> None:
     assert restored.dispatch_count == 1
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("attempt", True, "invalid_attempt"),
+        ("attempt", 0, "invalid_attempt"),
+        ("attempt", "1", "invalid_attempt"),
+    ],
+)
+def test_unknown_reconcile_rejects_coercible_or_non_positive_attempts(
+    field: str, value: object, reason: str
+) -> None:
+    """An ambiguous receipt must never gain resend authority via coercion."""
+    contract = benchmark.load_contract()
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+    receipt[field] = value
+
+    assert benchmark.reconcile_unknown(
+        receipt, {"status": "not_found"}
+    ) == {"action": "manual_reconciliation", "reason": reason}
+
+
+def test_unknown_reconcile_rejects_boolean_retry_limit() -> None:
+    contract = benchmark.load_contract()
+    receipt = copy.deepcopy(contract["receipt_examples"]["unknown"])
+
+    assert benchmark.reconcile_unknown(
+        receipt,
+        {"status": "not_found"},
+        {"max_attempts": True},
+    ) == {"action": "manual_reconciliation", "reason": "invalid_retry_policy"}
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda snapshot: snapshot.update({"dispatch_count": -1}),
+        lambda snapshot: snapshot["keys"].clear(),
+        lambda snapshot: snapshot["intents"][next(iter(snapshot["intents"]))]["receipt"].update(
+            {"attempt": True}
+        ),
+    ],
+)
+def test_snapshot_restore_rejects_malformed_state_before_resend(mutator) -> None:
+    """Crash recovery must fail closed instead of replaying a corrupt intent."""
+    contract = benchmark.load_contract()
+    adapter = benchmark.OfflineExportAdapter()
+    adapter.submit(copy.deepcopy(contract["export_request"]))
+    snapshot = adapter.snapshot()
+    mutator(snapshot)
+
+    with pytest.raises(ValueError, match="snapshot"):
+        benchmark.OfflineExportAdapter.restore(snapshot)
+
+
 def test_terminal_state_is_monotonic_under_out_of_order_events() -> None:
     succeeded = {"status": "succeeded", "reconcile_required": False}
     for event in ("dispatch_started", "dispatch_timeout", "connection_revoked", "cancel_requested"):

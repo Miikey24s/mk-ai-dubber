@@ -514,11 +514,13 @@ def reconcile_unknown(
     if remote_status == "not_found":
         policy = retry_policy or DEFAULT_RETRY_POLICY
         max_attempts = policy.get("max_attempts", DEFAULT_RETRY_POLICY["max_attempts"])
-        try:
-            attempt = int(receipt.get("attempt", 1))
-        except (TypeError, ValueError):
+        attempt = receipt.get("attempt", 1)
+        # Do not coerce malformed persisted state.  In particular ``bool`` is
+        # an ``int`` subclass in Python, so ``True`` must not become attempt 1
+        # and accidentally authorize a resend after an ambiguous outcome.
+        if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
             return {"action": "manual_reconciliation", "reason": "invalid_attempt"}
-        if not isinstance(max_attempts, int) or max_attempts < 1:
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts < 1:
             return {"action": "manual_reconciliation", "reason": "invalid_retry_policy"}
         if attempt >= max_attempts:
             return {
@@ -635,10 +637,58 @@ class OfflineExportAdapter:
 
     @classmethod
     def restore(cls, snapshot: dict[str, Any]) -> "OfflineExportAdapter":
-        restored = cls(snapshot.get("capability"))
-        restored._intents = deepcopy(snapshot.get("intents", {}))
-        restored._keys = deepcopy(snapshot.get("keys", {}))
-        restored._dispatch_count = int(snapshot.get("dispatch_count", 0))
+        """Restore only a structurally and contract-valid local snapshot.
+
+        A production store would authenticate and atomically decode its
+        durable state.  This offline adapter still needs to model the same
+        fail-closed boundary: a truncated or hand-edited snapshot must not
+        turn into a resend-capable adapter just because JSON happened to
+        parse.  No connector or filesystem I/O is performed here.
+        """
+        if not isinstance(snapshot, dict):
+            raise ValueError("adapter snapshot must be an object")
+        capability = snapshot.get("capability")
+        if capability is not None:
+            capability_errors = validate_connection_capability(capability)
+            if capability_errors:
+                raise ValueError("invalid snapshot capability: " + ", ".join(capability_errors))
+        raw_intents = snapshot.get("intents", {})
+        raw_keys = snapshot.get("keys", {})
+        dispatch_count = snapshot.get("dispatch_count", 0)
+        if not isinstance(raw_intents, dict) or not isinstance(raw_keys, dict):
+            raise ValueError("adapter snapshot intents and keys must be objects")
+        if isinstance(dispatch_count, bool) or not isinstance(dispatch_count, int) or dispatch_count < 0:
+            raise ValueError("adapter snapshot dispatch_count must be a non-negative integer")
+        if dispatch_count != len(raw_intents) or set(raw_keys) != set(raw_intents):
+            raise ValueError("adapter snapshot dispatch and idempotency indexes are inconsistent")
+
+        intents: dict[str, dict[str, Any]] = {}
+        keys: dict[str, str] = {}
+        for key, raw_entry in raw_intents.items():
+            if not isinstance(key, str) or not key.strip() or not isinstance(raw_entry, dict):
+                raise ValueError("adapter snapshot intent entry is malformed")
+            request = raw_entry.get("request")
+            receipt = raw_entry.get("receipt")
+            if not isinstance(request, dict) or not isinstance(receipt, dict):
+                raise ValueError("adapter snapshot intent requires request and receipt")
+            request_errors = validate_export_request(request)
+            if request_errors:
+                raise ValueError("invalid snapshot request: " + ", ".join(request_errors))
+            if request.get("idempotency_key") != key:
+                raise ValueError("adapter snapshot idempotency key mismatch")
+            fingerprint = request_intent_fingerprint(request)
+            if raw_keys.get(key) != fingerprint:
+                raise ValueError("adapter snapshot fingerprint index mismatch")
+            receipt_errors = validate_export_receipt(receipt, request)
+            if receipt_errors:
+                raise ValueError("invalid snapshot receipt: " + ", ".join(receipt_errors))
+            intents[key] = {"request": deepcopy(request), "receipt": deepcopy(receipt)}
+            keys[key] = fingerprint
+
+        restored = cls(capability)
+        restored._intents = intents
+        restored._keys = keys
+        restored._dispatch_count = dispatch_count
         return restored
 
     def _entry(self, request_id: str) -> dict[str, Any]:
