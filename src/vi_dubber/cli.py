@@ -260,7 +260,7 @@ def doctor(
 def webgpt_runtime_init(
     force: bool = typer.Option(False, "--force", help="Reset config runtime nhưng không xóa browser login state."),
 ) -> None:
-    """Tạo home/config riêng cho Dedicated Dubber-WebGPT mà không đổi global Codex route."""
+    """Tạo home/config riêng cho Dedicated Dubber-WebGPT mà không đổi global Codex/Cockpit route."""
     try:
         config = initialize_runtime(force=force)
     except RuntimeError as exc:

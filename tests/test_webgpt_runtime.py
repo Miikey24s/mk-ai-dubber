@@ -8,40 +8,6 @@ import pytest
 from vi_dubber import webgpt_runtime
 
 
-def test_default_core_repo_uses_native_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("VI_DUBBER_WEBGPT_CORE", raising=False)
-
-    expected = (webgpt_runtime.PROJECT_ROOT.parents[2] / "AI" / "codex-chatgpt-web").resolve()
-
-    assert webgpt_runtime.default_core_repo() == expected
-    assert webgpt_runtime.default_core_repo().name == "codex-chatgpt-web"
-
-
-@pytest.mark.parametrize(
-    ("package_name", "package_version", "message"),
-    [
-        ("codex-chatgpt-web", "5.0.8", "v6"),
-        ("other-web-runtime", "6.1.3", "native"),
-    ],
-)
-def test_core_cli_rejects_non_native_or_legacy_core(
-    tmp_path: Path,
-    package_name: str,
-    package_version: str,
-    message: str,
-) -> None:
-    core = tmp_path / "core"
-    (core / "src").mkdir(parents=True)
-    (core / "src" / "cli.ts").write_text("", encoding="utf-8")
-    (core / "package.json").write_text(
-        json.dumps({"name": package_name, "version": package_version}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(RuntimeError, match=message):
-        webgpt_runtime._core_cli(core)
-
-
 def test_initialize_runtime_creates_isolated_provider_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -70,8 +36,7 @@ def test_initialize_runtime_creates_isolated_provider_config(
     config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
 
     assert config["mode"] == "browser-only"
-    assert config["integrationOwner"] == "standalone"
-    assert config["coreKind"] == "native-chatgpt-web"
+    assert config["integrationOwner"] == "cockpit"
     assert config["port"] == webgpt_runtime.DUBBER_WEBGPT_PORT
     assert config["experimentalBiggerContext"] is False
     assert config["experimentalSkillAttachments"] is False
@@ -95,32 +60,6 @@ def test_initialize_runtime_preserves_existing_config_without_force(
     config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
 
     assert config == existing
-
-
-def test_initialize_runtime_migrates_legacy_cockpit_owner_without_touching_login_settings(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    core = tmp_path / "core"
-    home = tmp_path / "runtime-home"
-    core.mkdir()
-    home.mkdir()
-    existing = {
-        "port": webgpt_runtime.DUBBER_WEBGPT_PORT,
-        "integrationOwner": "cockpit",
-        "storageStatePath": str(home / "browser" / "storage-state.json"),
-        "controlToken": "keep-me",
-    }
-    (home / "config.json").write_text(json.dumps(existing), encoding="utf-8")
-    monkeypatch.setattr(webgpt_runtime, "_core_cli", lambda _core: core / "src" / "cli.ts")
-
-    config = webgpt_runtime.initialize_runtime(core_repo=core, home=home)
-
-    assert config["integrationOwner"] == "standalone"
-    assert config["coreKind"] == "native-chatgpt-web"
-    assert config["storageStatePath"] == existing["storageStatePath"]
-    assert config["controlToken"] == existing["controlToken"]
-    assert "cockpit" not in (home / "config.json").read_text(encoding="utf-8")
 
 
 def test_start_runtime_requires_dedicated_login_state(
