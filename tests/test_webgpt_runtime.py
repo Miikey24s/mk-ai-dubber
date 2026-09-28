@@ -82,3 +82,23 @@ def test_start_runtime_requires_dedicated_login_state(
     with pytest.raises(RuntimeError, match="webgpt-runtime login"):
         webgpt_runtime.start_runtime(core_repo=tmp_path / "core", home=home)
 
+
+def test_verified_login_state_requires_core_marker(
+    tmp_path: Path,
+) -> None:
+    storage = tmp_path / "browser" / "storage-state.json"
+    storage.parent.mkdir()
+    storage.write_text("{}", encoding="utf-8")
+
+    assert webgpt_runtime._verified_login_state(storage) is False
+
+    marker = Path(f"{storage}.verified.json")
+    marker.write_text(
+        json.dumps({"version": 1, "authenticated": True, "verifiedAt": "2026-09-28T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    assert webgpt_runtime._verified_login_state(storage) is True
+
+    marker.write_text(json.dumps({"version": 1, "authenticated": False}), encoding="utf-8")
+    assert webgpt_runtime._verified_login_state(storage) is False
+
