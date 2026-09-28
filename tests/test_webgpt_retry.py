@@ -712,6 +712,44 @@ def test_webgpt_direct_responses_malformed_output_is_retried(
     assert "Output JSON schema" not in encoded_receipt
 
 
+def test_webgpt_direct_retry_uses_fresh_native_thread_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator = WebGptTranslator(
+        {"webgpt_transport": "direct-responses", "webgpt_retry_backoff_seconds": 0.0},
+        tmp_path,
+        retry_budget=1,
+    )
+    requests: list[dict] = []
+    responses = [
+        _DirectResponse(200, _direct_completed("not json")),
+        _DirectResponse(200, _direct_completed('{"ok": true}')),
+    ]
+
+    def fake_post(*args, **kwargs):
+        del args
+        requests.append(kwargs["json"])
+        return responses[len(requests) - 1]
+
+    monkeypatch.setattr(translate_module.requests, "post", fake_post)
+
+    assert translator._run_json("test", {"type": "object"}, "translate") == {"ok": True}
+    assert len(requests) == 2
+
+    metadata = [
+        json.loads(request["client_metadata"]["x-codex-turn-metadata"])
+        for request in requests
+    ]
+    assert metadata[0]["thread_id"] != metadata[1]["thread_id"]
+    assert metadata[0]["turn_id"] != metadata[1]["turn_id"]
+    for request, turn in zip(requests, metadata):
+        assert request["prompt_cache_key"] == turn["thread_id"]
+        assert request["input"][0]["internal_chat_message_metadata_passthrough"] == {
+            "turn_id": turn["turn_id"],
+        }
+
+
 def test_webgpt_direct_responses_malformed_final_attempt_writes_diagnostic_before_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -1130,9 +1130,6 @@ class WebGptTranslator:
             env.setdefault("PYTHONUTF8", "1")
 
         max_attempts = 1 + self.retry_budget
-        direct_request_id = uuid.uuid4().hex
-        direct_thread_id = f"thread_vi_dubber_{direct_request_id}"
-        direct_turn_id = f"turn_vi_dubber_{direct_request_id}"
         for attempt_index in range(max_attempts):
             with self._stats_lock:
                 self.webgpt_attempts += 1
@@ -1145,6 +1142,15 @@ class WebGptTranslator:
             retryable_error: Exception | None = None
             fail_fast = False
             if self.transport == WEBGPT_TRANSPORT_DIRECT_RESPONSES:
+                # The local WebGPT bridge keeps the latest completed response for each
+                # prompt_cache_key and may replay it when a request arrives without an
+                # explicit previous_response_id. A malformed response followed by a retry
+                # must therefore start a fresh native conversation; otherwise the retry
+                # receives the prior assistant wrapper as context and can reproduce the
+                # same malformed payload indefinitely.
+                direct_request_id = uuid.uuid4().hex
+                direct_thread_id = f"thread_vi_dubber_{direct_request_id}"
+                direct_turn_id = f"turn_vi_dubber_{direct_request_id}"
                 turn_metadata = {"thread_id": direct_thread_id, "turn_id": direct_turn_id}
                 request_payload: dict[str, Any] = {
                     "model": self.model,
