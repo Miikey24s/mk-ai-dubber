@@ -46,6 +46,7 @@
   "validation": {
     "focused": "18 passed",
     "pipeline_fault": "63 passed",
+    "full_suite": "584 passed, 1 skipped, 2 warnings in 43.71s",
     "compileall": "pass",
     "diff_check": "pass"
   },
