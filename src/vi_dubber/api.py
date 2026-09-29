@@ -31,6 +31,12 @@ from .catalog_store import (
     CatalogStore,
 )
 from .catalog_view import build_catalog_view
+from .connector_ledger import (
+    CONNECTOR_LEDGER_DB_NAME,
+    ConnectorLedger,
+    ConnectorLedgerError,
+    ConnectorLedgerIntegrityError,
+)
 from .jobs import (
     JobAlreadyRunning,
     clear_control,
@@ -482,6 +488,29 @@ class DubRequest(BaseModel):
     output_path: str | None = None
 
 
+def _connector_http_error(exc: Exception) -> HTTPException:
+    """Map local ledger failures without exposing a traceback or secret data."""
+
+    if isinstance(exc, KeyError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, ConnectorLedgerIntegrityError):
+        return HTTPException(status_code=500, detail="connector ledger integrity check failed")
+    if isinstance(exc, ConnectorLedgerError):
+        return HTTPException(status_code=409, detail=str(exc))
+    return HTTPException(status_code=400, detail="invalid connector request")
+
+
+def _connector_ledger() -> ConnectorLedger:
+    """Resolve the ledger under the API's current work root.
+
+    Tests and isolated local sessions replace ``api.WORK_DIR``; resolving the
+    path here keeps connector state in that session instead of silently
+    writing to the process-global default work directory.
+    """
+
+    return ConnectorLedger(WORK_DIR / CONNECTOR_LEDGER_DB_NAME)
+
+
 def create_app() -> FastAPI:
     configure_runtime()
     app = FastAPI(
@@ -506,6 +535,110 @@ def create_app() -> FastAPI:
             "version": "1.0.0",
             "timestamp": datetime.now(UTC).isoformat(),
         }
+
+    # Project-owned connector ledger boundary.  These endpoints only persist
+    # validated PREP_ONLY connection/intent state; they never start OAuth,
+    # contact a provider, read media, or upload a file.  A future connector
+    # transport can consume the ledger after its explicit account and
+    # destination gates have passed.
+    @app.post("/api/connectors/connections")
+    def register_connector_connection(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        try:
+            connection = _connector_ledger().register_connection(payload)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "connection": connection}
+
+    @app.get("/api/connectors/{connection_id}/epochs/{epoch}")
+    def get_connector_connection(connection_id: str, epoch: int) -> dict[str, Any]:
+        try:
+            connection = _connector_ledger().connection(connection_id, epoch)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "connection": connection}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/intents")
+    def submit_connector_intent(
+        connection_id: str,
+        epoch: int,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        binding = payload.get("connection") if isinstance(payload, dict) else None
+        if not isinstance(binding, dict) or binding.get("connection_id") != connection_id or binding.get("epoch") != epoch:
+            # Check the URL/body binding before touching SQLite.  A malformed
+            # path must not create an intent under a different connection.
+            raise HTTPException(status_code=409, detail="intent path does not match its connection binding")
+        try:
+            receipt = _connector_ledger().submit(payload)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "receipt": receipt}
+
+    @app.get("/api/connectors/{connection_id}/epochs/{epoch}/intents/{request_id}")
+    def get_connector_receipt(connection_id: str, epoch: int, request_id: str) -> dict[str, Any]:
+        try:
+            receipt = _connector_ledger().receipt(connection_id, epoch, request_id)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "receipt": receipt}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/intents/{request_id}/unknown")
+    def mark_connector_unknown(connection_id: str, epoch: int, request_id: str) -> dict[str, Any]:
+        try:
+            receipt = _connector_ledger().mark_unknown(connection_id, epoch, request_id)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "receipt": receipt}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/intents/{request_id}/timeout")
+    def mark_connector_timeout(connection_id: str, epoch: int, request_id: str) -> dict[str, Any]:
+        try:
+            receipt = _connector_ledger().mark_timeout(connection_id, epoch, request_id)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "receipt": receipt}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/intents/{request_id}/cancel")
+    def cancel_connector_intent(connection_id: str, epoch: int, request_id: str) -> dict[str, Any]:
+        try:
+            receipt = _connector_ledger().cancel(connection_id, epoch, request_id)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "receipt": receipt}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/intents/{request_id}/reconcile")
+    def reconcile_connector_intent(
+        connection_id: str,
+        epoch: int,
+        request_id: str,
+        lookup: dict[str, Any] | None = Body(None),
+    ) -> dict[str, Any]:
+        try:
+            result = _connector_ledger().reconcile(connection_id, epoch, request_id, lookup)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", **result}
+
+    @app.post("/api/connectors/{connection_id}/epochs/{epoch}/revoke")
+    def revoke_connector_connection(
+        connection_id: str,
+        epoch: int,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        reason = payload.get("reason") if isinstance(payload, dict) else None
+        try:
+            connection = _connector_ledger().revoke_connection(connection_id, epoch, reason)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "connection": connection}
+
+    @app.get("/api/connectors/{connection_id}/epochs/{epoch}/events")
+    def list_connector_events(connection_id: str, epoch: int, request_id: str | None = None) -> dict[str, Any]:
+        try:
+            events = _connector_ledger().events(connection_id, epoch, request_id=request_id)
+        except Exception as exc:
+            raise _connector_http_error(exc) from exc
+        return {"status": "PREP_ONLY", "events": events}
 
     @app.get("/api/system")
     def system_status() -> dict[str, Any]:

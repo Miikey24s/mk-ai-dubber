@@ -679,7 +679,7 @@ class ConnectorLedger:
             (connection_id, epoch, request_id),
         ).fetchone()
         if row is None:
-            raise ConnectorLedgerIntegrityError("intent index points to a missing receipt")
+            raise KeyError(f"unknown request_id: {request_id}")
         try:
             request = _validate_request(json.loads(row["request_json"]))
             receipt = _validate_receipt_payload(json.loads(row["receipt_json"]), request)
