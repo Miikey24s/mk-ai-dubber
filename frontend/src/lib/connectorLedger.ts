@@ -29,6 +29,13 @@ export interface RestoredConnectorLedger {
   ledgerStatus: LedgerReceiptStatus;
 }
 
+export interface ProjectSessionStatus {
+  authMode: 'local-trusted-demo';
+  productionAuth: false;
+  status: 'signed_in';
+  workspaceId: string;
+}
+
 interface StoredConnectorLedgerPointer {
   schemaVersion: 1;
   connection: ConnectorConnection;
@@ -308,6 +315,24 @@ export async function registerConnectorConnection(connection: ConnectorConnectio
   });
   if (body.status !== 'PREP_ONLY') throw new Error('connector ledger did not return PREP_ONLY');
   return mapConnection(body.connection);
+}
+
+export async function fetchProjectSessionStatus(): Promise<ProjectSessionStatus> {
+  const body = await requestJson<Record<string, unknown>>('/api/session/status');
+  const session = isRecord(body.session) ? body.session : null;
+  const authMode = body.auth_mode;
+  const productionAuth = body.production_auth;
+  const status = session?.status;
+  const workspaceId = session?.workspace_id;
+  if (body.schema_version !== 'project-session-v1' || authMode !== 'local-trusted-demo' || productionAuth !== false || status !== 'signed_in' || typeof workspaceId !== 'string' || !workspaceId.trim()) {
+    throw new Error('project session is not the expected local-trusted-demo boundary');
+  }
+  return {
+    authMode: 'local-trusted-demo',
+    productionAuth: false,
+    status: 'signed_in',
+    workspaceId,
+  };
 }
 
 export async function submitConnectorIntent(

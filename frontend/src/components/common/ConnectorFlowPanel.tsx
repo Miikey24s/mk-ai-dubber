@@ -10,6 +10,7 @@ import {
 } from '@/lib/connectorFlow';
 import {
   clearPersistedConnectorLedger,
+  fetchProjectSessionStatus,
   LedgerReceiptStatus,
   registerConnectorConnection,
   restoreConnectorLedger,
@@ -33,6 +34,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
   const [ledgerSync, setLedgerSync] = useState<'idle' | 'restoring' | 'saving' | 'saved' | 'unavailable'>('idle');
   const [ledgerStatus, setLedgerStatus] = useState<LedgerReceiptStatus | null>(null);
   const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [sessionMode, setSessionMode] = useState<'checking' | 'local-trusted-demo' | 'demo-fallback'>('checking');
   const dialogRef = useRef<HTMLDivElement>(null);
   const registrationPromiseRef = useRef<Promise<boolean> | null>(null);
 
@@ -61,6 +63,22 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
         if (cancelled) return;
         setLedgerSync('unavailable');
         setLedgerError(error instanceof Error ? error.message : 'connector_ledger_restore_failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchProjectSessionStatus()
+      .then(() => {
+        if (cancelled) return;
+        setSessionMode('local-trusted-demo');
+        dispatch({ type: 'project_login' });
+      })
+      .catch(() => {
+        if (!cancelled) setSessionMode('demo-fallback');
       });
     return () => {
       cancelled = true;
@@ -225,9 +243,17 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
                 {state.session === 'signed_in' ? copy(language, 'Đã đăng nhập project', 'Project signed in') : copy(language, 'Chưa đăng nhập', 'Signed out')}
               </span>
             </div>
+            <p className="mt-1 text-[10px] text-slate-500">
+              {sessionMode === 'local-trusted-demo'
+                ? copy(language, 'local-trusted-demo · production_auth=false', 'local-trusted-demo · production_auth=false')
+                : sessionMode === 'demo-fallback'
+                  ? copy(language, 'Backend session chưa phản hồi; đang ở demo fallback.', 'Backend session unavailable; using demo fallback.')
+                  : copy(language, 'Đang kiểm tra session local…', 'Checking local session…')}
+            </p>
             {state.session === 'signed_out' && (
               <button
                 type="button"
+                disabled={sessionMode === 'checking'}
                 onClick={() => void runFlowEvent({ type: 'project_login' })}
                 className="ui-button ui-button--primary mt-3 flex h-8 items-center gap-1.5 px-3 text-xs font-semibold"
               >
