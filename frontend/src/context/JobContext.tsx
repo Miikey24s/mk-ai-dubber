@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
 import {
   fetchJobs,
@@ -27,6 +27,14 @@ interface SeekRequest {
   sequence: number;
 }
 
+export type ReviewMutationAction = 'save' | 'accept' | 'rerender' | 'batch_accept';
+
+export interface ReviewMutationState {
+  status: 'pending' | 'error';
+  action: ReviewMutationAction;
+  error?: string;
+}
+
 interface JobContextType {
   jobs: JobState[];
   activeJob: JobState | null;
@@ -52,6 +60,8 @@ interface JobContextType {
   acceptSegment: (segmentId: number) => Promise<void>;
   acceptAllSegments: () => Promise<void>;
   rerenderSegment: (segmentId: number) => Promise<void>;
+  reviewMutations: Record<number, ReviewMutationState>;
+  retrySegmentMutation: (segmentId: number) => Promise<void>;
   refreshJobs: () => Promise<void>;
   controlJob: (action: 'pause' | 'run' | 'cancel') => Promise<void>;
   isRawJsonOpen: boolean;
@@ -81,6 +91,11 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isRawJsonOpen, setIsRawJsonOpen] = useState<boolean>(false);
   const [isCreatorOpen, setIsCreatorOpen] = useState<boolean>(false);
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [reviewMutations, setReviewMutations] = useState<Record<number, ReviewMutationState>>({});
+  const lastReviewMutationRef = useRef<
+    Record<number, { changes: Partial<Segment>; action: ReviewMutationAction } | undefined>
+  >({});
+  const reviewMutationTokenRef = useRef<Record<number, number>>({});
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0] || null;
 
@@ -150,6 +165,9 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!activeJobId) return;
     setSelectedPreview(null);
+    setReviewMutations({});
+    lastReviewMutationRef.current = {};
+    reviewMutationTokenRef.current = {};
     let isMounted = true;
     fetchJobSegments(activeJobId)
       .then(segs => {
@@ -175,38 +193,128 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentTime, segments, activeSegmentIndex]);
 
-  // Update a segment locally and remotely
-  const updateSegment = async (segmentId: number, changes: Partial<Segment>) => {
+  const mutationErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return 'Request failed. The local change was reverted.';
+  };
+
+  // Update a segment locally and remotely. Keep the optimistic UI responsive, but
+  // restore the previous row when the API rejects the mutation so a failed save
+  // cannot silently become the apparent source of truth.
+  const updateSegment = async (
+    segmentId: number,
+    changes: Partial<Segment>,
+    action: ReviewMutationAction = 'save',
+  ) => {
+    const previous = segments.find(seg => seg.id === segmentId);
+    const token = (reviewMutationTokenRef.current[segmentId] || 0) + 1;
+    reviewMutationTokenRef.current[segmentId] = token;
+    lastReviewMutationRef.current[segmentId] = { changes, action };
     setSegments(prev =>
       prev.map(seg => (seg.id === segmentId ? { ...seg, ...changes } : seg))
     );
-    if (activeJob) {
+    setReviewMutations(prev => ({
+      ...prev,
+      [segmentId]: { status: 'pending', action },
+    }));
+
+    // Mock/local-only review remains a successful local operation.
+    if (!activeJob) {
+      setReviewMutations(prev => {
+        const next = { ...prev };
+        delete next[segmentId];
+        return next;
+      });
+      return;
+    }
+
+    try {
       await updateSegmentReview(activeJob.id, segmentId, {
         text: changes.text,
         vi: changes.vi,
         speaker: changes.speaker,
         review_status: changes.review_status,
       });
+      if (reviewMutationTokenRef.current[segmentId] === token) {
+        setReviewMutations(prev => {
+          const next = { ...prev };
+          delete next[segmentId];
+          return next;
+        });
+      }
+    } catch (error) {
+      if (reviewMutationTokenRef.current[segmentId] === token) {
+        if (previous) {
+          setSegments(prev => prev.map(seg => (seg.id === segmentId ? previous : seg)));
+        }
+        setReviewMutations(prev => ({
+          ...prev,
+          [segmentId]: {
+            status: 'error',
+            action,
+            error: mutationErrorMessage(error),
+          },
+        }));
+      }
+      throw error;
     }
   };
 
   const acceptSegment = async (segmentId: number) => {
-    await updateSegment(segmentId, { review_status: 'accepted' });
+    await updateSegment(segmentId, { review_status: 'accepted' }, 'accept');
   };
 
   const acceptAllSegments = async () => {
+    const previous = segments;
+    const pendingSegments = segments.filter(segment => segment.review_status !== 'accepted');
     setSegments(prev => prev.map(s => ({ ...s, review_status: 'accepted' })));
-    if (activeJob) {
+    if (!activeJob || pendingSegments.length === 0) return;
+
+    pendingSegments.forEach(segment => {
+      reviewMutationTokenRef.current[segment.id] = (reviewMutationTokenRef.current[segment.id] || 0) + 1;
+      lastReviewMutationRef.current[segment.id] = {
+        changes: { review_status: 'accepted' },
+        action: 'batch_accept',
+      };
+      setReviewMutations(prev => ({
+        ...prev,
+        [segment.id]: { status: 'pending', action: 'batch_accept' },
+      }));
+    });
+
+    try {
       await Promise.all(
-        segments.map(s =>
-          updateSegmentReview(activeJob.id, s.id, { review_status: 'accepted' })
+        pendingSegments.map(segment =>
+          updateSegmentReview(activeJob.id, segment.id, { review_status: 'accepted' })
         )
       );
+      setReviewMutations(prev => {
+        const next = { ...prev };
+        pendingSegments.forEach(segment => delete next[segment.id]);
+        return next;
+      });
+    } catch (error) {
+      setSegments(previous);
+      const message = mutationErrorMessage(error);
+      setReviewMutations(prev => {
+        const next = { ...prev };
+        pendingSegments.forEach(segment => {
+          next[segment.id] = { status: 'error', action: 'batch_accept', error: message };
+        });
+        return next;
+      });
+      throw error;
     }
   };
 
   const rerenderSegment = async (segmentId: number) => {
-    await updateSegment(segmentId, { review_status: 'needs_review' });
+    await updateSegment(segmentId, { review_status: 'needs_review' }, 'rerender');
+  };
+
+  const retrySegmentMutation = async (segmentId: number) => {
+    const last = lastReviewMutationRef.current[segmentId];
+    if (!last) return;
+    await updateSegment(segmentId, last.changes, last.action);
   };
 
   const controlJob = async (action: 'pause' | 'run' | 'cancel') => {
@@ -304,6 +412,8 @@ export const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         acceptSegment,
         acceptAllSegments,
         rerenderSegment,
+        reviewMutations,
+        retrySegmentMutation,
         refreshJobs,
         controlJob,
         isRawJsonOpen,

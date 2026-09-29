@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Segment } from '@/types';
+import type { ReviewMutationState } from '@/context/JobContext';
 import { useTranslation } from '@/context/I18nContext';
 import { formatSeconds } from '@/lib/utils';
 import { Badge } from '@/components/common/Badge';
@@ -18,6 +19,8 @@ interface SegmentCardProps {
   onSave: (id: number, text: string, speaker: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
   onRerender: (id: number) => Promise<void>;
+  mutation?: ReviewMutationState;
+  onRetry?: () => Promise<void>;
   onCtrlEnter?: (id: number, text: string, speaker: string) => Promise<void>;
 }
 
@@ -28,6 +31,8 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   onSave,
   onAccept,
   onRerender,
+  mutation,
+  onRetry,
   onCtrlEnter,
 }) => {
   const { t } = useTranslation();
@@ -37,14 +42,23 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   const [selectedSpeaker, setSelectedSpeaker] = useState(segment.speaker || 'SPEAKER_00');
   const [isSaving, setIsSaving] = useState(false);
   const [isRerendering, setIsRerendering] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setEditedVi(segment.vi || segment.selected_vi || segment.translated_vi || '');
     setSelectedSpeaker(segment.speaker || 'SPEAKER_00');
     setIsDirty(false);
+    setActionError(null);
   }, [segment]);
+
+  const errorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return 'Request failed. Try again.';
+  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditedVi(e.target.value);
@@ -58,25 +72,61 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
 
   const handleSave = async () => {
     setIsSaving(true);
-    await onSave(segment.id, editedVi, selectedSpeaker);
-    setIsSaving(false);
-    setIsDirty(false);
+    setActionError(null);
+    try {
+      await onSave(segment.id, editedVi, selectedSpeaker);
+      setIsDirty(false);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAccept = async () => {
-    if (isDirty) {
-      setIsSaving(true);
-      await onSave(segment.id, editedVi, selectedSpeaker);
-      setIsSaving(false);
-      setIsDirty(false);
+    setIsAccepting(true);
+    setActionError(null);
+    try {
+      if (isDirty) {
+        setIsSaving(true);
+        try {
+          await onSave(segment.id, editedVi, selectedSpeaker);
+          setIsDirty(false);
+        } finally {
+          setIsSaving(false);
+        }
+      }
+      await onAccept(segment.id);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setIsAccepting(false);
     }
-    await onAccept(segment.id);
   };
 
   const handleRerender = async () => {
     setIsRerendering(true);
-    await onRerender(segment.id);
-    setTimeout(() => setIsRerendering(false), 800);
+    setActionError(null);
+    try {
+      await onRerender(segment.id);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setIsRerendering(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!onRetry) return;
+    setIsRetrying(true);
+    setActionError(null);
+    try {
+      await onRetry();
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   const handleRevert = () => {
@@ -89,8 +139,13 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       if (onCtrlEnter) {
-        await onCtrlEnter(segment.id, editedVi, selectedSpeaker);
-        setIsDirty(false);
+        setActionError(null);
+        try {
+          await onCtrlEnter(segment.id, editedVi, selectedSpeaker);
+          setIsDirty(false);
+        } catch (error) {
+          setActionError(errorMessage(error));
+        }
       } else {
         await handleAccept();
       }
@@ -104,6 +159,9 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
   const enLen = sourceText.length;
   const viLen = (editedVi || '').length;
   const expansionPct = enLen > 0 ? Math.round(((viLen - enLen) / enLen) * 100) : 0;
+  const mutationError = mutation?.status === 'error' ? mutation.error : null;
+  const visibleError = actionError || mutationError;
+  const isBusy = isSaving || isRerendering || isAccepting || isRetrying || mutation?.status === 'pending';
 
   return (
     <div
@@ -180,6 +238,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
             value={editedVi}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            disabled={isBusy}
             spellCheck={false}
             rows={1}
             className="w-full text-sm text-slate-900 dark:text-slate-100 font-medium leading-relaxed p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500 focus:outline-none transition resize-none min-h-[40px] placeholder:text-slate-400 dark:placeholder:text-slate-500"
@@ -209,6 +268,24 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {visibleError && (
+            <div
+              role="alert"
+              className="flex max-w-[19rem] items-center gap-1.5 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[10px] font-mono text-rose-700 dark:text-rose-300"
+            >
+              <span className="truncate" title={visibleError}>{visibleError}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={isBusy}
+                  className="shrink-0 rounded border border-rose-500/40 px-1.5 py-0.5 font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+                >
+                  {isRetrying ? 'Retrying...' : 'Retry'}
+                </button>
+              )}
+            </div>
+          )}
           {isDirty && (
             <>
               <button
@@ -221,7 +298,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
               </button>
               <button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isBusy}
                 className="flex items-center gap-1 h-7 px-2 rounded bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-semibold transition shadow-xs cursor-pointer"
                 title={t('review.save')}
               >
@@ -233,7 +310,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
 
           <button
             onClick={handleRerender}
-            disabled={isRerendering}
+            disabled={isBusy}
             className="flex items-center gap-1 h-7 px-2 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-800 dark:text-slate-200 font-semibold border border-slate-300 dark:border-slate-700 transition cursor-pointer"
             title={t('review.rerender_tts')}
           >
@@ -243,6 +320,7 @@ export const SegmentCard: React.FC<SegmentCardProps> = ({
 
           <button
             onClick={handleAccept}
+            disabled={isBusy}
             className={`flex items-center gap-1 h-7 px-2.5 rounded font-bold transition shadow-xs cursor-pointer ${
               segment.review_status === 'accepted'
                 ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/50 hover:bg-emerald-600/25'

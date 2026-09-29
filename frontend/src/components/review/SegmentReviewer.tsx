@@ -19,6 +19,8 @@ export const SegmentReviewer: React.FC = () => {
     acceptSegment,
     acceptAllSegments,
     rerenderSegment,
+    reviewMutations,
+    retrySegmentMutation,
   } = useJob();
   const { t } = useTranslation();
 
@@ -26,6 +28,7 @@ export const SegmentReviewer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showHotkeysGuide, setShowHotkeysGuide] = useState(false);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
+  const [acceptAllError, setAcceptAllError] = useState<string | null>(null);
 
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -66,6 +69,7 @@ export const SegmentReviewer: React.FC = () => {
   }, [segments, currentFilter, searchQuery]);
 
   const acceptedCount = segments.filter(s => s.review_status === 'accepted').length;
+  const hasPendingMutation = Object.values(reviewMutations).some(state => state.status === 'pending');
 
   // Auto-scroll active card into view
   useEffect(() => {
@@ -124,7 +128,12 @@ export const SegmentReviewer: React.FC = () => {
           e.preventDefault();
           const activeSeg = segments[activeSegmentIndex];
           if (activeSeg) {
-            await acceptSegment(activeSeg.id);
+            try {
+              await acceptSegment(activeSeg.id);
+            } catch {
+              // The card receives the mutation error and exposes the retry action.
+              return;
+            }
             if (activeSegmentIndex < segments.length - 1) {
               const nextIdx = activeSegmentIndex + 1;
               setActiveSegmentIndex(nextIdx);
@@ -168,8 +177,14 @@ export const SegmentReviewer: React.FC = () => {
 
   const handleAcceptAll = async () => {
     setIsAcceptingAll(true);
-    await acceptAllSegments();
-    setIsAcceptingAll(false);
+    setAcceptAllError(null);
+    try {
+      await acceptAllSegments();
+    } catch (error) {
+      setAcceptAllError(error instanceof Error && error.message ? error.message : 'Request failed');
+    } finally {
+      setIsAcceptingAll(false);
+    }
   };
 
   return (
@@ -200,7 +215,7 @@ export const SegmentReviewer: React.FC = () => {
             {/* Duyệt tất cả (Batch Approve) */}
             <button
               onClick={handleAcceptAll}
-              disabled={isAcceptingAll || acceptedCount === segments.length}
+              disabled={isAcceptingAll || hasPendingMutation || acceptedCount === segments.length}
               className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-mono font-semibold transition cursor-pointer ${
                 acceptedCount === segments.length
                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800 cursor-default'
@@ -301,6 +316,22 @@ export const SegmentReviewer: React.FC = () => {
           onSearchChange={setSearchQuery}
           counts={counts}
         />
+        {acceptAllError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-mono text-rose-700 dark:text-rose-300"
+          >
+            <span>Accept all failed: {acceptAllError}</span>
+            <button
+              type="button"
+              onClick={handleAcceptAll}
+              disabled={isAcceptingAll}
+              className="shrink-0 rounded border border-rose-500/40 px-2 py-0.5 font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Body: Scrollable list of segment cards */}
@@ -319,6 +350,8 @@ export const SegmentReviewer: React.FC = () => {
             >
               <SegmentCard
                 segment={seg}
+                mutation={reviewMutations[seg.id]}
+                onRetry={() => retrySegmentMutation(seg.id)}
                 isActive={seg.id === segments[activeSegmentIndex]?.id}
                 onSelect={() => {
                   const idx = segments.findIndex(s => s.id === seg.id);
