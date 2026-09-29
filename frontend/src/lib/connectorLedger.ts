@@ -276,7 +276,12 @@ export function clearPersistedConnectorLedger(): void {
 
 function writePointer(pointer: StoredConnectorLedgerPointer): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pointer));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pointer));
+  } catch {
+    // The server ledger is authoritative; private browsing/quota issues only
+    // remove the convenience restore pointer, never the PREP_ONLY write.
+  }
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
