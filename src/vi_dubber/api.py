@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -71,6 +72,46 @@ _START_TIME = time.time()
 _active_threads: dict[str, threading.Thread] = {}
 _active_threads_lock = threading.Lock()
 _CATALOG_DB_NAME = "catalog.sqlite3"
+
+_PROJECT_SESSION_SCHEMA_VERSION = "project-session-v1"
+_LOCAL_DEMO_AUTH_MODE = "local-trusted-demo"
+
+
+def _local_demo_session_status() -> dict[str, Any]:
+    """Project-session projection for the current local/demo VI process.
+
+    VI currently runs as a trusted local single-user app.  Keep that boundary
+    explicit for the product UI while production authentication is still a
+    separate task: this read-only projection never accepts, stores, or issues
+    cookies, bearer tokens, provider credentials, or OAuth state.
+    """
+
+    identity_id = os.getenv("VI_DUBBER_LOCAL_IDENTITY", "local-owner").strip() or "local-owner"
+    workspace_id = os.getenv("VI_DUBBER_WORKSPACE_ID", "vi-dubber-local").strip() or "vi-dubber-local"
+    digest = hashlib.sha256(f"{identity_id}\x00{workspace_id}".encode("utf-8")).hexdigest()[:24]
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    session = {
+        "schema_version": _PROJECT_SESSION_SCHEMA_VERSION,
+        "auth_mode": _LOCAL_DEMO_AUTH_MODE,
+        "production_auth": False,
+        "session_id": f"local-demo-session:{digest}",
+        "identity_id": identity_id,
+        "workspace_id": workspace_id,
+        "status": "signed_in",
+        "issued_at_utc": now,
+        "expires_at_utc": None,
+        "signed_out_at_utc": None,
+        "credentials_present": False,
+    }
+    return {
+        "schema_version": _PROJECT_SESSION_SCHEMA_VERSION,
+        "session": session,
+        "workspace": {"id": workspace_id},
+        "identity": {"marker": identity_id, "source": "local-process"},
+        "auth_mode": _LOCAL_DEMO_AUTH_MODE,
+        "production_auth": False,
+        "credentials_present": False,
+    }
 
 
 def _catalog_db_path() -> Path:
@@ -535,6 +576,12 @@ def create_app() -> FastAPI:
             "version": "1.0.0",
             "timestamp": datetime.now(UTC).isoformat(),
         }
+
+    @app.get("/api/session/status")
+    def project_session_status() -> dict[str, Any]:
+        """Return the read-only local/demo product-session boundary."""
+
+        return _local_demo_session_status()
 
     # Project-owned connector ledger boundary.  These endpoints only persist
     # validated PREP_ONLY connection/intent state; they never start OAuth,
