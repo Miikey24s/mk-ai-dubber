@@ -12,8 +12,10 @@ import {
   UploadCloud,
   Download,
   Library,
+  Link2,
 } from 'lucide-react';
 import { CatalogPanel } from '@/components/header/CatalogPanel';
+import { ConnectorFlowPanel } from '@/components/common/ConnectorFlowPanel';
 
 export const Header: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
@@ -21,6 +23,7 @@ export const Header: React.FC = () => {
   const { jobs, activeJobId, setActiveJobId, setIsRawJsonOpen, setIsCreatorOpen } = useJob();
   const [isJobMenuOpen, setIsJobMenuOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [isConnectorOpen, setIsConnectorOpen] = useState(false);
   const jobMenuRef = useRef<HTMLDivElement>(null);
 
   const activeJob = jobs.find(j => j.id === activeJobId) || jobs[0];
@@ -157,6 +160,18 @@ export const Header: React.FC = () => {
             <span className="hidden xl:inline">{t('catalog.open')}</span>
           </button>
 
+          {/* Project-owned connector preflight; external OAuth is intentionally not invoked here. */}
+          <button
+            type="button"
+            onClick={() => setIsConnectorOpen(true)}
+            className="ui-button ui-button--neutral flex h-8 items-center gap-1.5 px-2.5 text-xs font-semibold"
+            title="Project connectors"
+            aria-label="Project connectors"
+          >
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden xl:inline">Connect</span>
+          </button>
+
           {/* Import Video & New Job CTA */}
           <button
             onClick={() => setIsCreatorOpen(true)}
@@ -215,6 +230,7 @@ export const Header: React.FC = () => {
       </div>
     </header>
     <CatalogPanel open={isCatalogOpen} onClose={() => setIsCatalogOpen(false)} />
+    <ConnectorFlowPanel open={isConnectorOpen} onClose={() => setIsConnectorOpen(false)} />
     </>
   );
 };
