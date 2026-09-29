@@ -71,12 +71,13 @@ export interface OfflineExportReceipt {
   status: 'PREP_ONLY';
   destinationProvider: 'drive';
   connection: Pick<ConnectorConnection, 'connectionId' | 'epoch'>;
-  externalId: null;
-  remoteRevision: null;
-  remoteSha256: null;
-  attempt: 0;
-  reconcileRequired: false;
-  intentFingerprint: 'offline-intent-fingerprint-0001';
+  externalId: string | null;
+  remoteRevision: string | null;
+  remoteSha256: string | null;
+  attempt: number;
+  reconcileRequired: boolean;
+  /** The local demo uses a stable marker; restored receipts use the ledger digest. */
+  intentFingerprint: string;
   source: ConnectorExportSource;
   sourceRetained: true;
   externalIo: false;
@@ -109,6 +110,12 @@ export type ConnectorFlowEvent =
   | { type: 'preview_export' }
   | { type: 'create_export_intent' }
   | { type: 'record_receipt' }
+  | {
+      type: 'restore_ledger';
+      connection: ConnectorConnection;
+      intent: OfflineExportIntent;
+      receipt: OfflineExportReceipt;
+    }
   | { type: 'revoke_connection' }
   | { type: 'expire_connection' }
   | { type: 'reset' };
@@ -202,6 +209,42 @@ export function connectorFlowReducer(
     case 'project_login':
       if (state.session === 'signed_in') return state;
       return { ...state, session: 'signed_in', error: null };
+    case 'restore_ledger': {
+      const { connection, intent, receipt } = event;
+      if (
+        connection.provider !== 'drive' ||
+        connection.status !== 'active' ||
+        connection.scope !== 'drive.file' ||
+        intent.connection.connectionId !== connection.connectionId ||
+        intent.connection.epoch !== connection.epoch ||
+        intent.schemaVersion !== 'workspace-export-request-v1' ||
+        intent.status !== 'PREP_ONLY' ||
+        intent.externalIo !== false ||
+        intent.destination.provider !== 'drive' ||
+        intent.destination.accountRef !== connection.accountRef ||
+        intent.destination.scope !== 'drive.file' ||
+        intent.destination.mode !== 'copy' ||
+        receipt.requestId !== intent.requestId ||
+        receipt.connection.connectionId !== connection.connectionId ||
+        receipt.connection.epoch !== connection.epoch ||
+        !selectedMarker(connection.accountRef ?? '', 'user-selected:') ||
+        !selectedMarker(intent.destination.parentRef, 'picker:')
+      ) {
+        return withError(state, 'persisted_connector_state_invalid');
+      }
+      return {
+        ...state,
+        session: 'signed_in',
+        provider: 'drive',
+        stage: 'receipt_recorded',
+        oauthState: null,
+        connection,
+        parentRef: intent.destination.parentRef,
+        intent,
+        receipt,
+        error: null,
+      };
+    }
     case 'begin_connect':
       if (state.session !== 'signed_in') return withError(state, 'project_login_required');
       if (event.provider === 'learn') {

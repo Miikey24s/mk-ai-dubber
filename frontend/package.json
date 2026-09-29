@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "test:telemetry-contract": "node --experimental-strip-types scripts/verify_telemetry_contract.mjs",
     "test:connector-flow": "node --experimental-strip-types scripts/verify_connector_flow.mjs",
+    "test:connector-ledger": "node --experimental-strip-types scripts/verify_connector_ledger.mjs",
     "test:ui-contract": "node scripts/verify_ui_contract.mjs",
     "preview": "vite preview"
   },
