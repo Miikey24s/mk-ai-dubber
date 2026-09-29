@@ -33,6 +33,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
   const [ledgerStatus, setLedgerStatus] = useState<LedgerReceiptStatus | null>(null);
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const registrationPromiseRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +99,9 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
       setLedgerSync('saving');
       setLedgerError(null);
       try {
+        if (registrationPromiseRef.current && !(await registrationPromiseRef.current)) {
+          throw new Error('connector capability is not persisted');
+        }
         const persisted = await submitConnectorIntent(state.connection, state.intent);
         dispatch(event);
         setLedgerStatus(persisted.ledgerStatus);
@@ -115,18 +119,24 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     if (event.type === 'complete_oauth_callback' && next.connection?.provider === 'drive' && next.connection.status === 'active') {
       setLedgerSync('saving');
       setLedgerError(null);
-      try {
-        await registerConnectorConnection(next.connection);
-        setLedgerSync('saved');
-      } catch (error) {
-        setLedgerSync('unavailable');
-        setLedgerError(error instanceof Error ? error.message : 'connector_ledger_connection_failed');
-      }
+      const registration = registerConnectorConnection(next.connection)
+        .then(() => {
+          setLedgerSync('saved');
+          return true;
+        })
+        .catch(error => {
+          setLedgerSync('unavailable');
+          setLedgerError(error instanceof Error ? error.message : 'connector_ledger_connection_failed');
+          return false;
+        });
+      registrationPromiseRef.current = registration;
+      await registration;
       return;
     }
 
     if (event.type === 'revoke_connection' && state.connection?.provider === 'drive' && state.connection.status === 'active') {
       clearPersistedConnectorLedger();
+      registrationPromiseRef.current = null;
       if (ledgerSync === 'saved') {
         try {
           await revokeConnectorConnection(state.connection);
@@ -140,6 +150,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
 
     if (event.type === 'reset') {
       clearPersistedConnectorLedger();
+      registrationPromiseRef.current = null;
       setLedgerSync('idle');
       setLedgerStatus(null);
       setLedgerError(null);
