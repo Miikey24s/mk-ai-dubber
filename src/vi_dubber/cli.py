@@ -151,12 +151,16 @@ def api_server(
     """Khởi chạy máy chủ REST API và Web UI độc lập."""
     import uvicorn
     from .api import create_app
+    from .drive_oauth import DriveOAuthConfig
 
     try:
         host = validate_server_bind_host(host)
     except ValueError as exc:
         raise typer.BadParameter(str(exc), param_hint="--host") from exc
-    uvicorn.run(create_app(), host=host, port=port)
+    app = create_app()
+    # OAuth callbacks carry one-time codes in the URL; Uvicorn's access log
+    # otherwise records the full query string on the local console.
+    uvicorn.run(app, host=host, port=port, access_log=DriveOAuthConfig.from_environment() is None)
 
 
 @app.command("jobs")

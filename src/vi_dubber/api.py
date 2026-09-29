@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 import sqlite3
@@ -10,10 +11,11 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -38,6 +40,7 @@ from .connector_ledger import (
     ConnectorLedgerError,
     ConnectorLedgerIntegrityError,
 )
+from .drive_oauth import DriveOAuthConfig, DriveOAuthError, DriveOAuthSession
 from .jobs import (
     JobAlreadyRunning,
     clear_control,
@@ -554,6 +557,8 @@ def _connector_ledger() -> ConnectorLedger:
 
 def create_app() -> FastAPI:
     configure_runtime()
+    drive_oauth_config = DriveOAuthConfig.from_environment()
+    drive_oauth = DriveOAuthSession(drive_oauth_config)
     app = FastAPI(
         title="VI Dubber API",
         version="1.0.0",
@@ -582,6 +587,66 @@ def create_app() -> FastAPI:
         """Return the read-only local/demo product-session boundary."""
 
         return _local_demo_session_status()
+
+    def require_local_drive_request(request: Request, *, mutation: bool = False) -> None:
+        try:
+            peer_is_local = ipaddress.ip_address(request.client.host).is_loopback if request.client else False
+            request_url = request.url
+            configured_port = urlparse(drive_oauth_config.redirect_uri).port if drive_oauth_config else 7860
+            host_is_local = request_url.hostname in {"127.0.0.1", "localhost"} and request_url.port == configured_port
+        except ValueError:
+            peer_is_local = host_is_local = False
+        if not peer_is_local or not host_is_local:
+            raise HTTPException(status_code=403, detail="Drive OAuth requires the local project server")
+        if mutation:
+            origin = request.headers.get("origin")
+            allowed_origins = set(_cors_origins()) | {
+                "http://127.0.0.1:5173", "http://localhost:5173",
+            }
+            if origin and origin.rstrip("/") not in allowed_origins:
+                raise HTTPException(status_code=403, detail="Drive OAuth origin is not allowed")
+
+    @app.get("/api/connectors/drive/oauth/status")
+    def drive_oauth_status(request: Request) -> dict[str, object]:
+        require_local_drive_request(request)
+        return drive_oauth.status()
+
+    @app.post("/api/connectors/drive/oauth/start")
+    def start_drive_oauth(request: Request) -> dict[str, object]:
+        require_local_drive_request(request, mutation=True)
+        try:
+            authorization_url = drive_oauth.start()
+        except DriveOAuthError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {"provider": "drive", "authorization_url": authorization_url, "expires_in_seconds": 600}
+
+    @app.get("/api/connectors/drive/oauth/callback")
+    def finish_drive_oauth(request: Request, state: str = "", code: str | None = None, error: str | None = None) -> HTMLResponse:
+        require_local_drive_request(request)
+        headers = {
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+        }
+        try:
+            drive_oauth.complete(state, code, error)
+        except DriveOAuthError:
+            return HTMLResponse(
+                "<main style='font:16px sans-serif;padding:2rem'>Drive authorization failed. Close this tab and retry in VI Dubber.</main>",
+                status_code=400,
+                headers=headers,
+            )
+        return HTMLResponse(
+            "<main style='font:16px sans-serif;padding:2rem'>Drive connected to VI Dubber for this local session. You may close this tab.</main>",
+            headers=headers,
+        )
+
+    @app.post("/api/connectors/drive/oauth/disconnect")
+    def disconnect_drive_oauth(request: Request) -> dict[str, object]:
+        require_local_drive_request(request, mutation=True)
+        drive_oauth.disconnect()
+        return drive_oauth.status()
 
     # Project-owned connector ledger boundary.  These endpoints only persist
     # validated PREP_ONLY connection/intent state; they never start OAuth,

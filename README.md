@@ -53,6 +53,19 @@ Web dashboard:
 
 Mở `http://127.0.0.1:7860`, chọn tệp trên máy hoặc dán URL YouTube, sau đó chọn backend dịch. Dashboard hiển thị progress theo các stage thật của pipeline, video đầu ra, SRT và thống kê tác vụ.
 
+### Google Drive trong VI Dubber
+
+Drive OAuth của project chỉ hoạt động khi chạy API/Web UI local (`uv run vi-dubber api --host 127.0.0.1 --port 7860`) và có Google OAuth **Web application** client do owner tạo. Đăng ký đúng redirect URI `http://127.0.0.1:7860/api/connectors/drive/oauth/callback` trong Google Cloud Console, rồi đặt ba biến môi trường cho riêng process VI Dubber:
+
+```powershell
+$env:VI_DUBBER_DRIVE_CLIENT_ID = "<client-id>"
+$env:VI_DUBBER_DRIVE_CLIENT_SECRET = "<client-secret>"
+$env:VI_DUBBER_DRIVE_REDIRECT_URI = "http://127.0.0.1:7860/api/connectors/drive/oauth/callback"
+uv run vi-dubber api --host 127.0.0.1 --port 7860
+```
+
+Không commit client secret vào repo. `GET /api/connectors/drive/oauth/status` chỉ trả trạng thái công khai; `POST /api/connectors/drive/oauth/start` tạo URL đăng nhập Google và callback chỉ nhận scope `drive.file`. Access token chỉ nằm trong bộ nhớ của process, hết hạn hoặc restart thì phải đăng nhập lại. `POST /api/connectors/drive/oauth/disconnect` xóa token local; thao tác này không thu hồi quyền tại Google. Dù OAuth đã kết nối, export vẫn là `PREP_ONLY`: chưa có upload/copy hoặc chọn folder từ Google Drive thật.
+
 Dashboard và thư mục `work/` mặc định chỉ bind trên localhost. CLI từ chối bind ra mạng nếu chưa set rõ `VI_DUBBER_ALLOW_REMOTE_BIND=1`; khi chạy remote, tự cấu hình lớp xác thực/reverse proxy và danh sách origin CORS qua `VI_DUBBER_CORS_ORIGINS` (phân tách bằng dấu phẩy). Không dùng wildcard CORS cho deployment chứa artifact cá nhân.
 
 Khi dùng WebGPT, pipeline không đổi route global trong `~/.codex/config.toml`. VI Dubber gọi trực tiếp `http://127.0.0.1:17850/v1/responses`, health-check port và live model catalog trước khi chạy; coding harness, MCP, cwd/filesystem và subagents không đi vào production translation request.
