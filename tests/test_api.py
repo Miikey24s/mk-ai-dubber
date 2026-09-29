@@ -63,6 +63,62 @@ def test_api_catalog_unavailable_is_stable_and_read_only(client: TestClient, tmp
     assert not (tmp_path / "work" / "catalog.sqlite3").exists()
 
 
+def test_api_catalog_status_unavailable_is_read_only(client: TestClient, tmp_path: Path) -> None:
+    res = client.get("/api/catalog/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["format"] == "vi-dubber-catalog-status-v1"
+    assert data["catalog_status"] == "unavailable"
+    assert data["metadata_only"] is True
+    assert data["recovery"]["external_io"] is False
+    assert data["recovery"]["media_bytes_touched"] is False
+    assert not (tmp_path / "work" / "catalog.sqlite3").exists()
+
+
+def test_api_catalog_status_reports_recovery_and_relink_state(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    store = CatalogStore(tmp_path / "work" / "catalog.sqlite3")
+    store.rebuild(
+        [
+            CatalogItem(
+                item_id="job-status01",
+                title="Available fixture",
+                source_fingerprint="a" * 64,
+                revision="r1",
+                availability="available",
+                segment_count=1,
+                source_ref="jobs/job-status01/source.mp4",
+            ),
+            CatalogItem(
+                item_id="job-status02",
+                title="Needs relink",
+                source_fingerprint="b" * 64,
+                revision="r2",
+                availability="stale",
+                segment_count=2,
+                source_ref="jobs/job-status02/source.mp4",
+            ),
+        ]
+    )
+    store.set_user_state(UserState("job-status02", "r2", (), "in_review", 2.0))
+
+    res = client.get("/api/catalog/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["catalog_status"] == "ready"
+    assert data["schema_version"] == 1
+    assert data["item_count"] == 2
+    assert data["user_state_count"] == 1
+    assert data["availability"]["available"] == 1
+    assert data["availability"]["stale"] == 1
+    assert data["recovery"]["relink_required"] is True
+    assert data["recovery"]["relink_item_count"] == 1
+    assert data["recovery"]["restore_requires_explicit_local_file"] is True
+    assert data["recovery"]["external_io"] is False
+
+
 def test_api_catalog_etag_revalidation_and_query_budget_are_fail_closed(
     client: TestClient,
 ) -> None:

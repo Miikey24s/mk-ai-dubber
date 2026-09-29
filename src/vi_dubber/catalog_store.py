@@ -487,6 +487,61 @@ class CatalogStore:
             offset=offset,
         )
 
+    def status_snapshot(self) -> dict[str, Any]:
+        """Return a bounded, metadata-only health view of the catalog.
+
+        The caller must have opened an existing, supported database.  This
+        method therefore does not initialise or rebuild the projection and it
+        never probes source files.  Every row is validated before the counts
+        are returned so a damaged catalog fails closed at the API boundary.
+        """
+
+        with self._connection() as connection:
+            item_rows = connection.execute("SELECT * FROM catalog_items ORDER BY item_id").fetchall()
+            state_rows = connection.execute(
+                """
+                SELECT user_state.*, catalog_items.revision AS catalog_revision
+                FROM user_state
+                LEFT JOIN catalog_items ON catalog_items.item_id = user_state.item_id
+                ORDER BY user_state.item_id
+                """
+            ).fetchall()
+
+        items = [_item_from_row(row) for row in item_rows]
+        states: list[UserState] = []
+        for row in state_rows:
+            if row["catalog_revision"] is None:
+                raise CatalogIntegrityError("user state references an unknown catalog item")
+            state = _state_from_row(row)
+            if state.revision != row["catalog_revision"]:
+                raise CatalogIntegrityError("user state revision does not match catalog item revision")
+            states.append(state)
+
+        availability = {state: 0 for state in sorted(AVAILABILITY_STATES)}
+        for item in items:
+            availability[item.availability] += 1
+        relink_required = availability["missing"] + availability["stale"]
+        updated_values = [str(row["updated_at"]) for row in item_rows + state_rows if row["updated_at"]]
+        return {
+            "format": "vi-dubber-catalog-status-v1",
+            "schema_version": CATALOG_SCHEMA_VERSION,
+            "metadata_only": True,
+            "item_count": len(items),
+            "user_state_count": len(states),
+            "availability": availability,
+            "updated_at": max(updated_values) if updated_values else None,
+            "recovery": {
+                "restart_safe": True,
+                "metadata_backup_supported": True,
+                "restore_requires_explicit_local_file": True,
+                "relink_required": relink_required > 0,
+                "relink_item_count": relink_required,
+                "relink_policy": "exact_sha256_and_explicit_portable_source_ref",
+                "media_bytes_touched": False,
+                "external_io": False,
+            },
+        }
+
     def delete_item(self, item_id: str) -> None:
         """Remove only the catalog projection; source/media is never touched."""
         item_id = _validate_item_id(item_id)

@@ -829,6 +829,64 @@ def create_app() -> FastAPI:
             return Response(status_code=304, headers=headers)
         return JSONResponse(content=payload, headers=headers)
 
+    @app.get("/api/catalog/status")
+    def get_catalog_status() -> dict[str, Any]:
+        """Expose local catalog/recovery state without touching media.
+
+        This is intentionally a read-only product status surface.  It does
+        not initialise a missing database, scan job directories, probe source
+        files, restore a backup, or perform a relink.  Those operations stay
+        explicit lifecycle actions with their own integrity gates.
+        """
+
+        store = _open_catalog_for_read()
+        if store is None:
+            return {
+                "format": "vi-dubber-catalog-status-v1",
+                "catalog_status": "unavailable",
+                "schema_version": None,
+                "metadata_only": True,
+                "item_count": 0,
+                "user_state_count": 0,
+                "availability": {state: 0 for state in sorted(AVAILABILITY_STATES)},
+                "updated_at": None,
+                "recovery": {
+                    "restart_safe": False,
+                    "metadata_backup_supported": True,
+                    "restore_requires_explicit_local_file": True,
+                    "relink_required": False,
+                    "relink_item_count": 0,
+                    "relink_policy": "exact_sha256_and_explicit_portable_source_ref",
+                    "media_bytes_touched": False,
+                    "external_io": False,
+                },
+            }
+        try:
+            return {"catalog_status": "ready", **store.status_snapshot()}
+        except (CatalogError, OSError, sqlite3.Error, TypeError, ValueError):
+            # Keep corruption visible and actionable without returning raw
+            # exception details or making a damaged projection look healthy.
+            return {
+                "format": "vi-dubber-catalog-status-v1",
+                "catalog_status": "invalid",
+                "schema_version": CATALOG_SCHEMA_VERSION,
+                "metadata_only": True,
+                "item_count": 0,
+                "user_state_count": 0,
+                "availability": {state: 0 for state in sorted(AVAILABILITY_STATES)},
+                "updated_at": None,
+                "recovery": {
+                    "restart_safe": False,
+                    "metadata_backup_supported": True,
+                    "restore_requires_explicit_local_file": True,
+                    "relink_required": False,
+                    "relink_item_count": 0,
+                    "relink_policy": "exact_sha256_and_explicit_portable_source_ref",
+                    "media_bytes_touched": False,
+                    "external_io": False,
+                },
+            }
+
     @app.get("/api/jobs/{job_id}")
     def get_job_details(job_id: str) -> dict[str, Any]:
         job_dir = _resolve_job_dir(job_id)
