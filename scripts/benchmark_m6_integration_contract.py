@@ -367,6 +367,13 @@ def validate_connection_capability(
 
 def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    # Persisted connector payloads are untrusted.  Keep this validator a
+    # total, fail-closed function even when a decoder hands it a malformed
+    # top-level value instead of a mapping.
+    if not isinstance(receipt, dict):
+        return ["receipt"]
+    if not isinstance(request, dict):
+        return ["request"]
     if receipt.get("schema_version") != "workspace-export-receipt-v1":
         errors.append("receipt.schema_version")
     for field in ("request_id", "idempotency_key", "destination_provider"):
@@ -376,7 +383,11 @@ def validate_export_receipt(receipt: dict[str, Any], request: dict[str, Any]) ->
         errors.append("receipt.request_id_match")
     if receipt.get("idempotency_key") != request.get("idempotency_key"):
         errors.append("receipt.idempotency_key_match")
-    if receipt.get("destination_provider") != request.get("destination", {}).get("provider"):
+    destination = request.get("destination")
+    destination_provider = destination.get("provider") if isinstance(destination, dict) else None
+    if not isinstance(destination, dict):
+        errors.append("request.destination")
+    if receipt.get("destination_provider") != destination_provider:
         errors.append("receipt.destination_provider")
     status = receipt.get("status")
     if status not in EXPORT_STATUSES:

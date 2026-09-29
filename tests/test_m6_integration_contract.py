@@ -109,6 +109,20 @@ def test_project_adapter_preflight_fail_closes_malformed_nested_payloads(
     assert preflight["external_io_performed"] is False
 
 
+@pytest.mark.parametrize("destination", [None, ["malformed"], "malformed"])
+def test_validate_export_receipt_fail_closes_malformed_request_destination(destination: object) -> None:
+    contract = benchmark.load_contract()
+    request = copy.deepcopy(contract["export_request"])
+    request["destination"] = destination
+
+    # Validation must report the malformed shape instead of raising while
+    # reading destination.provider or calculating the lineage fingerprint.
+    errors = benchmark.validate_export_receipt(contract["receipt_examples"]["unknown"], request)
+
+    assert "request.destination" in errors
+    assert "receipt.destination_provider" in errors
+
+
 def test_reference_rejects_unallowlisted_resource_and_answer_key_exposure() -> None:
     contract = benchmark.load_contract()
     reference = copy.deepcopy(contract["learn_reference"])
