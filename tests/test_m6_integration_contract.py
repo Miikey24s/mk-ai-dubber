@@ -73,6 +73,42 @@ def test_project_adapter_preflight_blocks_unselected_drive_destination() -> None
     assert preflight["external_io_performed"] is False
 
 
+@pytest.mark.parametrize(
+    ("path", "value", "error", "adapter"),
+    [
+        (
+            ("learn_reference", "artifact"),
+            "malformed",
+            "reference.artifact",
+            "vi_to_learn",
+        ),
+        (
+            ("export_request", "destination"),
+            ["malformed"],
+            "request.destination",
+            "vi_to_drive",
+        ),
+    ],
+)
+def test_project_adapter_preflight_fail_closes_malformed_nested_payloads(
+    path: tuple[str, str], value: object, error: str, adapter: str
+) -> None:
+    contract = benchmark.load_contract()
+    contract[path[0]][path[1]] = value
+
+    preflight = benchmark.build_project_adapter_preflight(contract)
+
+    errors = (
+        preflight["validation"]["learn_reference_errors"]
+        if adapter == "vi_to_learn"
+        else preflight["validation"]["drive_request_errors"]
+    )
+    assert error in errors
+    assert preflight["validation"]["passed"] is False
+    assert preflight["adapters"][adapter]["status"] == "blocked"
+    assert preflight["external_io_performed"] is False
+
+
 def test_reference_rejects_unallowlisted_resource_and_answer_key_exposure() -> None:
     contract = benchmark.load_contract()
     reference = copy.deepcopy(contract["learn_reference"])

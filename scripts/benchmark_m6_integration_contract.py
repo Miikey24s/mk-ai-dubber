@@ -802,11 +802,21 @@ def build_project_adapter_preflight(contract: dict[str, Any]) -> dict[str, Any]:
     contains no token, media bytes, or remote response and never imports a
     connector SDK.
     """
-    reference = contract["learn_reference"]
-    request = contract["export_request"]
-    capability = contract["connection_capability"]
-    reference_errors = validate_learn_reference(reference, contract)
-    request_errors = validate_export_request(request)
+    reference_raw = contract.get("learn_reference")
+    request_raw = contract.get("export_request")
+    capability = contract.get("connection_capability")
+    reference = reference_raw if isinstance(reference_raw, dict) else {}
+    request = request_raw if isinstance(request_raw, dict) else {}
+    reference_errors = (
+        validate_learn_reference(reference_raw, contract)
+        if isinstance(reference_raw, dict)
+        else ["reference"]
+    )
+    request_errors = (
+        validate_export_request(request_raw)
+        if isinstance(request_raw, dict)
+        else ["request"]
+    )
     capability_errors = validate_connection_capability(capability, request)
     learn_passed = not reference_errors
     drive_passed = not request_errors and not capability_errors
@@ -831,11 +841,21 @@ def build_project_adapter_preflight(contract: dict[str, Any]) -> dict[str, Any]:
                 "source_system": "vi-dubber",
                 "target_system": "learn",
                 "reference_id": reference.get("reference_id"),
-                "artifact_id": reference.get("artifact", {}).get("artifact_id"),
+                "artifact_id": (
+                    reference.get("artifact", {}).get("artifact_id")
+                    if isinstance(reference.get("artifact"), dict)
+                    else None
+                ),
                 "learn_owns_progress": True,
-                "answer_keys_exposed": reference.get("safety", {}).get("answer_keys_exposed"),
-                "auto_completion_enabled": reference.get("safety", {}).get(
-                    "auto_completion_enabled"
+                "answer_keys_exposed": (
+                    reference.get("safety", {}).get("answer_keys_exposed")
+                    if isinstance(reference.get("safety"), dict)
+                    else None
+                ),
+                "auto_completion_enabled": (
+                    reference.get("safety", {}).get("auto_completion_enabled")
+                    if isinstance(reference.get("safety"), dict)
+                    else None
                 ),
                 "external_write_performed": False,
             },
@@ -845,13 +865,25 @@ def build_project_adapter_preflight(contract: dict[str, Any]) -> dict[str, Any]:
                 "source_system": "vi-dubber",
                 "target_system": "drive",
                 "request_id": request.get("request_id"),
-                "provider": request.get("destination", {}).get("provider"),
-                "scope": request.get("destination", {}).get("scope"),
+                "provider": (
+                    request.get("destination", {}).get("provider")
+                    if isinstance(request.get("destination"), dict)
+                    else None
+                ),
+                "scope": (
+                    request.get("destination", {}).get("scope")
+                    if isinstance(request.get("destination"), dict)
+                    else None
+                ),
                 "account_user_selected": str(
                     request.get("destination", {}).get("account_ref", "")
+                    if isinstance(request.get("destination"), dict)
+                    else ""
                 ).startswith("user-selected:"),
                 "parent_picker_selected": str(
                     request.get("destination", {}).get("parent_ref", "")
+                    if isinstance(request.get("destination"), dict)
+                    else ""
                 ).startswith("picker:"),
                 "source_retained_by_app": True,
                 "remote_identity_recorded": False,
