@@ -20,6 +20,12 @@ import {
   revokeConnectorConnection,
   submitConnectorIntent,
 } from '@/lib/connectorLedger';
+import {
+  disconnectDriveOAuth,
+  DriveOAuthStatus,
+  fetchDriveOAuthStatus,
+  startDriveOAuth,
+} from '@/lib/driveOAuth';
 
 interface ConnectorFlowPanelProps {
   open: boolean;
@@ -38,7 +44,12 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
   const [ledgerStatus, setLedgerStatus] = useState<LedgerReceiptStatus | null>(null);
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [sessionMode, setSessionMode] = useState<'checking' | 'local-trusted-demo' | 'demo-fallback'>('checking');
+  const [driveOAuthStatus, setDriveOAuthStatus] = useState<DriveOAuthStatus | null>(null);
+  const [driveOAuthLoading, setDriveOAuthLoading] = useState(false);
+  const [driveOAuthPending, setDriveOAuthPending] = useState(false);
+  const [driveOAuthError, setDriveOAuthError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const driveOAuthPopupRef = useRef<Window | null>(null);
   const registrationPromiseRef = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
@@ -102,6 +113,37 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     dialogRef.current?.focus();
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const status = await fetchDriveOAuthStatus();
+        if (cancelled) return;
+        setDriveOAuthStatus(status);
+        setDriveOAuthError(null);
+        if (status.connected) {
+          setDriveOAuthPending(false);
+          driveOAuthPopupRef.current = null;
+        } else if (driveOAuthPending && driveOAuthPopupRef.current?.closed) {
+          setDriveOAuthPending(false);
+          setDriveOAuthError('Google authorization did not complete. Retry from this panel.');
+          driveOAuthPopupRef.current = null;
+        }
+      } catch (error) {
+        if (!cancelled) setDriveOAuthError(error instanceof Error ? error.message : 'Drive OAuth status unavailable');
+      }
+    };
+    void refresh();
+    const interval = driveOAuthPending ? window.setInterval(() => void refresh(), 2000) : null;
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      if (interval !== null) window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [open, driveOAuthPending]);
 
   if (!open) return null;
 
@@ -200,6 +242,42 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     void runFlowEvent({ type: 'begin_connect', provider });
   };
 
+  const connectDriveOAuth = async (): Promise<void> => {
+    const popup = window.open('about:blank', '_blank', 'width=600,height=750');
+    if (!popup) {
+      setDriveOAuthError(copy(language, 'Trình duyệt đã chặn cửa sổ đăng nhập Google.', 'The browser blocked the Google sign-in window.'));
+      return;
+    }
+    popup.opener = null;
+    driveOAuthPopupRef.current = popup;
+    setDriveOAuthLoading(true);
+    setDriveOAuthError(null);
+    try {
+      const authorizationUrl = await startDriveOAuth();
+      popup.location.href = authorizationUrl;
+      setDriveOAuthPending(true);
+    } catch (error) {
+      popup.close();
+      driveOAuthPopupRef.current = null;
+      setDriveOAuthError(error instanceof Error ? error.message : 'Drive OAuth could not start');
+    } finally {
+      setDriveOAuthLoading(false);
+    }
+  };
+
+  const disconnectGoogleDrive = async (): Promise<void> => {
+    setDriveOAuthLoading(true);
+    setDriveOAuthError(null);
+    try {
+      setDriveOAuthStatus(await disconnectDriveOAuth());
+      setDriveOAuthPending(false);
+    } catch (error) {
+      setDriveOAuthError(error instanceof Error ? error.message : 'Drive OAuth could not disconnect');
+    } finally {
+      setDriveOAuthLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
       <div
@@ -218,7 +296,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
                 {copy(language, 'KẾT NỐI PROJECT', 'PROJECT CONNECTORS')}
               </h2>
               <p className="text-[10px] font-mono uppercase tracking-wide text-amber-300">
-                {copy(language, 'Offline preflight • external I/O tắt', 'Offline preflight • external I/O off')}
+                {copy(language, 'Drive OAuth · export vẫn PREP_ONLY', 'Drive OAuth · exports remain PREP_ONLY')}
               </p>
             </div>
           </div>
@@ -278,6 +356,42 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
             )}
           </div>
 
+          <div aria-live="polite" className="space-y-2 rounded border border-slate-800 bg-slate-900/70 p-3 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono text-slate-400">GOOGLE DRIVE OAUTH</span>
+              <span className={driveOAuthStatus?.connected ? 'text-emerald-300' : 'text-amber-300'}>
+                {driveOAuthStatus?.connected
+                  ? copy(language, 'Đã kết nối', 'Connected')
+                  : driveOAuthStatus?.configured === false
+                    ? copy(language, 'Chưa cấu hình', 'Not configured')
+                    : driveOAuthPending
+                      ? copy(language, 'Đang chờ Google', 'Waiting for Google')
+                      : driveOAuthStatus
+                        ? copy(language, 'Chưa kết nối', 'Not connected')
+                        : copy(language, 'Đang kiểm tra', 'Checking')}
+              </span>
+            </div>
+            <p className="text-slate-400">
+              {driveOAuthStatus?.connected
+                ? copy(language, 'Quyền drive.file đã cấp cho session local này. Token chỉ ở bộ nhớ backend và hết khi backend khởi động lại hoặc token hết hạn.', 'drive.file is granted to this local session. The token stays in backend memory and ends on restart or expiry.')
+                : driveOAuthStatus?.configured === false
+                  ? copy(language, 'Backend project chưa có cấu hình Google OAuth. Cần cấu hình trước khi đăng nhập.', 'Project backend needs Google OAuth configuration before sign-in.')
+                  : copy(language, 'Đăng nhập Google trong cửa sổ riêng; callback quay về backend local của VI Dubber.', 'Sign in with Google in a separate window; the callback returns to the local VI Dubber backend.')}
+            </p>
+            {driveOAuthStatus?.connected && <p className="font-mono text-[10px] text-slate-500">scope: drive.file · storage: process-memory-only · export: PREP_ONLY</p>}
+            <p className="text-[10px] text-slate-500">{copy(language, 'Kết nối này chưa chọn folder hoặc upload file. Luồng ledger bên dưới chỉ mô phỏng export.', 'This connection does not select a folder or upload files. The ledger flow below only simulates export.')}</p>
+            {driveOAuthError && <p role="alert" className="break-words text-rose-300">{driveOAuthError}</p>}
+            {driveOAuthStatus?.connected ? (
+              <button type="button" disabled={driveOAuthLoading} onClick={() => void disconnectGoogleDrive()} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold disabled:opacity-60">
+                {copy(language, 'Ngắt kết nối Google Drive', 'Disconnect Google Drive')}
+              </button>
+            ) : (
+              <button type="button" disabled={driveOAuthLoading || driveOAuthPending || driveOAuthStatus?.configured !== true} onClick={() => void connectDriveOAuth()} className="ui-button ui-button--primary h-8 px-3 text-xs font-semibold disabled:opacity-60">
+                {driveOAuthPending ? copy(language, 'Đang chờ callback…', 'Waiting for callback…') : copy(language, 'Đăng nhập Google Drive', 'Sign in to Google Drive')}
+              </button>
+            )}
+          </div>
+
           <div aria-live="polite" className="rounded border border-slate-800 bg-slate-950/60 p-3 text-[11px]">
             <div className="flex items-center justify-between gap-3">
               <span className="font-mono uppercase tracking-wide text-slate-500">LOCAL CONNECTOR LEDGER</span>
@@ -325,12 +439,12 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
                 >
                   <span className="flex items-center gap-2 font-mono text-sm font-semibold">
                     {provider === 'drive' ? <FolderOpen className="h-4 w-4 text-sky-300" /> : <ExternalLink className="h-4 w-4 text-emerald-300" />}
-                    Connect {provider === 'learn' ? 'Learn' : 'Drive'}
+                    {provider === 'learn' ? 'Learn reference (local)' : 'Drive export demo (PREP_ONLY)'}
                   </span>
                   <span className="text-[11px] leading-4 text-slate-400">
                     {provider === 'learn'
                       ? copy(language, 'Chỉ gửi reference đã được cấp quyền; Learn giữ progress.', 'Authorized reference only; Learn owns progress.')
-                      : copy(language, 'Copy artifact với drive.file và folder do bạn chọn.', 'Copy artifact with drive.file and a user-selected folder.')}
+                      : copy(language, 'Mô phỏng intent/receipt local; không dùng kết nối Google ở trên.', 'Simulate a local intent/receipt; does not use the Google connection above.')}
                   </span>
                 </button>
               ))}
@@ -341,7 +455,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
             <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
               <p className="font-semibold">{copy(language, `Đang chờ ${providerLabel} callback`, `Waiting for ${providerLabel} callback`)}</p>
               <p className="mt-1 text-amber-200/80">
-                {copy(language, 'Trong product thật, trình duyệt provider sẽ mở ở bước này. Demo chỉ mô phỏng callback, không mở OAuth.', 'The real product opens the provider login here. This demo only simulates the callback and never opens OAuth.')}
+                {copy(language, 'Đây là callback giả lập cho ledger PREP_ONLY. Đăng nhập Google thật nằm ở mục Google Drive OAuth bên trên.', 'This is a simulated callback for the PREP_ONLY ledger. Real Google sign-in is in the Google Drive OAuth section above.')}
               </p>
               <button
                 type="button"
