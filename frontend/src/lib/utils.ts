@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { StageDefinition } from '@/types';
+import type { JobState, StageDefinition } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,6 +39,17 @@ export function formatBytes(bytes: number, decimals = 1): string {
 export function formatRtf(rtf: number): string {
   if (!rtf || isNaN(rtf)) return '0.00x';
   return `${rtf.toFixed(2)}x`;
+}
+
+/**
+ * Final downloads are lifecycle-gated.  A result path may remain in state
+ * while a job is paused for review or being rerendered, so path presence alone
+ * is not evidence that the artifact is the current final output.
+ */
+export function isFinalJobReady(
+  job: JobState | null | undefined,
+): job is JobState & { status: 'completed' } {
+  return job?.status === 'completed';
 }
 
 export const PIPELINE_STAGES: StageDefinition[] = [

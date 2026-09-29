@@ -4,6 +4,7 @@ import { useTranslation } from '@/context/I18nContext';
 import { SegmentFilterBar, FilterType } from './SegmentFilterBar';
 import { SegmentCard } from './SegmentCard';
 import { CheckCircle2, SlidersHorizontal, Keyboard, X, CheckCheck, Download, FileText } from 'lucide-react';
+import { isFinalJobReady } from '@/lib/utils';
 
 export const SegmentReviewer: React.FC = () => {
   const {
@@ -212,7 +213,7 @@ export const SegmentReviewer: React.FC = () => {
             </button>
 
             {/* Tải Video & Phụ đề khi hoàn tất */}
-            {activeJob && (activeJob.status === 'completed' || activeJob.result?.output) && (
+            {isFinalJobReady(activeJob) && (
               <div className="flex items-center gap-1">
                 <a
                   href={`/api/jobs/${activeJob.id}/download`}

@@ -896,6 +896,17 @@ def create_app() -> FastAPI:
     def download_job_output(job_id: str, type: str = "video") -> FileResponse:
         job_dir = _resolve_job_dir(job_id)
         state = reconcile_job_state(job_dir)
+        job_status = str(state.get("status") or "unknown")
+        # A persisted output path can outlive the job that produced it (for
+        # example while a rerender is paused, or while a new run is still
+        # writing into the same job directory).  Treat the lifecycle state as
+        # the export authority so the UI/API never serves an intermediate or
+        # stale result as the final download.
+        if job_status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Final export is unavailable while job status is {job_status!r}.",
+            )
         metadata = state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
         result = state.get("result") if isinstance(state.get("result"), dict) else {}
         input_name = metadata.get("input_name", job_id)

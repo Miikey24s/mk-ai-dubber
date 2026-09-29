@@ -669,6 +669,40 @@ def test_api_download_serves_output_inside_job_directory(
     assert response.content == b"verified-output"
 
 
+@pytest.mark.parametrize("job_status", ["running", "paused", "failed"])
+@pytest.mark.parametrize("export_type", ["video", "subtitles"])
+def test_api_download_rejects_non_completed_final_exports(
+    client: TestClient,
+    tmp_path: Path,
+    job_status: str,
+    export_type: str,
+) -> None:
+    """A leftover artifact must not become a final export before completion."""
+
+    job_dir = tmp_path / "work" / f"job-export-{job_status}-{export_type}"
+    job_dir.mkdir(parents=True, exist_ok=True)
+    output = job_dir / "dubbed.mp4"
+    output.write_bytes(b"intermediate-output")
+    (job_dir / "source_turns.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\nintermediate\n", encoding="utf-8")
+    update_job_state(
+        job_dir,
+        status=job_status,  # type: ignore[arg-type]
+        stage="mix_mux",
+        progress=0.8,
+        message="Not final",
+        metadata={"input_name": "sample.mp4", "output": str(output)},
+    )
+
+    response = client.get(
+        f"/api/jobs/job-export-{job_status}-{export_type}/download",
+        params={"type": export_type},
+    )
+
+    assert response.status_code == 409
+    assert "unavailable" in response.json()["detail"]
+    assert response.content != b"intermediate-output"
+
+
 def test_api_download_rejects_symlinked_output_outside_job_directory(
     client: TestClient,
     tmp_path: Path,
