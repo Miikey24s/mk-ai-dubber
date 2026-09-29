@@ -280,6 +280,27 @@ export interface CatalogResponse {
   metadata_only: true;
 }
 
+export interface CatalogStatusResponse {
+  format: string;
+  catalog_status: 'ready' | 'unavailable' | 'invalid' | string;
+  schema_version: number | null;
+  metadata_only: true;
+  item_count: number;
+  user_state_count: number;
+  availability: Record<string, number>;
+  updated_at: string | null;
+  recovery: {
+    restart_safe: boolean;
+    metadata_backup_supported: boolean;
+    restore_requires_explicit_local_file: boolean;
+    relink_required: boolean;
+    relink_item_count: number;
+    relink_policy: string;
+    media_bytes_touched: false;
+    external_io: false;
+  };
+}
+
 export interface SystemStatus {
   gpu_name: string;
   gpu_vram_used_bytes: number;

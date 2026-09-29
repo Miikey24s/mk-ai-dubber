@@ -1,4 +1,4 @@
-import { CatalogAvailability, CatalogResponse, JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
+import { CatalogAvailability, CatalogResponse, CatalogStatusResponse, JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
 
 const BASE_URL = '';
 
@@ -48,6 +48,14 @@ export async function fetchCatalog(
     }
   }
   return data;
+}
+
+export async function fetchCatalogStatus(): Promise<CatalogStatusResponse> {
+  const res = await fetch(`${BASE_URL}/api/catalog/status`, {
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+  return await res.json() as CatalogStatusResponse;
 }
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {

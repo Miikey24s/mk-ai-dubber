@@ -199,6 +199,9 @@ def test_m5_catalog_metadata_states_responsive_focus_and_restore(
         dialog = page.get_by_role("dialog", name="Catalog cục bộ")
         expect(dialog).to_be_visible(timeout=5000)
         expect(dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...")).to_be_focused()
+        expect(dialog.get_by_text("3 mục metadata", exact=True)).to_be_visible(timeout=5000)
+        expect(dialog.get_by_text("1 mục cần relink", exact=True)).to_be_visible(timeout=5000)
+        expect(dialog.get_by_text("Đã sẵn sàng khôi phục sau restart", exact=True)).to_be_visible(timeout=5000)
         _assert_no_horizontal_overflow(page, width)
 
         # Keyboard contract: focus remains inside the dialog and Escape
@@ -247,12 +250,20 @@ def test_m5_catalog_metadata_states_responsive_focus_and_restore(
     )
     dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...").fill("denied")
     expect(dialog.get_by_text("Catalog chưa sẵn sàng", exact=False)).to_be_visible(timeout=5000)
+    unavailable_retry = dialog.get_by_role("button", name="Thử lại")
+    expect(unavailable_retry).to_be_visible()
+    unavailable_retry.click()
+    expect(dialog.get_by_text("Catalog chưa sẵn sàng", exact=False)).to_be_visible(timeout=5000)
 
     # A transport error is distinct from unavailable/unsupported and has its
     # own actionable error state.
     page.unroute("**/api/catalog?*")
     page.route("**/api/catalog?*", lambda route: route.fulfill(status=503, body="fixture error"))
     dialog.get_by_placeholder("Tìm theo tên hoặc nguồn...").fill("error")
+    expect(dialog.get_by_text("Không tải được catalog", exact=False)).to_be_visible(timeout=5000)
+    error_retry = dialog.get_by_role("button", name="Thử lại")
+    expect(error_retry).to_be_visible()
+    error_retry.click()
     expect(dialog.get_by_text("Không tải được catalog", exact=False)).to_be_visible(timeout=5000)
 
     # Loading is observable while a local metadata request is held.  Leaving

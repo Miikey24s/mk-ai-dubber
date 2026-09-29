@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock3, FolderSearch, Loader2, Search, X } from 'lucide-react';
 import { useTranslation } from '@/context/I18nContext';
 import { useJob } from '@/context/JobContext';
-import { fetchCatalog } from '@/lib/api';
+import { fetchCatalog, fetchCatalogStatus } from '@/lib/api';
 import { useFocusTrap } from '@/lib/useFocusTrap';
-import { CatalogAvailability, CatalogItem, CatalogResponse } from '@/types';
+import { CatalogAvailability, CatalogItem, CatalogResponse, CatalogStatusResponse } from '@/types';
 
 interface CatalogPanelProps {
   open: boolean;
@@ -34,8 +34,11 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
   const [query, setQuery] = useState('');
   const [availability, setAvailability] = useState<CatalogAvailability | ''>('');
   const [data, setData] = useState<CatalogResponse | null>(null);
+  const [status, setStatus] = useState<CatalogStatusResponse | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLElement>(open);
 
@@ -73,7 +76,26 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, query, availability]);
+  }, [open, query, availability, refreshToken]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setStatusError(null);
+    fetchCatalogStatus()
+      .then(result => {
+        if (!cancelled) setStatus(result);
+      })
+      .catch(reason => {
+        if (!cancelled) {
+          setStatus(null);
+          setStatusError(reason instanceof Error ? reason.message : 'catalog status request failed');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, refreshToken]);
 
   if (!open) return null;
 
@@ -104,6 +126,24 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
               {t('catalog.title')}
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t('catalog.metadata_only')}</p>
+            {status?.catalog_status === 'ready' && (
+              <p className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-500 dark:text-slate-400" role="status">
+                <span>{t('catalog.status_items', { count: status.item_count })}</span>
+                {status.recovery.relink_required && (
+                  <span className="font-semibold text-amber-700 dark:text-amber-300">
+                    {t('catalog.status_relink', { count: status.recovery.relink_item_count })}
+                  </span>
+                )}
+                <span className={status.recovery.restart_safe ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>
+                  {status.recovery.restart_safe ? t('catalog.status_restart_safe') : t('catalog.status_restart_unavailable')}
+                </span>
+              </p>
+            )}
+            {statusError && (
+              <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300" role="status">
+                {t('catalog.status_error')}
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} className="ui-button ui-button--neutral h-8 w-8 p-1.5" aria-label={t('common.close')}>
             <X className="h-4 w-4" aria-hidden="true" />
@@ -143,12 +183,28 @@ export const CatalogPanel: React.FC<CatalogPanelProps> = ({ open, onClose }) => 
             </div>
           )}
           {!loading && error && (
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">{t('catalog.error')}: {error}</div>
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+              <span>{t('catalog.error')}: {error}</span>
+              <button
+                type="button"
+                className="shrink-0 rounded border border-rose-500/40 px-2 py-1 font-semibold hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/60"
+                onClick={() => setRefreshToken(value => value + 1)}
+              >
+                {t('catalog.retry')}
+              </button>
+            </div>
           )}
           {!loading && !error && data?.catalog_status !== 'ready' && (
             <div className="rounded-lg border border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
               <FolderSearch className="mx-auto mb-2 h-5 w-5 text-slate-400" aria-hidden="true" />
-              {t('catalog.unavailable')}
+              <p>{t('catalog.unavailable')}</p>
+              <button
+                type="button"
+                className="mt-3 rounded border border-slate-400/60 px-2.5 py-1 font-semibold hover:bg-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 dark:border-slate-600 dark:hover:bg-slate-800"
+                onClick={() => setRefreshToken(value => value + 1)}
+              >
+                {t('catalog.retry')}
+              </button>
             </div>
           )}
           {!loading && !error && data?.catalog_status === 'ready' && data.items.length === 0 && (
