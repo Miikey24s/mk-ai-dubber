@@ -110,6 +110,7 @@ export type ConnectorFlowEvent =
   | { type: 'create_export_intent' }
   | { type: 'record_receipt' }
   | { type: 'revoke_connection' }
+  | { type: 'expire_connection' }
   | { type: 'reset' };
 
 const DEFAULT_ARTIFACT: ConnectorArtifact = {
@@ -269,7 +270,12 @@ export function connectorFlowReducer(
       }
       return { ...state, parentRef: event.parentRef, stage: 'destination_selected', error: null };
     case 'preview_export':
-      if (state.provider !== 'drive' || state.stage !== 'destination_selected') {
+      if (
+        state.provider !== 'drive' ||
+        state.stage !== 'destination_selected' ||
+        !state.connection ||
+        state.connection.status !== 'active'
+      ) {
         return withError(state, 'drive_destination_required');
       }
       return { ...state, stage: 'preview_ready', error: null };
@@ -315,6 +321,15 @@ export function connectorFlowReducer(
         intent: null,
         receipt: null,
         error: 'connection_revoked',
+      };
+    case 'expire_connection':
+      if (!state.connection) return withError(state, 'connection_required');
+      return {
+        ...state,
+        connection: { ...state.connection, status: 'expired' },
+        intent: null,
+        receipt: null,
+        error: 'connection_expired',
       };
   }
 }

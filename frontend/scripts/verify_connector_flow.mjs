@@ -96,4 +96,18 @@ state = reduce(state, { type: 'revoke_connection' });
 state = reduce(state, { type: 'select_drive_destination', parentRef: 'picker:demo-folder' });
 assert.equal(state.error, 'drive_connection_required');
 
-console.log(JSON.stringify({ status: 'PASS', checks: 27 }));
+state = createInitialConnectorFlowState();
+state = reduce(state, { type: 'project_login' });
+state = reduce(state, { type: 'begin_connect', provider: 'drive' });
+state = reduce(state, {
+  type: 'complete_oauth_callback',
+  provider: 'drive',
+  oauthState: state.oauthState,
+  accountRef: 'user-selected:demo-account',
+});
+state = reduce(state, { type: 'select_drive_destination', parentRef: 'picker:demo-folder' });
+state = reduce(state, { type: 'expire_connection' });
+state = reduce(state, { type: 'preview_export' });
+assert.equal(state.error, 'drive_destination_required');
+
+console.log(JSON.stringify({ status: 'PASS', checks: 29 }));

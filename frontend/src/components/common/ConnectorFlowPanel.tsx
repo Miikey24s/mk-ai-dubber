@@ -159,21 +159,48 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
             </div>
           )}
 
-          {state.stage !== 'idle' && state.stage !== 'oauth_pending' && state.provider === 'learn' && state.connection && (
-            <div className="rounded border border-emerald-500/35 bg-emerald-500/10 p-3 text-xs">
-              <div className="flex items-center gap-2 font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> Learn reference authorized</div>
-              <p className="mt-2 text-slate-300">artifact: <code>offline-job/subtitle-r3</code> · revision 3</p>
-              <p className="mt-1 text-slate-400">{copy(language, 'VI giữ source; Learn giữ tiến độ. Không gửi answer key và không auto-complete.', 'VI retains the source; Learn owns progress. No answer key or auto-completion is sent.')}</p>
-              <button type="button" onClick={() => dispatch({ type: 'reset' })} className="ui-button ui-button--neutral mt-3 h-8 px-3 text-xs font-semibold">
-                {copy(language, 'Kết nối đích khác', 'Connect another destination')}
+          {state.provider === 'learn' && state.connection && state.connection.status !== 'active' && (
+            <div className="space-y-3 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-xs">
+              <p className="font-semibold text-rose-200">{copy(language, 'Learn reference connection đã bị thu hồi/hết hạn.', 'Learn reference connection is revoked/expired.')}</p>
+              <p className="text-rose-100/75">{copy(language, 'Reference và progress không bị tự gửi lại.', 'The reference and progress are not resent automatically.')}</p>
+              <button type="button" onClick={() => dispatch({ type: 'reset' })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                {copy(language, 'Kết nối lại', 'Reconnect')}
               </button>
             </div>
           )}
 
-          {state.provider === 'drive' && state.stage === 'connected' && (
+          {state.stage !== 'idle' && state.stage !== 'oauth_pending' && state.provider === 'learn' && state.connection?.status === 'active' && (
+            <div className="rounded border border-emerald-500/35 bg-emerald-500/10 p-3 text-xs">
+              <div className="flex items-center gap-2 font-semibold text-emerald-200"><Check className="h-3.5 w-3.5" /> Learn reference authorized</div>
+              <p className="mt-2 text-slate-300">artifact: <code>offline-job/subtitle-r3</code> · revision 3</p>
+              <p className="mt-1 text-slate-400">{copy(language, 'VI giữ source; Learn giữ tiến độ. Không gửi answer key và không auto-complete.', 'VI retains the source; Learn owns progress. No answer key or auto-completion is sent.')}</p>
+              <div className="mt-3 flex gap-2">
+                {state.connection.status === 'active' && (
+                  <button type="button" onClick={() => dispatch({ type: 'revoke_connection' })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                    {copy(language, 'Thu hồi kết nối', 'Revoke connection')}
+                  </button>
+                )}
+                <button type="button" onClick={() => dispatch({ type: 'reset' })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                  {copy(language, 'Kết nối đích khác', 'Connect another destination')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {state.provider === 'drive' && state.connection && state.connection.status !== 'active' && (
+            <div className="space-y-3 rounded border border-rose-500/40 bg-rose-500/10 p-3 text-xs">
+              <p className="font-semibold text-rose-200">{copy(language, 'Kết nối Drive đã bị thu hồi/hết hạn; export bị khóa.', 'Drive connection is revoked/expired; export is blocked.')}</p>
+              <p className="text-rose-100/75">status: <code>{state.connection.status}</code> · remote IDs remain unavailable</p>
+              <button type="button" onClick={() => dispatch({ type: 'reset' })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                {copy(language, 'Kết nối lại', 'Reconnect')}
+              </button>
+            </div>
+          )}
+
+          {state.provider === 'drive' && state.stage === 'connected' && state.connection?.status === 'active' && (
             <div className="space-y-3 rounded border border-sky-500/35 bg-sky-500/10 p-3 text-xs">
               <div className="flex items-center gap-2 font-semibold text-sky-200"><Check className="h-3.5 w-3.5" /> Drive account selected</div>
-              <p className="text-slate-300">account: <code>{state.connection?.accountRef}</code> · scope: <code>drive.file</code></p>
+              <p className="text-slate-300">account: <code>{state.connection.accountRef}</code> · scope: <code>drive.file</code></p>
               <label className="block text-slate-300">
                 {copy(language, 'Folder do bạn chọn', 'User-selected folder')}
                 <input
@@ -183,13 +210,18 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
                   aria-label={copy(language, 'Folder Drive', 'Drive folder')}
                 />
               </label>
-              <button type="button" onClick={() => dispatch({ type: 'select_drive_destination', parentRef })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
-                {copy(language, 'Chọn folder (offline picker)', 'Select folder (offline picker)')}
-              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => dispatch({ type: 'select_drive_destination', parentRef })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                  {copy(language, 'Chọn folder (offline picker)', 'Select folder (offline picker)')}
+                </button>
+                <button type="button" onClick={() => dispatch({ type: 'revoke_connection' })} className="ui-button ui-button--neutral h-8 px-3 text-xs font-semibold">
+                  {copy(language, 'Thu hồi', 'Revoke')}
+                </button>
+              </div>
             </div>
           )}
 
-          {state.provider === 'drive' && (state.stage === 'destination_selected' || state.stage === 'preview_ready' || state.stage === 'intent_created' || state.stage === 'receipt_recorded') && (
+          {state.provider === 'drive' && state.connection?.status === 'active' && (state.stage === 'destination_selected' || state.stage === 'preview_ready' || state.stage === 'intent_created' || state.stage === 'receipt_recorded') && (
             <div className="space-y-3 rounded border border-slate-700 bg-slate-900/70 p-3 text-xs">
               <div className="flex items-center justify-between"><span className="font-mono text-slate-400">DESTINATION PREVIEW</span><code className="text-sky-300">{state.parentRef}</code></div>
               {state.stage === 'destination_selected' && (
