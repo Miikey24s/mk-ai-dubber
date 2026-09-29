@@ -6,6 +6,7 @@ import {
   createInitialConnectorFlowState,
   ConnectorProvider,
   ConnectorFlowEvent,
+  ConnectorConnection,
 } from '@/lib/connectorFlow';
 import {
   clearPersistedConnectorLedger,
@@ -85,6 +86,24 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
       ? 'PREP_ONLY receipt'
       : state.stage.replace(/_/g, ' ');
 
+  const retryDriveLedgerConnection = async (connection: ConnectorConnection): Promise<void> => {
+    if (connection.provider !== 'drive' || connection.status !== 'active') return;
+    setLedgerSync('saving');
+    setLedgerError(null);
+    const registration = registerConnectorConnection(connection)
+      .then(() => {
+        setLedgerSync('saved');
+        return true;
+      })
+      .catch(error => {
+        setLedgerSync('unavailable');
+        setLedgerError(error instanceof Error ? error.message : 'connector_ledger_connection_failed');
+        return false;
+      });
+    registrationPromiseRef.current = registration;
+    await registration;
+  };
+
   const runFlowEvent = async (event: ConnectorFlowEvent): Promise<void> => {
     const next = connectorFlowReducer(state, event);
 
@@ -117,20 +136,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     if (next.error && next.error !== 'connection_revoked' && next.error !== 'connection_expired') return;
 
     if (event.type === 'complete_oauth_callback' && next.connection?.provider === 'drive' && next.connection.status === 'active') {
-      setLedgerSync('saving');
-      setLedgerError(null);
-      const registration = registerConnectorConnection(next.connection)
-        .then(() => {
-          setLedgerSync('saved');
-          return true;
-        })
-        .catch(error => {
-          setLedgerSync('unavailable');
-          setLedgerError(error instanceof Error ? error.message : 'connector_ledger_connection_failed');
-          return false;
-        });
-      registrationPromiseRef.current = registration;
-      await registration;
+      await retryDriveLedgerConnection(next.connection);
       return;
     }
 
@@ -255,6 +261,15 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
               <p role="alert" className="mt-2 break-words text-rose-300">
                 {copy(language, 'Ledger chưa đồng bộ: ', 'Ledger not synced: ')}{ledgerError}
               </p>
+            )}
+            {ledgerSync === 'unavailable' && state.connection?.provider === 'drive' && state.connection.status === 'active' && (
+              <button
+                type="button"
+                onClick={() => void retryDriveLedgerConnection(state.connection as ConnectorConnection)}
+                className="ui-button ui-button--neutral mt-2 h-8 px-3 text-xs font-semibold"
+              >
+                {copy(language, 'Thử ghi lại capability local', 'Retry local capability save')}
+              </button>
             )}
           </div>
 
