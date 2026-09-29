@@ -27,6 +27,52 @@ def test_m6_fixture_is_prep_only_and_all_boundaries_validate() -> None:
     assert receipt["claims_excluded"]
 
 
+def test_project_adapter_preflight_keeps_learn_and_drive_project_owned() -> None:
+    contract = benchmark.load_contract()
+
+    preflight = benchmark.build_project_adapter_preflight(contract)
+
+    assert preflight["status"] == "PREP_ONLY"
+    assert preflight["backend"] == "project-owned-adapter"
+    assert preflight["chatgpt_connector_backend_used"] is False
+    assert preflight["external_io_performed"] is False
+    assert preflight["validation"]["passed"] is True
+
+    learn = preflight["adapters"]["vi_to_learn"]
+    assert learn["status"] == "validated"
+    assert learn["operation"] == "authorized_reference_only"
+    assert learn["learn_owns_progress"] is True
+    assert learn["answer_keys_exposed"] is False
+    assert learn["auto_completion_enabled"] is False
+    assert learn["external_write_performed"] is False
+
+    drive = preflight["adapters"]["vi_to_drive"]
+    assert drive["status"] == "validated"
+    assert drive["operation"] == "copy_intent_only"
+    assert drive["scope"] == "drive.file"
+    assert drive["account_user_selected"] is True
+    assert drive["parent_picker_selected"] is True
+    assert drive["source_retained_by_app"] is True
+    assert drive["remote_identity_recorded"] is False
+    assert drive["external_write_performed"] is False
+
+
+def test_project_adapter_preflight_blocks_unselected_drive_destination() -> None:
+    contract = benchmark.load_contract()
+    contract["export_request"]["destination"]["account_ref"] = "account-guess"
+
+    preflight = benchmark.build_project_adapter_preflight(contract)
+
+    assert preflight["status"] == "PREP_ONLY"
+    assert preflight["validation"]["passed"] is False
+    assert preflight["validation"]["drive_request_errors"] == [
+        "request.destination.account_ref_user_selected"
+    ]
+    assert preflight["adapters"]["vi_to_learn"]["status"] == "validated"
+    assert preflight["adapters"]["vi_to_drive"]["status"] == "blocked"
+    assert preflight["external_io_performed"] is False
+
+
 def test_reference_rejects_unallowlisted_resource_and_answer_key_exposure() -> None:
     contract = benchmark.load_contract()
     reference = copy.deepcopy(contract["learn_reference"])

@@ -791,6 +791,81 @@ class OfflineExportAdapter:
         return deepcopy(entry["receipt"])
 
 
+def build_project_adapter_preflight(contract: dict[str, Any]) -> dict[str, Any]:
+    """Describe the local I1/I2 adapter boundary without doing connector I/O.
+
+    The benchmark intentionally keeps the transport implementation out of the
+    VI project.  This small receipt makes the ownership decision explicit for
+    the next implementation slice: VI owns the adapter and source lineage,
+    Learn owns progress after it receives an authorized reference, and Drive
+    receives only a user-scoped copy intent.  It is safe to persist because it
+    contains no token, media bytes, or remote response and never imports a
+    connector SDK.
+    """
+    reference = contract["learn_reference"]
+    request = contract["export_request"]
+    capability = contract["connection_capability"]
+    reference_errors = validate_learn_reference(reference, contract)
+    request_errors = validate_export_request(request)
+    capability_errors = validate_connection_capability(capability, request)
+    learn_passed = not reference_errors
+    drive_passed = not request_errors and not capability_errors
+    passed = learn_passed and drive_passed
+
+    return {
+        "schema_version": "workspace-project-adapter-preflight-v1",
+        "status": "PREP_ONLY",
+        "backend": "project-owned-adapter",
+        "chatgpt_connector_backend_used": False,
+        "external_io_performed": False,
+        "validation": {
+            "learn_reference_errors": reference_errors,
+            "drive_request_errors": request_errors,
+            "drive_capability_errors": capability_errors,
+            "passed": passed,
+        },
+        "adapters": {
+            "vi_to_learn": {
+                "status": "validated" if learn_passed else "blocked",
+                "operation": "authorized_reference_only",
+                "source_system": "vi-dubber",
+                "target_system": "learn",
+                "reference_id": reference.get("reference_id"),
+                "artifact_id": reference.get("artifact", {}).get("artifact_id"),
+                "learn_owns_progress": True,
+                "answer_keys_exposed": reference.get("safety", {}).get("answer_keys_exposed"),
+                "auto_completion_enabled": reference.get("safety", {}).get(
+                    "auto_completion_enabled"
+                ),
+                "external_write_performed": False,
+            },
+            "vi_to_drive": {
+                "status": "validated" if drive_passed else "blocked",
+                "operation": "copy_intent_only",
+                "source_system": "vi-dubber",
+                "target_system": "drive",
+                "request_id": request.get("request_id"),
+                "provider": request.get("destination", {}).get("provider"),
+                "scope": request.get("destination", {}).get("scope"),
+                "account_user_selected": str(
+                    request.get("destination", {}).get("account_ref", "")
+                ).startswith("user-selected:"),
+                "parent_picker_selected": str(
+                    request.get("destination", {}).get("parent_ref", "")
+                ).startswith("picker:"),
+                "source_retained_by_app": True,
+                "remote_identity_recorded": False,
+                "external_write_performed": False,
+            },
+        },
+        "claims_excluded": [
+            "Learn course/progress mutation",
+            "Drive OAuth, upload, remote id, revision, or checksum",
+            "ChatGPT connector acting as the project backend",
+        ],
+    }
+
+
 def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     reference = contract["learn_reference"]
     request = contract["export_request"]
@@ -898,6 +973,7 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
     cancel_adapter.submit(request)
     cancelled = cancel_adapter.cancel(request["request_id"])
     cancelled_after_timeout = cancel_adapter.mark_timeout(request["request_id"])
+    adapter_preflight = build_project_adapter_preflight(contract)
     return {
         "status": "PREP_ONLY",
         "contract": str(CONTRACT_PATH.relative_to(PROJECT_ROOT)).replace("\\", "/"),
@@ -952,6 +1028,7 @@ def run_probe(contract: dict[str, Any]) -> dict[str, Any]:
             "fenced_receipt": capability_fenced_receipt,
             "new_dispatch_blocked": capability_submit_blocked,
         },
+        "project_adapter_preflight": adapter_preflight,
         "claims_excluded": [
             "actual VI-to-Learn or Drive connector behavior",
             "OAuth, account consent, token storage, network, or cloud permissions",

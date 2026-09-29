@@ -1,0 +1,613 @@
+{
+  "status": "PREP_ONLY",
+  "contract": "tests/fixtures/m6_integration_contract.json",
+  "validation": {
+    "learn_reference_errors": [],
+    "export_request_errors": [],
+    "capability_errors": [],
+    "receipt_errors": {
+      "unknown": [],
+      "succeeded": [],
+      "revoked": [],
+      "failed": []
+    },
+    "receipt_binding_errors": {
+      "unknown": [],
+      "succeeded": [],
+      "revoked": [],
+      "failed": []
+    },
+    "passed": true
+  },
+  "hardening": {
+    "status": "passed",
+    "rejected_cases": {
+      "uri_authority_prefix_bypass": [
+        "reference.artifact.resource_allowlist"
+      ],
+      "uri_path_traversal": [
+        "reference.artifact.resource_allowlist"
+      ],
+      "non_utc_timestamp": [
+        "reference.artifact.source_timestamp_utc_format"
+      ],
+      "missing_trusted_key_id": [
+        "reference.identity.key_id"
+      ],
+      "unselected_account": [
+        "request.destination.account_ref_user_selected"
+      ],
+      "unselected_parent": [
+        "request.destination.parent_ref_picker_selected"
+      ],
+      "capability_epoch_mismatch": [
+        "request.capability.epoch_match"
+      ],
+      "capability_scope_mismatch": [
+        "capability.scope",
+        "request.capability.scope_match"
+      ]
+    },
+    "policy": [
+      "resource URI must match exact scheme and authority from the allowlist",
+      "resource URI path rejects decoded traversal, query/fragment mutation, and control characters",
+      "artifact source timestamp must be explicit UTC with Z suffix",
+      "trusted identity must include a non-empty key_id",
+      "export destination account and parent must carry explicit user-selection markers",
+      "export request must bind to the active connection capability id and epoch",
+      "connection revoke fences pending intents and blocks later dispatch",
+      "export timeout becomes unknown and bounded retry exhaustion becomes terminal failure"
+    ]
+  },
+  "idempotency": [
+    {
+      "request_id": "export-request-fixture-0001",
+      "action": "send_once"
+    },
+    {
+      "request_id": "export-request-fixture-duplicate",
+      "action": "dedupe"
+    },
+    {
+      "request_id": "export-request-fixture-conflict",
+      "action": "reject_conflict"
+    }
+  ],
+  "reconciliation": {
+    "lookup_unavailable": {
+      "action": "manual_reconciliation",
+      "reason": "lookup_unavailable"
+    },
+    "lookup_succeeded": {
+      "action": "adopt_existing",
+      "status": "succeeded",
+      "resend": false
+    },
+    "lookup_not_found": {
+      "action": "retry_allowed",
+      "status": "pending",
+      "resend": true
+    }
+  },
+  "retry_policy": {
+    "timeout_seconds": 30,
+    "max_attempts": 3,
+    "retryable_outcomes": [
+      "timeout",
+      "transient_failure"
+    ]
+  },
+  "timeout_recovery": {
+    "timeouts": [
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "connection": {
+          "connection_id": "connection-fixture-0001",
+          "epoch": 1
+        },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+        "status": "unknown",
+        "attempt": 1,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      },
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "connection": {
+          "connection_id": "connection-fixture-0001",
+          "epoch": 1
+        },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+        "status": "unknown",
+        "attempt": 2,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      },
+      {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "connection": {
+          "connection_id": "connection-fixture-0001",
+          "epoch": 1
+        },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+        "status": "unknown",
+        "attempt": 3,
+        "reconcile_required": true,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null
+      }
+    ],
+    "retries": [
+      {
+        "action": "retry_allowed",
+        "status": "pending",
+        "resend": true,
+        "receipt": {
+          "schema_version": "workspace-export-receipt-v1",
+          "request_id": "export-request-fixture-0001",
+          "idempotency_key": "idem-fixture-0001",
+          "destination_provider": "drive",
+          "connection": {
+            "connection_id": "connection-fixture-0001",
+            "epoch": 1
+          },
+          "source": {
+            "system": "vi-dubber",
+            "artifact_id": "job-fixture-0001/subtitle-r3",
+            "revision": 3,
+            "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "data_class": "subtitle",
+            "owner_id": "vi-dubber-local",
+            "project_id": "vi-dubber",
+            "source_timestamp_utc": "2026-09-27T10:00:00Z"
+          },
+          "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+          "status": "pending",
+          "attempt": 2,
+          "reconcile_required": false,
+          "external_id": null,
+          "remote_revision": null,
+          "remote_sha256": null
+        }
+      },
+      {
+        "action": "retry_allowed",
+        "status": "pending",
+        "resend": true,
+        "receipt": {
+          "schema_version": "workspace-export-receipt-v1",
+          "request_id": "export-request-fixture-0001",
+          "idempotency_key": "idem-fixture-0001",
+          "destination_provider": "drive",
+          "connection": {
+            "connection_id": "connection-fixture-0001",
+            "epoch": 1
+          },
+          "source": {
+            "system": "vi-dubber",
+            "artifact_id": "job-fixture-0001/subtitle-r3",
+            "revision": 3,
+            "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "data_class": "subtitle",
+            "owner_id": "vi-dubber-local",
+            "project_id": "vi-dubber",
+            "source_timestamp_utc": "2026-09-27T10:00:00Z"
+          },
+          "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+          "status": "pending",
+          "attempt": 3,
+          "reconcile_required": false,
+          "external_id": null,
+          "remote_revision": null,
+          "remote_sha256": null
+        }
+      }
+    ],
+    "exhausted": {
+      "action": "retry_exhausted",
+      "status": "failed",
+      "resend": false,
+      "error_code": "retry_exhausted",
+      "receipt": {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "connection": {
+          "connection_id": "connection-fixture-0001",
+          "epoch": 1
+        },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+        "status": "failed",
+        "attempt": 3,
+        "reconcile_required": false,
+        "external_id": null,
+        "remote_revision": null,
+        "remote_sha256": null,
+        "error_code": "retry_exhausted",
+        "retryable": false
+      }
+    },
+    "cancelled": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "cancelled",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "cancelled_after_timeout": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "cancelled",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    }
+  },
+  "stale_event_state": {
+    "status": "succeeded",
+    "reconcile_required": false
+  },
+  "offline_adapter": {
+    "initial": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "duplicate_same_intent": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "unknown": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "unknown",
+      "attempt": 1,
+      "reconcile_required": true,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "reconciled": {
+      "action": "adopt_existing",
+      "status": "succeeded",
+      "resend": false,
+      "receipt": {
+        "schema_version": "workspace-export-receipt-v1",
+        "request_id": "export-request-fixture-0001",
+        "idempotency_key": "idem-fixture-0001",
+        "destination_provider": "drive",
+        "connection": {
+          "connection_id": "connection-fixture-0001",
+          "epoch": 1
+        },
+        "source": {
+          "system": "vi-dubber",
+          "artifact_id": "job-fixture-0001/subtitle-r3",
+          "revision": 3,
+          "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "data_class": "subtitle",
+          "owner_id": "vi-dubber-local",
+          "project_id": "vi-dubber",
+          "source_timestamp_utc": "2026-09-27T10:00:00Z"
+        },
+        "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+        "status": "succeeded",
+        "attempt": 1,
+        "reconcile_required": false,
+        "external_id": "drive-file-fixture-0001",
+        "remote_revision": "remote-r7",
+        "remote_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    },
+    "revoked": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "revoked",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "revocation_reason": "user_revoked_connection"
+    }
+  },
+  "connection_capability": {
+    "validation_errors": [],
+    "initial_receipt": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "pending",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null
+    },
+    "revoked": {
+      "schema_version": "workspace-connection-capability-v1",
+      "connection_id": "connection-fixture-0001",
+      "provider": "drive",
+      "account_ref": "user-selected:fixture-account",
+      "scope": "drive.file",
+      "epoch": 1,
+      "status": "revoked",
+      "user_selected": true,
+      "revoked": true,
+      "revocation_reason": "connection_revoked"
+    },
+    "fenced_receipt": {
+      "schema_version": "workspace-export-receipt-v1",
+      "request_id": "export-request-fixture-0001",
+      "idempotency_key": "idem-fixture-0001",
+      "destination_provider": "drive",
+      "connection": {
+        "connection_id": "connection-fixture-0001",
+        "epoch": 1
+      },
+      "source": {
+        "system": "vi-dubber",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "revision": 3,
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "data_class": "subtitle",
+        "owner_id": "vi-dubber-local",
+        "project_id": "vi-dubber",
+        "source_timestamp_utc": "2026-09-27T10:00:00Z"
+      },
+      "intent_fingerprint": "547ddf99610373999a3185defd8e13308ed30525a518849cd6d954cd11b7da25",
+      "status": "revoked",
+      "attempt": 1,
+      "reconcile_required": false,
+      "external_id": null,
+      "remote_revision": null,
+      "remote_sha256": null,
+      "revocation_reason": "connection_revoked"
+    },
+    "new_dispatch_blocked": true
+  },
+  "project_adapter_preflight": {
+    "schema_version": "workspace-project-adapter-preflight-v1",
+    "status": "PREP_ONLY",
+    "backend": "project-owned-adapter",
+    "chatgpt_connector_backend_used": false,
+    "external_io_performed": false,
+    "validation": {
+      "learn_reference_errors": [],
+      "drive_request_errors": [],
+      "drive_capability_errors": [],
+      "passed": true
+    },
+    "adapters": {
+      "vi_to_learn": {
+        "status": "validated",
+        "operation": "authorized_reference_only",
+        "source_system": "vi-dubber",
+        "target_system": "learn",
+        "reference_id": "learn-ref-fixture-0001",
+        "artifact_id": "job-fixture-0001/subtitle-r3",
+        "learn_owns_progress": true,
+        "answer_keys_exposed": false,
+        "auto_completion_enabled": false,
+        "external_write_performed": false
+      },
+      "vi_to_drive": {
+        "status": "validated",
+        "operation": "copy_intent_only",
+        "source_system": "vi-dubber",
+        "target_system": "drive",
+        "request_id": "export-request-fixture-0001",
+        "provider": "drive",
+        "scope": "drive.file",
+        "account_user_selected": true,
+        "parent_picker_selected": true,
+        "source_retained_by_app": true,
+        "remote_identity_recorded": false,
+        "external_write_performed": false
+      }
+    },
+    "claims_excluded": [
+      "Learn course/progress mutation",
+      "Drive OAuth, upload, remote id, revision, or checksum",
+      "ChatGPT connector acting as the project backend"
+    ]
+  },
+  "claims_excluded": [
+    "actual VI-to-Learn or Drive connector behavior",
+    "OAuth, account consent, token storage, network, or cloud permissions",
+    "cryptographic signature verification beyond the trusted fixture marker",
+    "media bytes upload or remote deletion",
+    "exactly-once delivery; unknown outcomes require lookup/manual reconciliation",
+    "remote delivery, retry timing, and timeout behavior remain unverified until a connector is authorized",
+    "production schema/API implementation"
+  ]
+}
