@@ -9,11 +9,14 @@ import {
   ConnectorConnection,
 } from '@/lib/connectorFlow';
 import {
+  clearLearnReference,
   clearPersistedConnectorLedger,
   fetchProjectSessionStatus,
   LedgerReceiptStatus,
+  persistLearnReference,
   registerConnectorConnection,
   restoreConnectorLedger,
+  restoreLearnReference,
   revokeConnectorConnection,
   submitConnectorIntent,
 } from '@/lib/connectorLedger';
@@ -67,6 +70,11 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const connection = restoreLearnReference();
+    if (connection) dispatch({ type: 'restore_learn_reference', connection });
   }, []);
 
   useEffect(() => {
@@ -151,6 +159,12 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     }
 
     dispatch(event);
+    if (event.type === 'begin_connect' && event.provider === 'learn' && next.connection) {
+      persistLearnReference(next.connection);
+    }
+    if (event.type === 'revoke_connection' && state.connection?.provider === 'learn') {
+      clearLearnReference();
+    }
     if (next.error && next.error !== 'connection_revoked' && next.error !== 'connection_expired') return;
 
     if (event.type === 'complete_oauth_callback' && next.connection?.provider === 'drive' && next.connection.status === 'active') {
@@ -174,6 +188,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
 
     if (event.type === 'reset') {
       clearPersistedConnectorLedger();
+      clearLearnReference();
       registrationPromiseRef.current = null;
       setLedgerSync('idle');
       setLedgerStatus(null);

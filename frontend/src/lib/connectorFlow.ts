@@ -110,6 +110,7 @@ export type ConnectorFlowEvent =
   | { type: 'preview_export' }
   | { type: 'create_export_intent' }
   | { type: 'record_receipt' }
+  | { type: 'restore_learn_reference'; connection: ConnectorConnection }
   | {
       type: 'restore_ledger';
       connection: ConnectorConnection;
@@ -242,6 +243,30 @@ export function connectorFlowReducer(
         parentRef: intent.destination.parentRef,
         intent,
         receipt,
+        error: null,
+      };
+    }
+    case 'restore_learn_reference': {
+      const { connection } = event;
+      if (
+        connection.provider !== 'learn' ||
+        connection.accountRef !== null ||
+        connection.scope !== 'reference.read' ||
+        connection.epoch < 1 ||
+        connection.status !== 'active'
+      ) {
+        return withError(state, 'persisted_learn_reference_invalid');
+      }
+      return {
+        ...state,
+        session: 'signed_in',
+        provider: 'learn',
+        stage: 'connected',
+        oauthState: null,
+        connection,
+        parentRef: null,
+        intent: null,
+        receipt: null,
         error: null,
       };
     }

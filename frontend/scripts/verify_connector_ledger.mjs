@@ -66,4 +66,23 @@ assert.equal(restored.session, 'signed_in');
 assert.equal(restored.stage, 'receipt_recorded');
 assert.equal(restored.parentRef, 'picker:demo-folder');
 
-console.log(JSON.stringify({ status: 'PASS', checks: 13 }));
+let learn = reduce(createInitialConnectorFlowState(), { type: 'project_login' });
+learn = reduce(learn, { type: 'begin_connect', provider: 'learn' });
+assert.deepEqual(learn.connection, {
+  connectionId: 'offline-local-learn-0001',
+  provider: 'learn',
+  accountRef: null,
+  scope: 'reference.read',
+  epoch: 1,
+  status: 'active',
+});
+const restoredLearn = reduce(createInitialConnectorFlowState(), {
+  type: 'restore_learn_reference',
+  connection: learn.connection,
+});
+assert.equal(restoredLearn.provider, 'learn');
+assert.equal(restoredLearn.stage, 'connected');
+assert.equal(restoredLearn.connection.scope, 'reference.read');
+assert.equal(restoredLearn.intent, null);
+
+console.log(JSON.stringify({ status: 'PASS', checks: 18 }));

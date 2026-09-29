@@ -49,6 +49,7 @@ interface LedgerEnvelope<T> {
 }
 
 const STORAGE_KEY = 'vi-dubber.connector-ledger.v1';
+const LEARN_REFERENCE_STORAGE_KEY = 'vi-dubber.learn-reference.v1';
 const REQUEST_TIMEOUT_MS = 3000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -288,6 +289,67 @@ function writePointer(pointer: StoredConnectorLedgerPointer): void {
   } catch {
     // The server ledger is authoritative; private browsing/quota issues only
     // remove the convenience restore pointer, never the PREP_ONLY write.
+  }
+}
+
+interface StoredLearnReferencePointer {
+  schemaVersion: 1;
+  connection: ConnectorConnection;
+}
+
+function mapLearnReferenceConnection(raw: unknown): ConnectorConnection | null {
+  if (!isRecord(raw)) return null;
+  if (
+    raw.provider !== 'learn' ||
+    raw.accountRef !== null ||
+    raw.scope !== 'reference.read' ||
+    raw.status !== 'active' ||
+    !Number.isInteger(raw.epoch) || (raw.epoch as number) < 1 ||
+    typeof raw.connectionId !== 'string' || raw.connectionId.trim().length === 0
+  ) return null;
+  return {
+    connectionId: raw.connectionId,
+    provider: 'learn',
+    accountRef: null,
+    scope: 'reference.read',
+    epoch: raw.epoch as number,
+    status: 'active',
+  };
+}
+
+export function persistLearnReference(connection: ConnectorConnection): void {
+  if (typeof window === 'undefined') return;
+  if (connection.provider !== 'learn' || connection.accountRef !== null || connection.scope !== 'reference.read' || connection.status !== 'active') {
+    throw new Error('only an active Learn reference connection can be persisted');
+  }
+  try {
+    const pointer: StoredLearnReferencePointer = { schemaVersion: 1, connection };
+    window.localStorage.setItem(LEARN_REFERENCE_STORAGE_KEY, JSON.stringify(pointer));
+  } catch {
+    // The reference pointer is an optional browser cache; the UI still stays
+    // explicit that this is local/demo state when storage is unavailable.
+  }
+}
+
+export function restoreLearnReference(): ConnectorConnection | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LEARN_REFERENCE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || parsed.schemaVersion !== 1) return null;
+    return mapLearnReferenceConnection(parsed.connection);
+  } catch {
+    return null;
+  }
+}
+
+export function clearLearnReference(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(LEARN_REFERENCE_STORAGE_KEY);
+  } catch {
+    // Storage is optional and contains no provider credential.
   }
 }
 
