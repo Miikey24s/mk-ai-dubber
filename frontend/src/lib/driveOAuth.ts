@@ -2,6 +2,9 @@ export interface DriveOAuthStatus {
   provider: 'drive';
   configured: boolean;
   connected: boolean;
+  connectionState: 'disconnected' | 'connected' | 'reconnect_required';
+  expired: boolean;
+  reconnectRequired: boolean;
   scope: 'drive.file' | null;
   connectionId: string | null;
   expiresAtUnix: number | null;
@@ -35,10 +38,20 @@ function parseStatus(body: unknown): DriveOAuthStatus {
   const connected = body.connected;
   const connectionId = body.connection_id;
   const expiresAtUnix = body.expires_at_unix;
+  const connectionState = body.connection_state;
+  const expired = body.expired;
+  const reconnectRequired = body.reconnect_required;
   if (
     body.provider !== 'drive' ||
     typeof body.configured !== 'boolean' ||
     typeof connected !== 'boolean' ||
+    !['disconnected', 'connected', 'reconnect_required'].includes(connectionState as string) ||
+    typeof expired !== 'boolean' ||
+    typeof reconnectRequired !== 'boolean' ||
+    (connected && (connectionState !== 'connected' || expired || reconnectRequired)) ||
+    (!connected && connectionState === 'connected') ||
+    (connectionState === 'reconnect_required' && (!expired || !reconnectRequired)) ||
+    (connectionState === 'disconnected' && (expired || reconnectRequired)) ||
     body.storage !== 'process-memory-only' ||
     body.execution_mode !== 'PREP_ONLY' ||
     (connected && (body.scope !== 'drive.file' || typeof connectionId !== 'string' || !connectionId || !Number.isInteger(expiresAtUnix))) ||
@@ -50,6 +63,9 @@ function parseStatus(body: unknown): DriveOAuthStatus {
     provider: 'drive',
     configured: body.configured,
     connected,
+    connectionState: connectionState as DriveOAuthStatus['connectionState'],
+    expired,
+    reconnectRequired,
     scope: connected ? 'drive.file' : null,
     connectionId: connected ? connectionId as string : null,
     expiresAtUnix: connected ? expiresAtUnix as number : null,

@@ -5,6 +5,9 @@ const status = {
   provider: 'drive',
   configured: true,
   connected: false,
+  connection_state: 'disconnected',
+  expired: false,
+  reconnect_required: false,
   scope: null,
   connection_id: null,
   expires_at_unix: null,
@@ -25,6 +28,7 @@ globalThis.fetch = async (url, init) => {
 
 assert.deepEqual(await fetchDriveOAuthStatus(), {
   provider: 'drive', configured: true, connected: false, scope: null,
+  connectionState: 'disconnected', expired: false, reconnectRequired: false,
   connectionId: null, expiresAtUnix: null, storage: 'process-memory-only', executionMode: 'PREP_ONLY',
 });
 assert.equal(await startDriveOAuth(), 'https://accounts.google.com/o/oauth2/v2/auth?client_id=local-test');
@@ -35,10 +39,13 @@ assert.deepEqual(calls, [
   ['/api/connectors/drive/oauth/disconnect', 'POST'],
 ]);
 
-globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...status, connected: true, scope: 'drive.file', connection_id: 'opaque-id', expires_at_unix: 2000000000 }) });
+globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...status, connected: true, connection_state: 'connected', scope: 'drive.file', connection_id: 'opaque-id', expires_at_unix: 2000000000 }) });
 assert.equal((await fetchDriveOAuthStatus()).connectionId, 'opaque-id');
 
-globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...status, connected: true, scope: 'drive.file', connection_id: 'opaque-id', expires_at_unix: null }) });
+globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...status, connection_state: 'reconnect_required', expired: true, reconnect_required: true }) });
+assert.equal((await fetchDriveOAuthStatus()).reconnectRequired, true);
+
+globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...status, connected: true, connection_state: 'connected', scope: 'drive.file', connection_id: 'opaque-id', expires_at_unix: null }) });
 await assert.rejects(fetchDriveOAuthStatus(), /status is invalid/);
 
 globalThis.fetch = async () => ({ ok: true, json: async () => ({ provider: 'drive', authorization_url: 'https://evil.example/authorize' }) });
@@ -47,4 +54,4 @@ await assert.rejects(startDriveOAuth(), /authorization URL is invalid/);
 globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({ detail: 'Drive OAuth is not configured' }) });
 await assert.rejects(startDriveOAuth(), /not configured/);
 
-console.log(JSON.stringify({ status: 'PASS', checks: 7 }));
+console.log(JSON.stringify({ status: 'PASS', checks: 8 }));

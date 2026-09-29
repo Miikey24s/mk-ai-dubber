@@ -137,13 +137,17 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
     };
     void refresh();
     const interval = driveOAuthPending ? window.setInterval(() => void refresh(), 2000) : null;
+    const expiryTimer = driveOAuthStatus?.connected && driveOAuthStatus.expiresAtUnix !== null
+      ? window.setTimeout(() => void refresh(), Math.max(1000, driveOAuthStatus.expiresAtUnix * 1000 - Date.now() - 29000))
+      : null;
     window.addEventListener('focus', refresh);
     return () => {
       cancelled = true;
       if (interval !== null) window.clearInterval(interval);
+      if (expiryTimer !== null) window.clearTimeout(expiryTimer);
       window.removeEventListener('focus', refresh);
     };
-  }, [open, driveOAuthPending]);
+  }, [open, driveOAuthPending, driveOAuthStatus?.connected, driveOAuthStatus?.expiresAtUnix]);
 
   if (!open) return null;
 
@@ -362,6 +366,8 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
               <span className={driveOAuthStatus?.connected ? 'text-emerald-300' : 'text-amber-300'}>
                 {driveOAuthStatus?.connected
                   ? copy(language, 'Đã kết nối', 'Connected')
+                  : driveOAuthStatus?.reconnectRequired
+                    ? copy(language, 'Hết hạn · cần kết nối lại', 'Expired · reconnect required')
                   : driveOAuthStatus?.configured === false
                     ? copy(language, 'Chưa cấu hình', 'Not configured')
                     : driveOAuthPending
@@ -373,7 +379,9 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
             </div>
             <p className="text-slate-400">
               {driveOAuthStatus?.connected
-                ? copy(language, 'Quyền drive.file đã cấp cho session local này. Token chỉ ở bộ nhớ backend và hết khi backend khởi động lại hoặc token hết hạn.', 'drive.file is granted to this local session. The token stays in backend memory and ends on restart or expiry.')
+                ? copy(language, 'Quyền drive.file đã cấp cho session local này. Token chỉ ở bộ nhớ backend; cần kết nối lại khi hết hạn hoặc backend khởi động lại.', 'drive.file is granted to this local session. Tokens stay in backend memory; reconnect after expiry or backend restart.')
+                : driveOAuthStatus?.reconnectRequired
+                  ? copy(language, 'Phiên Drive đã hết hạn. Kết nối lại để tiếp tục; export vẫn PREP_ONLY.', 'The Drive session expired. Reconnect to continue; exports remain PREP_ONLY.')
                 : driveOAuthStatus?.configured === false
                   ? copy(language, 'Backend project chưa có cấu hình Google OAuth. Cần cấu hình trước khi đăng nhập.', 'Project backend needs Google OAuth configuration before sign-in.')
                   : copy(language, 'Đăng nhập Google trong cửa sổ riêng; callback quay về backend local của VI Dubber.', 'Sign in with Google in a separate window; the callback returns to the local VI Dubber backend.')}
@@ -387,7 +395,7 @@ export const ConnectorFlowPanel: React.FC<ConnectorFlowPanelProps> = ({ open, on
               </button>
             ) : (
               <button type="button" disabled={driveOAuthLoading || driveOAuthPending || driveOAuthStatus?.configured !== true} onClick={() => void connectDriveOAuth()} className="ui-button ui-button--primary h-8 px-3 text-xs font-semibold disabled:opacity-60">
-                {driveOAuthPending ? copy(language, 'Đang chờ callback…', 'Waiting for callback…') : copy(language, 'Đăng nhập Google Drive', 'Sign in to Google Drive')}
+                {driveOAuthPending ? copy(language, 'Đang chờ callback…', 'Waiting for callback…') : driveOAuthStatus?.reconnectRequired ? copy(language, 'Kết nối lại Google Drive', 'Reconnect Google Drive') : copy(language, 'Đăng nhập Google Drive', 'Sign in to Google Drive')}
               </button>
             )}
           </div>

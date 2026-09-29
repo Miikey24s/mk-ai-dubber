@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import hmac
 import os
 import secrets
 import threading
@@ -20,6 +19,7 @@ CALLBACK_PATH = "/api/connectors/drive/oauth/callback"
 AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 STATE_TTL_SECONDS = 600
+MAX_PENDING_STATES = 16
 
 
 class DriveOAuthError(Exception):
@@ -63,19 +63,24 @@ class DriveOAuthSession:
     def __init__(self, config: DriveOAuthConfig | None):
         self._config = config
         self._lock = threading.Lock()
-        self._pending: tuple[str, str, float, int] | None = None
+        self._pending: dict[str, tuple[str, float, int]] = {}
         self._epoch = 0
         self._token: str | None = None
+        self._refresh_token: str | None = None
         self._expires_at = 0.0
         self._connection_id: str | None = None
 
     def status(self) -> dict[str, object]:
         with self._lock:
             connected = self._token is not None and self._expires_at > time.time() + 30
+            expired = self._token is not None and not connected
             return {
                 "provider": "drive",
                 "configured": self._config is not None,
                 "connected": connected,
+                "connection_state": "connected" if connected else "reconnect_required" if expired else "disconnected",
+                "expired": expired,
+                "reconnect_required": expired,
                 "scope": "drive.file" if connected else None,
                 "connection_id": self._connection_id if connected else None,
                 "expires_at_unix": int(self._expires_at) if connected else None,
@@ -90,14 +95,17 @@ class DriveOAuthSession:
         verifier = secrets.token_urlsafe(48)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
         with self._lock:
-            self._epoch += 1
-            self._pending = (state, verifier, time.time() + STATE_TTL_SECONDS, self._epoch)
+            now = time.time()
+            self._pending = {key: value for key, value in self._pending.items() if value[1] > now}
+            if len(self._pending) >= MAX_PENDING_STATES:
+                self._pending.pop(next(iter(self._pending)))
+            self._pending[state] = (verifier, now + STATE_TTL_SECONDS, self._epoch)
         query = urlencode({
             "client_id": self._config.client_id,
             "redirect_uri": self._config.redirect_uri,
             "response_type": "code",
             "scope": DRIVE_FILE_SCOPE,
-            "access_type": "online",
+            "access_type": "offline",
             "prompt": "select_account",
             "state": state,
             "code_challenge": challenge,
@@ -111,10 +119,9 @@ class DriveOAuthSession:
         if not state or len(state) > 256:
             raise DriveOAuthError("Invalid OAuth state")
         with self._lock:
-            pending = self._pending
-            if pending is None or not hmac.compare_digest(state, pending[0]) or pending[2] < time.time():
+            pending = self._pending.pop(state, None)
+            if pending is None or pending[1] < time.time():
                 raise DriveOAuthError("OAuth state expired or mismatched")
-            self._pending = None
         if error:
             raise DriveOAuthError("Google authorization was cancelled or denied")
         if not code or len(code) > 4096:
@@ -128,7 +135,7 @@ class DriveOAuthSession:
                     "client_secret": self._config.client_secret,
                     "redirect_uri": self._config.redirect_uri,
                     "grant_type": "authorization_code",
-                    "code_verifier": pending[1],
+                    "code_verifier": pending[0],
                 },
                 timeout=10,
             )
@@ -142,6 +149,7 @@ class DriveOAuthSession:
         token_type = payload.get("token_type")
         scopes = payload.get("scope")
         expires_in = payload.get("expires_in")
+        refresh_token = payload.get("refresh_token")
         if (
             not isinstance(token, str)
             or not token
@@ -150,20 +158,23 @@ class DriveOAuthSession:
             or set(scopes.split()) != {DRIVE_FILE_SCOPE}
             or not isinstance(expires_in, int)
             or not 60 <= expires_in <= 86400
+            or (refresh_token is not None and (not isinstance(refresh_token, str) or not refresh_token))
         ):
             raise DriveOAuthError("Google token response did not grant the exact Drive file scope")
         with self._lock:
-            if self._epoch != pending[3]:
+            if self._epoch != pending[2]:
                 raise DriveOAuthError("OAuth session changed during token exchange")
             self._token = token
+            self._refresh_token = refresh_token
             self._expires_at = time.time() + expires_in
             self._connection_id = secrets.token_urlsafe(18)
 
     def disconnect(self) -> None:
         with self._lock:
             self._epoch += 1
-            self._pending = None
+            self._pending.clear()
             self._token = None
+            self._refresh_token = None
             self._expires_at = 0.0
             self._connection_id = None
 
