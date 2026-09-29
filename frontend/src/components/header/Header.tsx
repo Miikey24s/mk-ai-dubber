@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CatalogPanel } from '@/components/header/CatalogPanel';
 import { ConnectorFlowPanel } from '@/components/common/ConnectorFlowPanel';
+import { isFinalJobReady } from '@/lib/utils';
 
 export const Header: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
@@ -183,8 +184,8 @@ export const Header: React.FC = () => {
             <span className="hidden sm:inline">{t('creator.new_job')}</span>
           </button>
 
-          {/* Download Dubbed Video (shown when job completed or output available) */}
-          {activeJob && (activeJob.status === 'completed' || activeJob.result?.output) && (
+          {/* Final download is available only after the job lifecycle completes. */}
+          {isFinalJobReady(activeJob) && (
             <a
               href={`/api/jobs/${activeJob.id}/download`}
               download
