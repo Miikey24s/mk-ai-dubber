@@ -69,12 +69,11 @@ export const VideoPlayer: React.FC = () => {
 
   let finalVideoSrc = null;
   if (activeJob && activeJob.status === 'completed') {
-    if (activeJob.result?.output) {
-      const filename = activeJob.result.output.split('/').pop() || 'output.mp4';
-      finalVideoSrc = `/work/${activeJob.id}/${filename}`;
-    } else {
-      finalVideoSrc = `/work/${activeJob.id}/output.mp4`;
-    }
+    // Persisted result.output may be an absolute path outside the job
+    // directory (Job12 stores the final copy in work/outputs).  Resolve media
+    // through the guarded download endpoint instead of exposing filesystem
+    // paths or constructing a URL that cannot exist under /work/{jobId}.
+    finalVideoSrc = `/api/jobs/${encodeURIComponent(activeJob.id)}/download`;
   }
   const videoSrc = selectedPreview?.play_url || finalVideoSrc;
   const sourceKind = selectedPreview ? 'preview' : finalVideoSrc ? 'final' : 'none';

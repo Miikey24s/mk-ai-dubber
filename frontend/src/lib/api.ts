@@ -1,6 +1,11 @@
 import { CatalogAvailability, CatalogResponse, CatalogStatusResponse, JobState, PreviewArtifact, Segment, SystemStatus } from '@/types';
 
 const BASE_URL = '';
+// A completed long-form job can return a multi-megabyte normalized review
+// payload.  Two seconds is shorter than the local JSON serialization and
+// browser parse time for real jobs (for example Job12), so keep this request
+// timeout separate from the lightweight jobs/health polling budget.
+const JOB_SEGMENTS_TIMEOUT_MS = 15_000;
 
 type CatalogCacheEntry = { etag: string; data: CatalogResponse };
 const catalogCache = new Map<string, CatalogCacheEntry>();
@@ -65,7 +70,9 @@ export async function fetchSystemStatus(): Promise<SystemStatus> {
 }
 
 export async function fetchJobSegments(jobId: string): Promise<Segment[]> {
-  const res = await fetch(`${BASE_URL}/api/jobs/${jobId}/segments`, { signal: AbortSignal.timeout(2000) });
+  const res = await fetch(`${BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/segments`, {
+    signal: AbortSignal.timeout(JOB_SEGMENTS_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error(`HTTP error ${res.status}`);
   const data = await res.json();
   const rawList = Array.isArray(data) ? data : data.segments || [];
