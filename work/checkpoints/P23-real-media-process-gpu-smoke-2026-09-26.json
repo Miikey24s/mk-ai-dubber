@@ -1,0 +1,138 @@
+{
+  "claims_excluded": [
+    "6h ASR/separation/TTS throughput",
+    "whole-pipeline CUDA VRAM/OOM acceptance",
+    "live WebGPT pressure/restart acceptance",
+    "whole-job end-to-end speedup"
+  ],
+  "fixture": {
+    "files": {
+      "background": {
+        "bytes": 23547,
+        "sha256": "af9805c8324c2cf82be647896112475be42e08a431764fa956005088f4ca289c"
+      },
+      "video": {
+        "bytes": 1633,
+        "sha256": "dc3d8107d599898a526ef4e5f0a439fb911368f52a5c0477adc82311265a2972"
+      },
+      "voice": {
+        "bytes": 23917,
+        "sha256": "8abeb26feaf30a1e58f0371786a093404793e98068da0600a9e2cedc2303d5c7"
+      }
+    },
+    "requested_duration_seconds": 5.4,
+    "source_duration_seconds": 5.0,
+    "source_probe": {
+      "format": {
+        "duration": "5.000000",
+        "size": "1633"
+      },
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "duration": "5.000000",
+          "index": 0
+        }
+      ]
+    }
+  },
+  "gates": {
+    "bounded_process_tree_rss": true,
+    "bounded_workspace_growth": true,
+    "final_media_process_gpu_pressure": true,
+    "final_media_valid": true,
+    "p23_real_media_final_assembly": false
+  },
+  "mux": {
+    "gpu_after": {
+      "total_mib": 8192.0,
+      "used_mib": 1204.0
+    },
+    "gpu_before": {
+      "total_mib": 8192.0,
+      "used_mib": 1212.0
+    },
+    "output_bytes": 67139,
+    "output_sha256": "61076fc9ff9df873eb9cedc46f5dd9edd7e0cc07fa5e8dea309786136a422211",
+    "peak_process_tree_rss_bytes": 85237760,
+    "peak_system_gpu_used_mib": 1212.0,
+    "peak_workspace_bytes": 116236,
+    "process_gpu_attribution": {
+      "available": true,
+      "error": null,
+      "observed_process_tree_pids": [
+        18684,
+        20036,
+        29976
+      ],
+      "peak_dedicated_gpu_bytes": 0,
+      "peak_dedicated_gpu_mib": 0.0,
+      "source": "windows-pdh-dedicated-usage"
+    },
+    "stale_output_was_overwritten": true,
+    "system_gpu_delta_mib": 0.0,
+    "wall_seconds": 1.1677579999959562,
+    "workspace_baseline_bytes": 49120,
+    "workspace_growth_bytes": 67116
+  },
+  "output": {
+    "duration_delta_seconds": 0.0,
+    "duration_seconds": 5.0,
+    "mix_metrics": {
+      "clipping_risk": false,
+      "integrated_lufs": -14.02,
+      "loudness_delta_lu": -0.019999999999999574,
+      "loudness_range_lu": 0.1,
+      "passes_loudness": true,
+      "passes_true_peak": true,
+      "target_lufs": -14.0,
+      "target_offset_db": -0.01,
+      "target_true_peak_db": -1.5,
+      "threshold_lufs": -24.02,
+      "true_peak_db": -7.99
+    },
+    "probe": {
+      "format": {
+        "duration": "5.000000",
+        "size": "67139"
+      },
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "duration": "5.000000",
+          "index": 0
+        },
+        {
+          "codec_name": "aac",
+          "codec_type": "audio",
+          "duration": "4.988000",
+          "index": 1
+        }
+      ]
+    },
+    "stream_codecs": {
+      "audio": [
+        "aac"
+      ],
+      "video": [
+        "h264"
+      ]
+    }
+  },
+  "representative_superlong": false,
+  "schema_version": 2,
+  "scope": "p23-real-media-final-assembly",
+  "status": "failed",
+  "thresholds": {
+    "duration_delta_seconds": 2.0,
+    "max_process_tree_dedicated_gpu_mib": 512.0,
+    "max_process_tree_rss_mib": 1024.0,
+    "max_workspace_growth_mib": 1536.0
+  }
+}

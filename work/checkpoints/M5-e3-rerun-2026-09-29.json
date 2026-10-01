@@ -1,0 +1,139 @@
+{
+  "status": "PREP_ONLY",
+  "benchmark": "m5-e3-local-metadata-v1",
+  "contract": "tests/fixtures/m5_catalog_contract.json",
+  "protocol": {
+    "repeats": 11,
+    "cold": "new CatalogStore and SQLite connection per sample; OS page cache is not flushed",
+    "warm": "same CatalogStore with one discarded warm-up, then repeated reads",
+    "storage": "temporary SQLite files deleted after the run",
+    "media": "no media files opened or hashed",
+    "external_io": "provider/OAuth/Drive/network/job12 not invoked"
+  },
+  "dataset": {
+    "item_count": 1000,
+    "segment_count": 100000,
+    "catalog_digest": "86d056d66253cf240b3bbfad55a410590e1290cfc5e099cd93caaa70eb5ff815",
+    "search_case_count": 3
+  },
+  "integrity": {
+    "fixture_shape": true,
+    "search_expectations": true,
+    "catalog_rebuild_count": 1000,
+    "metadata_backup_round_trip": true,
+    "metadata_only_backup": true,
+    "portable_metadata_paths": true,
+    "temporary_storage_removed": true
+  },
+  "measurements": {
+    "search_cases": [
+      {
+        "id": "casefold-title-exact",
+        "query": "FIXTURE VIDEO 0007",
+        "filter": {},
+        "expected_count": 1,
+        "cold": {
+          "samples": 11,
+          "min_ms": 3.1581,
+          "p50_ms": 3.618,
+          "p95_ms": 5.428800000000001,
+          "max_ms": 6.5186
+        },
+        "warm": {
+          "samples": 11,
+          "min_ms": 3.0716,
+          "p50_ms": 3.9151,
+          "p95_ms": 7.57105,
+          "max_ms": 8.8545
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      },
+      {
+        "id": "availability-filter-missing",
+        "query": "",
+        "filter": {
+          "availability": "missing"
+        },
+        "expected_count": 200,
+        "cold": {
+          "samples": 11,
+          "min_ms": 11.9196,
+          "p50_ms": 13.2965,
+          "p95_ms": 19.0216,
+          "max_ms": 19.2656
+        },
+        "warm": {
+          "samples": 11,
+          "min_ms": 11.6066,
+          "p50_ms": 15.4148,
+          "p95_ms": 39.7772,
+          "max_ms": 44.6726
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      },
+      {
+        "id": "prefix-title-all",
+        "query": "fixture video 0",
+        "filter": {},
+        "expected_count": 1000,
+        "cold": {
+          "samples": 11,
+          "min_ms": 49.7827,
+          "p50_ms": 55.0242,
+          "p95_ms": 91.86189999999999,
+          "max_ms": 92.1759
+        },
+        "warm": {
+          "samples": 11,
+          "min_ms": 46.3566,
+          "p50_ms": 55.9704,
+          "p95_ms": 81.10300000000001,
+          "max_ms": 92.5459
+        },
+        "target_p95_ms": 500,
+        "target_decision": "NOT_A_PRODUCT_CLAIM"
+      }
+    ],
+    "initial_metadata_view": {
+      "item_id": "job-0007",
+      "cold": {
+        "samples": 11,
+        "min_ms": 2.5903,
+        "p50_ms": 3.0792,
+        "p95_ms": 5.1147,
+        "max_ms": 5.7302
+      },
+      "warm": {
+        "samples": 11,
+        "min_ms": 2.6919,
+        "p50_ms": 3.5054,
+        "p95_ms": 10.338899999999999,
+        "max_ms": 12.6642
+      },
+      "target_p95_ms": 2000,
+      "target_decision": "NOT_A_PRODUCT_CLAIM"
+    }
+  },
+  "promotion": {
+    "decision": "NO_CLAIM",
+    "reason": "PREP_ONLY observations; no production performance or M5 acceptance is inferred",
+    "targets_ms": {
+      "list_search_p95": 500,
+      "initial_metadata_view_p95": 2000
+    }
+  },
+  "environment": {
+    "python": "3.12.10",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "sqlite": "3.49.1"
+  },
+  "claims_excluded": [
+    "production M5 acceptance or target attainment",
+    "OS page-cache-cold behavior or multi-process contention",
+    "UI/DOM rendering, thumbnail concurrency, or browser memory behavior",
+    "real licensed media availability, relink, or playback",
+    "provider, OAuth, Drive/cloud export, network, and job12 execution"
+  ]
+}
