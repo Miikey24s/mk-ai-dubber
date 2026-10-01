@@ -1,6 +1,6 @@
 # VI Dubber product UI contract
 
-Status: **M1 contract freeze v1 — project-local, no shared runtime release**.
+Status: **M1 contract freeze v1 — project-local, no shared runtime release**. Current implementation status and open acceptance gates live in [PLAN](../PLAN.md#ui); this file retains the identity/readiness contract.
 
 This contract defines the state and identity that Library/Watch/Review work must preserve. It does not replace pipeline manifests, backend job state, or `PLAN.md` acceptance gates.
 
@@ -16,7 +16,7 @@ The long-lived product model separates media identity from a processing attempt:
 | Timeline | source-media seconds; segment/chunk timestamps and watch position use the same timebase |
 | Artifact lineage | revision/fingerprint ties preview/final/subtitle/transcript back to the rendition that produced it |
 
-The current UI may continue to use `job.id` internally until M5 introduces the catalog, but new Library/Watch state must not make that implementation shortcut the durable product contract.
+Existing UI paths may use `job.id` internally, but it remains a processing-attempt identity. The implemented local catalog does not make that shortcut the durable media/rendition contract.
 
 ## Preview/final availability
 
@@ -30,7 +30,7 @@ Preview state is semantic, not just a badge:
 | `blocked` | blocked | surface QA/block reason and next action |
 | missing/unknown | blocked | do not invent duration, file path, or readiness |
 
-An edit that affects a segment invalidates the owning chunk/rendition lineage. A stale preview must never be played as if it were current. Final output is unavailable/stale until the required dependent assembly is valid again.
+An edit that affects a segment invalidates the owning chunk/rendition lineage. A stale preview must never be played as if it were current. Final output is unavailable/stale until the required dependent assembly is valid again. A completed processing artifact or Final badge is not a QA-pass claim; Job12 currently demonstrates this distinction (see [PLAN](../PLAN.md#job12)).
 
 ## Representative navigation contract
 
@@ -82,4 +82,4 @@ Capture/QA widths: desktop `1440`, compact desktop/tablet `768`, and narrow `390
 6. keyboard/focus behavior remains usable at the representative widths;
 7. export/download labels only advertise artifacts that exist for the selected revision.
 
-M5 Library persistence, bookmarks/history schema, backup/restore, and search performance remain future implementation work gated by the VI baseline requirements in the workspace plan.
+M5 local catalog/view/recovery and offline benchmark implementation now exist. Their receipts remain PREP_ONLY and do not close product acceptance; remaining Library persistence, bookmarks/history, real-media recovery and search-performance gates follow [PLAN](../PLAN.md#current-queue) and the workspace scope. Do not replay the old M1 future-work wording as a new implementation order.

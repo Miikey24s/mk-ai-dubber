@@ -1,0 +1,2 @@
+# Byte-identical historical snapshots retain original whitespace and CRLF.
+*.original -text -diff

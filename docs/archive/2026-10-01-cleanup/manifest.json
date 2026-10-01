@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-01",
+  "kind": "documentation-compaction-not-product-acceptance",
+  "files": [
+    {
+      "original_path": "PLAN.md",
+      "archive_file": "PLAN.md.original",
+      "base_commit": "3a0a6789a71a07c0849fdd156f22ecdd4ab8f2b2",
+      "sha256": "9c80c82eb74291704471823907caaf9df7cf7625f8585653b19a0ea429ecf625",
+      "bytes": 185562,
+      "lines": 3522
+    },
+    {
+      "original_path": "frontend/UI-FIX-PLAN.md",
+      "archive_file": "frontend__UI-FIX-PLAN.md.original",
+      "base_commit": "3a0a6789a71a07c0849fdd156f22ecdd4ab8f2b2",
+      "sha256": "7f94483039a6c5f95fa007ba25a0efcd998a22f77aaab67ff5d2429e42d279be",
+      "bytes": 40421,
+      "lines": 1020
+    },
+    {
+      "original_path": "README.md",
+      "archive_file": "README.md.original",
+      "base_commit": "3a0a6789a71a07c0849fdd156f22ecdd4ab8f2b2",
+      "sha256": "aa6d59939117d68e15770ffa1ccd9a473a770df80ed17036677dc595f204b4e9",
+      "bytes": 10154,
+      "lines": 128
+    },
+    {
+      "original_path": "frontend/PRODUCT-UI-CONTRACT.md",
+      "archive_file": "frontend__PRODUCT-UI-CONTRACT.md.original",
+      "base_commit": "3a0a6789a71a07c0849fdd156f22ecdd4ab8f2b2",
+      "sha256": "d22ce930b3c60a16530b1ebb159adc47b574f4be26a973e5080ac3d6f887366e",
+      "bytes": 4468,
+      "lines": 85
+    }
+  ]
+}

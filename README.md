@@ -2,6 +2,8 @@
 
 Pipeline lồng tiếng video English -> Vietnamese, có web dashboard cục bộ và nhận video từ máy hoặc YouTube.
 
+Đọc [PLAN hiện tại](PLAN.md) để biết phạm vi, trạng thái và việc còn mở; [UI contract](frontend/PRODUCT-UI-CONTRACT.md) giữ identity/readiness; [UI history](frontend/UI-FIX-PLAN.md) chỉ đối chiếu hướng dẫn cũ. Bản gốc và checksum nằm trong [archive cleanup 01/10/2026](docs/archive/2026-10-01-cleanup/README.md). P23 chưa hoàn tất; Job12 đã xử lý xong nhưng QA chưa đạt, xem [trạng thái Job12](PLAN.md#job12).
+
 Backend dịch hiện tại được khóa vào **Dedicated Dubber-WebGPT** tại `http://127.0.0.1:17850/v1`. Runtime này dùng home/browser login/process riêng cho VI Dubber và không thay đổi global Codex/Cockpit route. Core mặc định là repo độc lập `D:\ANNAM\AI\vi-dubber-webgpt-core`, được tách từ Cockpit-custom v5.0.8 để giữ browser/session/provider-only semantics mà không kéo Cockpit UI vào đường dịch. VI Dubber không khởi động Cockpit UI, không gọi Cockpit sync và không đi qua route `54005`; repo cũ `D:\ANNAM\AI\codex-chatgpt-web-cockpit` vẫn là rollback fallback qua `VI_DUBBER_WEBGPT_CORE`. Model mặc định là `chatgpt-web/gpt-5.6-sol`, nhưng danh sách model được lấy trực tiếp từ live catalog của runtime riêng để tránh chạy một model đã biến mất hoặc bị đổi tên. Production translation dùng bounded concurrency `2`; global translation context vẫn tắt mặc định.
 
 Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ vẫn được giữ trong source để rollback/test và để job lịch sử còn đọc được provenance, nhưng không phải lựa chọn product UI hiện tại và không được dùng làm fallback tự động cho Dedicated Dubber-WebGPT.
@@ -12,8 +14,8 @@ Aurora tạm dừng theo quyết định hiện tại. Adapter local/hybrid cũ 
 - WhisperX large-v3: transcript + word timing.
 - pyannote community-1: tách người nói khi có Hugging Face token.
 - Dedicated Dubber-WebGPT: backend chất lượng cao qua runtime riêng (`127.0.0.1:17850`), mặc định `chatgpt-web/gpt-5.6-sol` và dùng direct Responses tool-free.
-- Qwen3-14B GGUF + llama.cpp: backend local và fallback.
-- VieNeu-TTS v3 Turbo FP32 ONNX: TTS tiếng Việt 48 kHz + instant voice cloning.
+- Qwen3-14B GGUF + llama.cpp: adapter local giữ cho rollback/test; không tự fallback từ product WebGPT.
+- VieNeu-TTS v3 Turbo: cấu hình hiện tại dùng PyTorch CUDA FP16 batch 4, tiếng Việt 48 kHz + instant voice cloning; CPU ONNX là fallback.
 - FFmpeg: khớp thời lượng, mix, loudness và mux video.
 - Re-ASR QA: nhận dạng lại track tiếng Việt rồi so với script đã render.
 - TypeSafe semantic QA (shadow): so meaning English -> Vietnamese sau dịch và kiểm tra lại các câu bị rút gọn; không chặn pipeline.
@@ -125,4 +127,4 @@ Mỗi tác vụ có thư mục riêng trong `work/`: stems, transcript English, 
 
 Video dài hơn ngưỡng `longform.single_chunk_threshold_seconds` dùng macro-chunk theo silence nhưng vẫn giữ timestamp toàn cục. ASR/TTS/QA/preview có manifest theo chunk để resume và invalidation cục bộ; translation vẫn chạy trên ngữ cảnh toàn video. Dashboard chỉ phát preview khi manifest và hash artifact còn hợp lệ, luôn gắn nhãn **PREVIEW**; sửa nội dung một segment sẽ làm stale riêng chunk chứa segment đó và khóa preview cũ cho tới khi render lại. Diarization hiện vẫn dùng đường full-file để tránh đổi speaker ID giữa các chunk.
 
-Lip-sync chưa nằm trong core: pipeline giữ nguyên pixel video và thay audio. Mục tiêu hiện tại là ưu tiên accuracy, translation, voice và timing; lip-sync có thể thêm sau như một post-process độc lập.
+Lip-sync đã bỏ khỏi active scope. Pipeline tập trung vào accuracy, translation, voice, timing và QA; video giữ nội dung hình gốc, chỉ transcode khi container/codec đầu ra cần tương thích.
